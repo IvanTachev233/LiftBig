@@ -35,3 +35,71 @@
 /* @import "@ionic/angular/css/palettes/dark.always.css"; */
 /* @import "@ionic/angular/css/palettes/dark.class.css"; */
 @import "@ionic/angular/css/palettes/dark.system.css";
+
+/* Global Typography Fixes */
+/* This ensures that raw HTML elements correctly switch to white on dark mode and black on light mode */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+span,
+div.flex-col > div.text-center {
+  color: var(--ion-text-color, inherit);
+}
+
+.text-muted {
+  color: var(--ion-color-medium, #92949c);
+}
+
+.font-mono {
+  font-family: monospace;
+}
+
+/* Global Ionic card dark-mode text fix */
+ion-card {
+  ion-card-title {
+    --color: var(--ion-text-color);
+    color: var(--ion-text-color);
+  }
+
+  ion-card-subtitle {
+    color: var(--ion-color-medium);
+  }
+
+  ion-card-content {
+    color: var(--ion-text-color);
+  }
+}
+
+/* Fix dark mode datetime picker and button */
+ion-datetime-button {
+  &::part(native) {
+    background: var(--bg-surface);
+    color: var(--ion-text-color);
+  }
+}
+
+ion-datetime {
+  --background: var(--bg-surface);
+  --title-color: var(--ion-text-color);
+  color: var(--ion-text-color);
+}
+
+/* Fix dark mode text in overlays (alerts, action sheets, popovers) */
+ion-alert {
+  --ion-text-color: var(--text-main);
+  --ion-background-color: var(--bg-surface);
+
+  .alert-radio-label,
+  .alert-checkbox-label {
+    color: var(--ion-text-color) !important;
+  }
+
+  .alert-title,
+  .alert-message {
+    color: var(--ion-text-color) !important;
+  }
+}
