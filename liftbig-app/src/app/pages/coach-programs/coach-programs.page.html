@@ -1,0 +1,47 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/coach/dashboard"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Client Programs</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="ion-padding">
+  <h2 class="text-xl font-bold mb-4 ion-color-dark">Programs</h2>
+
+  <div *ngIf="!(programs$ | async)" class="flex justify-center mt-10">
+    <ion-spinner></ion-spinner>
+  </div>
+
+  <ion-list lines="none" class="bg-transparent">
+    <div *ngFor="let program of programs$ | async" class="program-item">
+      <app-program-card
+        [program]="program"
+        [routerLink]="['/coach/program-editor', program.id]"
+      ></app-program-card>
+      <ion-button
+        color="danger"
+        fill="clear"
+        size="small"
+        class="delete-btn"
+        (click)="deleteProgram(program, $event)"
+      >
+        <ion-icon name="trash-outline"></ion-icon>
+      </ion-button>
+    </div>
+  </ion-list>
+
+  <div
+    *ngIf="(programs$ | async)?.length === 0"
+    class="text-center text-muted mt-10"
+  >
+    <p>No programs created yet for this client.</p>
+  </div>
+
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed">
+    <ion-fab-button [routerLink]="['/coach/program-editor']" [queryParams]="{ clientId: clientId }">
+      <ion-icon name="add"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+</ion-content>

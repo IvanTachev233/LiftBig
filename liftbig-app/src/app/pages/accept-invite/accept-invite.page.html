@@ -1,0 +1,27 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-title>Accept Invite</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="ion-padding ion-text-center">
+  <div class="invite-status">
+    <div *ngIf="loading" class="mt-20">
+      <ion-spinner></ion-spinner>
+      <p>Accepting invite...</p>
+    </div>
+
+    <div *ngIf="success" class="mt-20">
+      <ion-icon name="checkmark-circle" color="success" class="status-icon"></ion-icon>
+      <h2>Invite Accepted!</h2>
+      <p>You are now linked to your coach. Redirecting to dashboard...</p>
+    </div>
+
+    <div *ngIf="errorMessage" class="mt-20">
+      <ion-icon name="close-circle" color="danger" class="status-icon"></ion-icon>
+      <h2>Error</h2>
+      <p>{{ errorMessage }}</p>
+      <ion-button routerLink="/dashboard" class="mt-4">Go to Dashboard</ion-button>
+    </div>
+  </div>
+</ion-content>

@@ -1,0 +1,169 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+      <ion-back-button defaultHref="/dashboard"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Workout Logger</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="ion-padding">
+  <ng-container *ngIf="workoutSubject | async as workout; else loading">
+    <ion-item lines="none" class="workout-name-item">
+      <ion-input
+        [(ngModel)]="workoutName"
+        (ionBlur)="updateWorkoutName()"
+        class="workout-name-input"
+        placeholder="Workout Name"
+      ></ion-input>
+    </ion-item>
+    <ion-item lines="none" class="workout-date-item">
+      <ion-icon name="calendar-outline" slot="start" color="medium"></ion-icon>
+      <ion-datetime-button datetime="workoutDate"></ion-datetime-button>
+      <ion-modal [keepContentsMounted]="true">
+        <ng-template>
+          <ion-datetime
+            id="workoutDate"
+            presentation="date"
+            [value]="workout.date"
+            (ionChange)="updateWorkoutDate($event)"
+          ></ion-datetime>
+        </ng-template>
+      </ion-modal>
+    </ion-item>
+
+    <!-- Exercise Cards -->
+    <ion-card
+      *ngFor="let group of groupedSets; let gi = index"
+      class="exercise-card"
+    >
+      <ion-card-header class="exercise-card-header">
+        <div class="exercise-header-row">
+          <ion-card-title class="exercise-title">{{
+            group.exerciseName
+          }}</ion-card-title>
+          <ion-button
+            color="danger"
+            fill="clear"
+            size="small"
+            (click)="removeExercise(group.exerciseId)"
+          >
+            <ion-icon name="trash-outline"></ion-icon>
+          </ion-button>
+        </div>
+      </ion-card-header>
+
+      <!-- Existing sets -->
+      <div *ngFor="let set of group.sets; let si = index" class="set-row">
+        <span class="set-order">#{{ si + 1 }}</span>
+        <span class="set-info">{{ set.weight }} kg</span>
+        <span class="set-info">x {{ set.reps }}</span>
+        <div class="set-actions">
+          <ion-button
+            [color]="set.isCompleted ? 'success' : 'medium'"
+            (click)="toggleSetCompletion(set)"
+            size="small"
+          >
+            <ion-icon name="checkmark"></ion-icon>
+          </ion-button>
+          <ion-button
+            color="danger"
+            fill="clear"
+            size="small"
+            (click)="removeSet(set)"
+          >
+            <ion-icon name="close-outline"></ion-icon>
+          </ion-button>
+        </div>
+      </div>
+
+      <!-- Add set row -->
+      <div class="add-set-row">
+        <ion-input
+          type="number"
+          [(ngModel)]="group.newWeight"
+          placeholder="kg"
+          class="set-input"
+        ></ion-input>
+        <ion-input
+          type="number"
+          [(ngModel)]="group.newReps"
+          placeholder="reps"
+          class="set-input"
+        ></ion-input>
+        <ion-button
+          size="small"
+          (click)="addSetToExercise(group)"
+          [disabled]="!group.newWeight || !group.newReps"
+        >
+          <ion-icon name="add"></ion-icon>
+        </ion-button>
+      </div>
+    </ion-card>
+
+    <!-- Empty state -->
+    <div
+      *ngIf="groupedSets.length === 0"
+      class="empty-sets-message"
+    >
+      <p>No exercises added yet.</p>
+    </div>
+
+    <!-- Add Exercise -->
+    <ion-card class="add-exercise-card">
+      <ion-card-content>
+        <ion-item lines="none">
+          <ion-select
+            [(ngModel)]="selectedExerciseId"
+            placeholder="Select Exercise"
+            interface="alert"
+          >
+            <ion-select-option
+              *ngFor="let ex of exercises$ | async"
+              [value]="ex.id"
+            >
+              {{ ex.name }}
+            </ion-select-option>
+          </ion-select>
+        </ion-item>
+        <ion-button
+          expand="block"
+          (click)="addExercise()"
+          [disabled]="!selectedExerciseId"
+        >
+          <ion-icon name="barbell-outline" slot="start"></ion-icon>
+          Add Exercise
+        </ion-button>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Complete Workout -->
+    <ion-button
+      *ngIf="workout.status !== 'COMPLETED'"
+      expand="block"
+      color="success"
+      class="complete-btn"
+      (click)="completeWorkout()"
+    >
+      <ion-icon name="checkmark-done-outline" slot="start"></ion-icon>
+      Complete Workout
+    </ion-button>
+
+    <ion-button
+      *ngIf="workout.status === 'COMPLETED'"
+      expand="block"
+      color="medium"
+      fill="outline"
+      class="complete-btn"
+      disabled
+    >
+      <ion-icon name="checkmark-done-outline" slot="start"></ion-icon>
+      Workout Completed
+    </ion-button>
+  </ng-container>
+
+  <ng-template #loading>
+    <ion-spinner class="block mx-auto mt-10"></ion-spinner>
+  </ng-template>
+</ion-content>

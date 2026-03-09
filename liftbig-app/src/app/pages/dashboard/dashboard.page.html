@@ -1,0 +1,88 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title> Dashboard </ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="ion-padding">
+  <ion-header collapse="condense">
+    <ion-toolbar>
+      <ion-title size="large">Dashboard</ion-title>
+    </ion-toolbar>
+  </ion-header>
+
+  <h2 class="text-xl font-bold mb-4 ion-color-dark">Upcoming Workouts</h2>
+
+  <!-- Loading State (Simple) -->
+  <div *ngIf="!(upcomingWorkouts$ | async)" class="flex justify-center mt-10">
+    <ion-spinner></ion-spinner>
+  </div>
+
+  <ion-list lines="none" class="bg-transparent">
+    <app-workout-card
+      *ngFor="let workout of upcomingWorkouts$ | async"
+      [workout]="workout"
+    ></app-workout-card>
+  </ion-list>
+
+  <div
+    *ngIf="(upcomingWorkouts$ | async)?.length === 0"
+    class="text-center text-muted mt-10"
+  >
+    <p>No upcoming workouts planned.</p>
+  </div>
+
+  <!-- Upcoming Programs Section -->
+  <h2 class="text-xl font-bold mb-4 mt-8 ion-color-dark">Upcoming Programs</h2>
+
+  <div *ngIf="!(upcomingPrograms$ | async)" class="flex justify-center mt-4">
+    <ion-spinner></ion-spinner>
+  </div>
+
+  <ion-list lines="none" class="bg-transparent">
+    <app-program-card
+      *ngFor="let program of upcomingPrograms$ | async"
+      [program]="program"
+      [routerLink]="['/program-logger', program.id]"
+    ></app-program-card>
+  </ion-list>
+
+  <div
+    *ngIf="(upcomingPrograms$ | async)?.length === 0"
+    class="text-center text-muted mt-4"
+  >
+    <p>No upcoming programs assigned.</p>
+  </div>
+
+  <!-- Accept Invite Section -->
+  <ion-card class="invite-card mt-8">
+    <ion-card-header>
+      <ion-card-title class="card-title">Join a Coach</ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+      <ion-item lines="none">
+        <ion-input
+          [(ngModel)]="inviteToken"
+          placeholder="Paste invite code"
+        ></ion-input>
+      </ion-item>
+      <ion-button
+        expand="block"
+        (click)="acceptInvite()"
+        [disabled]="!inviteToken"
+      >
+        <ion-icon name="link-outline" slot="start"></ion-icon>
+        Accept Invite
+      </ion-button>
+    </ion-card-content>
+  </ion-card>
+
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed">
+    <ion-fab-button routerLink="/workout-logger">
+      <ion-icon name="add"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+</ion-content>

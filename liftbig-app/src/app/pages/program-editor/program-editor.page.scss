@@ -1,0 +1,74 @@
+.program-name-input {
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.exercise-card {
+  margin-bottom: 8px;
+}
+
+.exercise-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.exercise-title {
+  font-size: 1rem;
+}
+
+.exercise-actions {
+  display: flex;
+}
+
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--ion-color-light);
+}
+
+.set-order {
+  min-width: 28px;
+  font-weight: bold;
+  color: var(--ion-color-medium);
+  font-size: 0.85rem;
+}
+
+.set-input {
+  flex: 1;
+  --padding-start: 4px;
+  --padding-end: 4px;
+  font-size: 0.9rem;
+}
+
+.notes-input {
+  flex: 2;
+}
+
+.column-headers {
+  border-bottom: 2px solid var(--ion-color-medium);
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+}
+
+.col-header {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+}
+
+.remove-col {
+  min-width: 36px;
+}
+
+.add-set-btn {
+  margin-top: 8px;
+}
+
+.save-btn {
+  margin-top: 16px;
+  margin-bottom: 32px;
+}

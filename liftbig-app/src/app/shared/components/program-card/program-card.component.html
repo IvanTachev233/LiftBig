@@ -1,0 +1,22 @@
+<ion-card class="program-card" [routerLink]="routerLink">
+  <ion-card-header>
+    <div class="card-header-row">
+      <ion-card-title class="card-title">{{ program.name }}</ion-card-title>
+      <ion-badge color="primary">{{ uniqueExerciseCount }} exercises</ion-badge>
+    </div>
+    <ion-card-subtitle class="card-subtitle">{{
+      program.scheduledDate | date : 'mediumDate'
+    }}</ion-card-subtitle>
+  </ion-card-header>
+  <ion-card-content>
+    <div *ngFor="let ex of exerciseSummaries.slice(0, 3)" class="exercise-preview">
+      <span>{{ ex.name }}</span>
+      <span class="font-mono">{{ ex.setCount }}x{{ ex.reps }}
+        <span *ngIf="ex.weight">@ {{ ex.weight }}kg</span>
+      </span>
+    </div>
+    <div *ngIf="uniqueExerciseCount > 3" class="more-exercises">
+      +{{ uniqueExerciseCount - 3 }} more
+    </div>
+  </ion-card-content>
+</ion-card>

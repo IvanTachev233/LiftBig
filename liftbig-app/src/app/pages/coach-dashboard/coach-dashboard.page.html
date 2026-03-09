@@ -1,0 +1,84 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Coach Dashboard</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="ion-padding">
+  <ion-header collapse="condense">
+    <ion-toolbar>
+      <ion-title size="large">Coach Dashboard</ion-title>
+    </ion-toolbar>
+  </ion-header>
+
+  <!-- Clients Section -->
+  <h2 class="text-xl font-bold mb-4 ion-color-dark">My Clients</h2>
+
+  <div *ngIf="!(clients$ | async)" class="flex justify-center mt-10">
+    <ion-spinner></ion-spinner>
+  </div>
+
+  <ion-list lines="none" class="bg-transparent">
+    <ion-card
+      *ngFor="let client of clients$ | async"
+      class="client-card"
+      [routerLink]="['/coach/programs', client.id]"
+    >
+      <ion-card-header>
+        <div class="client-header-row">
+          <div>
+            <ion-card-title class="client-title">{{ client.email }}</ion-card-title>
+          </div>
+          <ion-button
+            color="danger"
+            fill="clear"
+            size="small"
+            (click)="removeClient(client.id); $event.stopPropagation()"
+          >
+            <ion-icon name="person-remove-outline"></ion-icon>
+          </ion-button>
+        </div>
+      </ion-card-header>
+      <ion-card-content>
+        <ion-icon name="chevron-forward-outline" color="medium"></ion-icon>
+        View Programs
+      </ion-card-content>
+    </ion-card>
+  </ion-list>
+
+  <div
+    *ngIf="(clients$ | async)?.length === 0"
+    class="text-center text-muted mt-10"
+  >
+    <p>No clients yet. Invite your first client!</p>
+  </div>
+
+  <!-- Pending Invites Section -->
+  <h2
+    class="text-xl font-bold mb-4 mt-8 ion-color-dark"
+    *ngIf="(pendingInvites$ | async)?.length"
+  >
+    Pending Invites
+  </h2>
+
+  <ion-list lines="none" class="bg-transparent">
+    <ion-item *ngFor="let invite of pendingInvites$ | async" (click)="showInviteToken(invite.token)" button>
+      <ion-icon name="mail-outline" slot="start" color="warning"></ion-icon>
+      <ion-label>
+        <h3>{{ invite.clientEmail }}</h3>
+        <p>Expires {{ invite.expiresAt | date : 'mediumDate' }}</p>
+        <p class="invite-token-hint">Tap to view invite code</p>
+      </ion-label>
+      <ion-badge slot="end" color="warning">Pending</ion-badge>
+    </ion-item>
+  </ion-list>
+
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed">
+    <ion-fab-button (click)="inviteClient()">
+      <ion-icon name="person-add"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+</ion-content>

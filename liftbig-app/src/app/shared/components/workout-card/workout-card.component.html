@@ -1,0 +1,23 @@
+<ion-card
+  class="workout-card"
+  [routerLink]="['/workout-logger']"
+  [queryParams]="{ id: workout.id }"
+>
+  <ion-card-header>
+    <div class="card-header-row">
+      <ion-card-title class="card-title">{{ workout.name }}</ion-card-title>
+      <ion-badge [color]="getBadgeColor(workout.status)">{{
+        workout.status
+      }}</ion-badge>
+    </div>
+    <ion-card-subtitle class="card-subtitle">{{
+      workout.date | date : 'mediumDate'
+    }}</ion-card-subtitle>
+  </ion-card-header>
+  <ion-card-content>
+    <div class="card-volume-row">
+      <span>Volume</span>
+      <span class="font-mono">{{ workout.totalWeightLifted }} kg</span>
+    </div>
+  </ion-card-content>
+</ion-card>

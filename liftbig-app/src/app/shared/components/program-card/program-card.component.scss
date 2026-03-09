@@ -1,0 +1,27 @@
+.program-card {
+  margin-bottom: 8px;
+}
+
+.card-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-title {
+  font-size: 1.1rem;
+}
+
+.exercise-preview {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 0.9rem;
+}
+
+.more-exercises {
+  text-align: center;
+  color: var(--ion-color-medium);
+  font-size: 0.85rem;
+  padding-top: 4px;
+}

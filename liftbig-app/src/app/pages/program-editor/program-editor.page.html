@@ -1,0 +1,157 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button [defaultHref]="'/coach/programs/' + clientId"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ isEditMode ? 'Edit Program' : 'New Program' }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="ion-padding">
+  <!-- Program Name -->
+  <ion-item lines="none">
+    <ion-input
+      [(ngModel)]="programName"
+      placeholder="Program Name"
+      class="program-name-input"
+    ></ion-input>
+  </ion-item>
+
+  <!-- Scheduled Date -->
+  <ion-item lines="none">
+    <ion-icon name="calendar-outline" slot="start" color="medium"></ion-icon>
+    <ion-datetime-button datetime="programDate"></ion-datetime-button>
+    <ion-modal [keepContentsMounted]="true">
+      <ng-template>
+        <ion-datetime
+          id="programDate"
+          presentation="date"
+          [(ngModel)]="scheduledDate"
+        ></ion-datetime>
+      </ng-template>
+    </ion-modal>
+  </ion-item>
+
+  <!-- Exercise List -->
+  <h2 class="text-xl font-bold mb-4 mt-4 ion-color-dark">Exercises</h2>
+
+  <ion-card
+    *ngFor="let group of exerciseGroups; let gi = index"
+    class="exercise-card"
+  >
+    <ion-card-header class="exercise-card-header">
+      <div class="exercise-header-row">
+        <ion-card-title class="exercise-title">{{ group.exerciseName }}</ion-card-title>
+        <div class="exercise-actions">
+          <ion-button fill="clear" size="small" (click)="moveUp(gi)" [disabled]="gi === 0">
+            <ion-icon name="arrow-up-outline"></ion-icon>
+          </ion-button>
+          <ion-button fill="clear" size="small" (click)="moveDown(gi)" [disabled]="gi === exerciseGroups.length - 1">
+            <ion-icon name="arrow-down-outline"></ion-icon>
+          </ion-button>
+          <ion-button fill="clear" size="small" color="danger" (click)="removeExercise(gi)">
+            <ion-icon name="trash-outline"></ion-icon>
+          </ion-button>
+        </div>
+      </div>
+    </ion-card-header>
+    <ion-card-content>
+      <!-- Column headers -->
+      <div class="set-row column-headers">
+        <span class="set-order">Set</span>
+        <span class="set-input col-header">Reps</span>
+        <span class="set-input col-header">Weight</span>
+        <span class="set-input notes-input col-header">Notes</span>
+        <span class="remove-col"></span>
+      </div>
+      <!-- Set rows -->
+      <div *ngFor="let set of group.sets; let si = index" class="set-row">
+        <span class="set-order">#{{ si + 1 }}</span>
+        <ion-input
+          type="number"
+          [(ngModel)]="set.reps"
+          placeholder="Reps"
+          class="set-input"
+        ></ion-input>
+        <ion-input
+          type="number"
+          [(ngModel)]="set.weight"
+          placeholder="kg"
+          class="set-input"
+        ></ion-input>
+        <ion-input
+          [(ngModel)]="set.notes"
+          placeholder="Notes"
+          class="set-input notes-input"
+        ></ion-input>
+        <ion-button
+          fill="clear"
+          size="small"
+          color="danger"
+          (click)="removeSet(group, si)"
+          [disabled]="group.sets.length <= 1"
+          class="remove-col"
+        >
+          <ion-icon name="close-outline"></ion-icon>
+        </ion-button>
+      </div>
+
+      <!-- Add Set Button -->
+      <ion-button
+        expand="block"
+        fill="outline"
+        size="small"
+        (click)="addSet(group)"
+        class="add-set-btn"
+      >
+        <ion-icon name="add" slot="start"></ion-icon>
+        Add Set
+      </ion-button>
+    </ion-card-content>
+  </ion-card>
+
+  <!-- Empty State -->
+  <div *ngIf="exerciseGroups.length === 0" class="text-center text-muted mt-10">
+    <p>No exercises added yet.</p>
+  </div>
+
+  <!-- Add Exercise -->
+  <ion-card class="add-exercise-card">
+    <ion-card-content>
+      <ion-item lines="none">
+        <ion-select
+          [(ngModel)]="selectedExerciseId"
+          placeholder="Select Exercise"
+          interface="alert"
+        >
+          <ion-select-option
+            *ngFor="let ex of exercises$ | async"
+            [value]="ex.id"
+          >
+            {{ ex.name }}
+          </ion-select-option>
+        </ion-select>
+      </ion-item>
+      <ion-button
+        expand="block"
+        (click)="addExercise()"
+        [disabled]="!selectedExerciseId"
+      >
+        <ion-icon name="barbell-outline" slot="start"></ion-icon>
+        Add Exercise
+      </ion-button>
+    </ion-card-content>
+  </ion-card>
+
+  <!-- Save Button -->
+  <ion-button
+    expand="block"
+    color="success"
+    class="save-btn"
+    (click)="save()"
+    [disabled]="!programName"
+  >
+    <ion-icon name="save-outline" slot="start"></ion-icon>
+    {{ isEditMode ? 'Update Program' : 'Create Program' }}
+  </ion-button>
+</ion-content>

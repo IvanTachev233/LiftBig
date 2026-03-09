@@ -1,0 +1,47 @@
+.workout-card {
+  --background: var(--ion-card-background, #1e1e1e);
+  --color: var(--ion-text-color);
+  color: var(--ion-text-color);
+  background: var(--ion-card-background, #1e1e1e);
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  margin-inline: 0;
+
+  ion-card-title {
+    --color: var(--ion-text-color);
+    color: var(--ion-text-color);
+  }
+
+  ion-card-subtitle {
+    color: var(--ion-color-medium);
+  }
+
+  ion-card-content {
+    color: var(--ion-text-color);
+  }
+}
+
+.card-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.card-subtitle {
+  color: var(--ion-color-medium);
+}
+
+.card-volume-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.font-mono {
+  font-family: monospace;
+}

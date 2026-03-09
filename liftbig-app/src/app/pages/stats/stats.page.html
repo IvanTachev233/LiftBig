@@ -1,0 +1,29 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+      <ion-back-button defaultHref="/dashboard"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Past Workouts</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="ion-padding">
+  <div *ngIf="!(workouts$ | async)" class="flex justify-center mt-10">
+    <ion-spinner></ion-spinner>
+  </div>
+
+  <ion-list lines="none" class="bg-transparent">
+    <app-workout-card
+      *ngFor="let workout of workouts$ | async"
+      [workout]="workout"
+    ></app-workout-card>
+  </ion-list>
+
+  <div
+    *ngIf="(workouts$ | async)?.length === 0"
+    class="text-center text-muted mt-10"
+  >
+    <p>No workouts recorded yet.</p>
+  </div>
+</ion-content>

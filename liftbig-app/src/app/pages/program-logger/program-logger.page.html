@@ -1,0 +1,100 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/dashboard"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Log Program</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="ion-padding">
+  <ng-container *ngIf="!loading && program; else loadingTpl">
+    <h2 class="text-xl font-bold mb-2">{{ program.name }}</h2>
+    <p class="text-muted mb-4">{{ program.scheduledDate | date : 'mediumDate' }}</p>
+
+    <ion-card *ngFor="let group of exerciseGroups" class="exercise-card">
+      <ion-card-header>
+        <ion-card-title class="exercise-title">{{ group.exerciseName }}</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <!-- Column headers -->
+        <div class="set-row column-headers">
+          <span class="set-order">Set</span>
+          <span class="set-input col-header">Reps</span>
+          <span class="set-input col-header">Weight</span>
+          <span class="set-input notes-input col-header">Notes</span>
+          <span class="status-col"></span>
+        </div>
+        <!-- Set rows -->
+        <div *ngFor="let set of group.sets; let si = index" class="set-row">
+          <span class="set-order">#{{ si + 1 }}</span>
+          <ion-input
+            type="number"
+            [(ngModel)]="set.reps"
+            (ionInput)="markDirty(set)"
+            placeholder="Reps"
+            class="set-input"
+          ></ion-input>
+          <ion-input
+            type="number"
+            [(ngModel)]="set.weight"
+            (ionInput)="markDirty(set)"
+            placeholder="kg"
+            class="set-input"
+          ></ion-input>
+          <ion-input
+            [(ngModel)]="set.notes"
+            (ionInput)="markDirty(set)"
+            placeholder="Notes"
+            class="set-input notes-input"
+          ></ion-input>
+          <ion-button
+            *ngIf="set.isNew"
+            fill="clear"
+            size="small"
+            color="danger"
+            class="status-col"
+            (click)="removeSet(group, si)"
+          >
+            <ion-icon name="close-outline"></ion-icon>
+          </ion-button>
+          <ion-icon
+            *ngIf="!set.isNew && set.dirty"
+            name="ellipse"
+            color="warning"
+            class="dirty-indicator status-col"
+          ></ion-icon>
+        </div>
+        <!-- Add Set Button -->
+        <ion-button
+          expand="block"
+          fill="outline"
+          size="small"
+          (click)="addSet(group)"
+          class="add-set-btn"
+        >
+          <ion-icon name="add" slot="start"></ion-icon>
+          Add Set
+        </ion-button>
+      </ion-card-content>
+    </ion-card>
+
+    <div *ngIf="exerciseGroups.length === 0" class="text-center text-muted mt-10">
+      <p>No exercises in this program.</p>
+    </div>
+
+    <ion-button
+      expand="block"
+      color="success"
+      class="save-all-btn"
+      (click)="saveAll()"
+    >
+      <ion-icon name="save-outline" slot="start"></ion-icon>
+      Save All Changes
+    </ion-button>
+  </ng-container>
+
+  <ng-template #loadingTpl>
+    <ion-spinner class="block mx-auto mt-10"></ion-spinner>
+  </ng-template>
+</ion-content>

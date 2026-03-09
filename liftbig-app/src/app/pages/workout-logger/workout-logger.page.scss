@@ -1,0 +1,105 @@
+.exercise-card {
+  margin-bottom: 16px;
+  background: var(--ion-color-step-50, #1e1e1e);
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--ion-color-step-100, #2a2a2a);
+  padding-bottom: 8px;
+}
+
+.exercise-card-header {
+  padding-bottom: 12px;
+}
+
+.exercise-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.exercise-title {
+  font-size: 1.125rem;
+  font-weight: bold;
+  color: var(--ion-color-light, #f4f5f8);
+}
+
+.set-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 0 16px;
+  gap: 8px;
+}
+
+.set-order {
+  flex: 0 0 32px;
+  font-weight: 500;
+  color: var(--ion-color-medium, #92949c);
+}
+
+.set-info {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.set-actions {
+  flex: 0 0 auto;
+  display: flex;
+  margin-left: auto;
+}
+
+.add-set-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px 0;
+  gap: 8px;
+  border-top: 1px solid var(--ion-color-step-100, #2a2a2a);
+}
+
+.set-input {
+  --background: var(--ion-color-step-100, #2a2a2a);
+  --color: var(--ion-text-color);
+  --placeholder-color: var(--ion-color-medium);
+  --padding-start: 8px;
+  --padding-end: 8px;
+  --padding-top: 8px;
+  --padding-bottom: 8px;
+  border: 1px solid var(--ion-color-step-200, #3a3a3a);
+  border-radius: 4px;
+  text-align: center;
+  flex: 1;
+}
+
+.add-exercise-card {
+  margin-bottom: 16px;
+}
+
+.empty-sets-message {
+  color: var(--ion-color-medium);
+  text-align: center;
+  padding: 16px;
+}
+
+.workout-name-item {
+  --background: transparent;
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  margin-bottom: 8px;
+}
+
+.workout-name-input {
+  --color: var(--ion-text-color);
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+.workout-date-item {
+  --background: transparent;
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  margin-bottom: 16px;
+}
+
+.complete-btn {
+  margin-top: 16px;
+}
