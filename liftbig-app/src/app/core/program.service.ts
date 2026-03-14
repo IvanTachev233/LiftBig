@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { environment } from '../../environments/environment';
 
 export interface ProgramExercise {
   id: string;
@@ -31,7 +32,7 @@ export interface Program {
 })
 export class ProgramService {
   private http = inject(HttpClient);
-  private apiUrl = '/api/programs';
+  private apiUrl = `${environment.apiUrl}/programs`;
 
   // Coach methods
   createProgram(data: any) {

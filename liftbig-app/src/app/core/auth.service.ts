@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 
 import { tap } from 'rxjs/operators';
 import { jwtDecode } from 'jwt-decode';
+import { environment } from '../../environments/environment';
 
 export interface User {
   id: string;
@@ -33,7 +34,7 @@ export class AuthService {
     }
   });
 
-  private apiUrl = '/api/auth'; // Env var in real app
+  private apiUrl = `${environment.apiUrl}/auth`;
 
   login(credentials: { email: string; password: string }) {
     return this.http

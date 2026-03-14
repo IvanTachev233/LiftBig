@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { environment } from '../../environments/environment';
 
 export interface Client {
   id: string;
@@ -22,7 +23,7 @@ export interface Invite {
 })
 export class ClientService {
   private http = inject(HttpClient);
-  private apiUrl = '/api/auth';
+  private apiUrl = `${environment.apiUrl}/auth`;
 
   getClients() {
     return this.http.get<Client[]>(`${this.apiUrl}/clients`);

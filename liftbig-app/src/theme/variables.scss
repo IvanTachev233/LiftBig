@@ -78,12 +78,3 @@
   --ion-card-background: var(--bg-surface);
   --ion-border-color: var(--border-color);
 }
-
-/* Dark Mode (Default) */
-@media (prefers-color-scheme: dark) {
-  /* ... (Using variables above as default) */
-  body {
-    --ion-background-color: var(--bg-deep);
-    --ion-text-color: var(--text-main);
-  }
-}

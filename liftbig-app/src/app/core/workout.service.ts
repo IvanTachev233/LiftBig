@@ -1,5 +1,6 @@
 import { Injectable, signal, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { environment } from '../../environments/environment';
 import { toSignal } from '@angular/core/rxjs-interop'; // Needs Angular 16+
 // Assuming Angular 17/18/20 based on user request "Angular v20"
 
@@ -16,7 +17,7 @@ export interface Workout {
 })
 export class WorkoutService {
   private http = inject(HttpClient);
-  private apiUrl = '/api/workouts';
+  private apiUrl = `${environment.apiUrl}/workouts`;
 
   // Signals
   // In a real app we might want manually manageable signals or resources,
