@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../environments/environment';
+import { AuthService } from './auth.service';
+import { tap } from 'rxjs/operators';
 
 export interface Client {
   id: string;
@@ -23,6 +25,7 @@ export interface Invite {
 })
 export class ClientService {
   private http = inject(HttpClient);
+  private authService = inject(AuthService);
   private apiUrl = `${environment.apiUrl}/auth`;
 
   getClients() {
@@ -38,7 +41,18 @@ export class ClientService {
   }
 
   acceptInvite(token: string) {
-    return this.http.post(`${this.apiUrl}/invites/${token}/accept`, {});
+    return this.http
+      .post<{ user: any; access_token: string }>(
+        `${this.apiUrl}/invites/${token}/accept`,
+        {},
+      )
+      .pipe(
+        tap((res) => {
+          if (res.access_token) {
+            this.authService.setSession(res.access_token);
+          }
+        }),
+      );
   }
 
   removeClient(clientId: string) {

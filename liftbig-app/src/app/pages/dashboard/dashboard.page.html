@@ -58,7 +58,10 @@
   </div>
 
   <!-- Accept Invite Section -->
-  <ion-card class="invite-card mt-8">
+  <ion-card
+    *ngIf="!hasCoach && user()?.role === 'CLIENT'"
+    class="invite-card mt-8"
+  >
     <ion-card-header>
       <ion-card-title class="card-title">Join a Coach</ion-card-title>
     </ion-card-header>
