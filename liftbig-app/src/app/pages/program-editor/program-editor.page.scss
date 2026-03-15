@@ -60,6 +60,14 @@
   color: var(--ion-color-medium);
 }
 
+.made-col {
+  min-width: 36px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.2rem;
+}
+
 .remove-col {
   min-width: 36px;
 }

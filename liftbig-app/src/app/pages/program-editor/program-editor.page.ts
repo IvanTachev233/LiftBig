@@ -11,6 +11,7 @@ interface SetRow {
   reps: number;
   weight: number | null;
   notes: string;
+  made: boolean | null;
 }
 
 interface ExerciseGroup {
@@ -80,6 +81,7 @@ export class ProgramEditorPage implements OnInit {
         reps: e.reps,
         weight: e.weight,
         notes: e.notes || '',
+        made: e.made ?? null,
       });
     }
     this.exerciseGroups = Array.from(map.values());
@@ -93,7 +95,7 @@ export class ProgramEditorPage implements OnInit {
     this.exerciseGroups.push({
       exerciseId: this.selectedExerciseId,
       exerciseName: exercise?.name || 'Exercise',
-      sets: [{ reps: 5, weight: null, notes: '' }],
+      sets: [{ reps: 5, weight: null, notes: '', made: null }],
     });
     this.selectedExerciseId = '';
   }
@@ -104,6 +106,7 @@ export class ProgramEditorPage implements OnInit {
       reps: lastSet ? lastSet.reps : 5,
       weight: lastSet ? lastSet.weight : null,
       notes: '',
+      made: null,
     });
   }
 

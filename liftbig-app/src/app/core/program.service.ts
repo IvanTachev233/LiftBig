@@ -14,6 +14,7 @@ export interface ProgramExercise {
   weight: number | null;
   notes: string | null;
   order: number;
+  made: boolean | null;
 }
 
 export interface Program {
@@ -67,7 +68,7 @@ export class ProgramService {
     );
   }
 
-  addExerciseSet(programId: string, data: { exerciseId: string; reps: number; weight?: number | null; notes?: string | null }) {
+  addExerciseSet(programId: string, data: { exerciseId: string; reps: number; weight?: number | null; notes?: string | null; made?: boolean | null }) {
     return this.http.post<ProgramExercise>(
       `${this.apiUrl}/${programId}/exercises`,
       data,

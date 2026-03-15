@@ -68,6 +68,18 @@ export class ProgramLoggerPage implements OnInit {
     set.dirty = true;
   }
 
+  toggleMade(set: LoggableSet) {
+    // Cycle: null (unset) -> true (make) -> false (miss) -> null
+    if (set.made === null) {
+      set.made = true;
+    } else if (set.made === true) {
+      set.made = false;
+    } else {
+      set.made = null;
+    }
+    set.dirty = true;
+  }
+
   addSet(group: ExerciseGroup) {
     const lastSet = group.sets[group.sets.length - 1];
     const newSet: LoggableSet = {
@@ -78,6 +90,7 @@ export class ProgramLoggerPage implements OnInit {
       weight: lastSet ? lastSet.weight : null,
       notes: null,
       order: group.sets.length + 1,
+      made: null,
       dirty: true,
       isNew: true,
     };
@@ -108,11 +121,13 @@ export class ProgramLoggerPage implements OnInit {
             reps: set.reps,
             weight: set.weight,
             notes: set.notes,
+            made: set.made,
           })
         : this.programService.patchExercise(this.program!.id, set.id, {
             reps: set.reps,
             weight: set.weight,
             notes: set.notes,
+            made: set.made,
           });
 
       obs.subscribe({

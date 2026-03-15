@@ -23,6 +23,7 @@
           <span class="set-input col-header">Reps</span>
           <span class="set-input col-header">Weight</span>
           <span class="set-input notes-input col-header">Notes</span>
+          <span class="made-col col-header">Make</span>
           <span class="status-col"></span>
         </div>
         <!-- Set rows -->
@@ -48,6 +49,13 @@
             placeholder="Notes"
             class="set-input notes-input"
           ></ion-input>
+          <ion-checkbox
+            [checked]="set.made === true"
+            [indeterminate]="set.made === null"
+            (ionChange)="toggleMade(set)"
+            class="made-col"
+            [color]="set.made === true ? 'success' : set.made === false ? 'danger' : 'medium'"
+          ></ion-checkbox>
           <ion-button
             *ngIf="set.isNew"
             fill="clear"

@@ -62,6 +62,7 @@
         <span class="set-input col-header">Reps</span>
         <span class="set-input col-header">Weight</span>
         <span class="set-input notes-input col-header">Notes</span>
+        <span *ngIf="isEditMode" class="made-col col-header">Result</span>
         <span class="remove-col"></span>
       </div>
       <!-- Set rows -->
@@ -84,6 +85,23 @@
           placeholder="Notes"
           class="set-input notes-input"
         ></ion-input>
+        <span *ngIf="isEditMode" class="made-col">
+          <ion-icon
+            *ngIf="set.made === true"
+            name="checkmark-circle"
+            color="success"
+          ></ion-icon>
+          <ion-icon
+            *ngIf="set.made === false"
+            name="close-circle"
+            color="danger"
+          ></ion-icon>
+          <ion-icon
+            *ngIf="set.made === null"
+            name="remove-circle-outline"
+            color="medium"
+          ></ion-icon>
+        </span>
         <ion-button
           fill="clear"
           size="small"
