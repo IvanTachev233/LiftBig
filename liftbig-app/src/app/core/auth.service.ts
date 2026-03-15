@@ -10,6 +10,7 @@ export interface User {
   id: string;
   email: string;
   role: 'COACH' | 'CLIENT';
+  coachId?: string | null;
 }
 
 @Injectable({
@@ -62,7 +63,7 @@ export class AuthService {
     this.router.navigate(['/login']);
   }
 
-  private setSession(token: string) {
+  setSession(token: string) {
     localStorage.setItem('token', token);
     this.tokenSignal.set(token);
   }

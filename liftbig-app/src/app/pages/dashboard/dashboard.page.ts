@@ -38,7 +38,7 @@ export class DashboardPage implements OnInit {
   inviteToken: string = '';
 
   get hasCoach(): boolean {
-    return !!this.user()?.id;
+    return !!this.user()?.coachId;
   }
 
   ngOnInit() {
