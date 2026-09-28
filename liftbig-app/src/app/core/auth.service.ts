@@ -1,6 +1,6 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Router } from '@angular/router';
+import { NavigationBehaviorOptions, Router } from '@angular/router';
 
 import { tap } from 'rxjs/operators';
 import { jwtDecode } from 'jwt-decode';
@@ -69,6 +69,12 @@ export class AuthService {
     localStorage.removeItem('token');
     this.tokenSignal.set(null);
     this.router.navigate(['/login']);
+  }
+
+  navigateToDashboard(extras?: NavigationBehaviorOptions) {
+    const url =
+      this.currentUser()?.role === 'COACH' ? '/coach/dashboard' : '/dashboard';
+    return this.router.navigateByUrl(url, extras);
   }
 
   setSession(token: string) {

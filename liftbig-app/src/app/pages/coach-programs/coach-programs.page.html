@@ -10,7 +10,7 @@
 <ion-content [fullscreen]="true" class="ion-padding">
   <h2 class="section-title">Programs</h2>
 
-  <div *ngIf="!(programs$ | async)" class="flex justify-center mt-10">
+  <div *ngIf="(programs$ | async) === null" class="flex justify-center mt-10">
     <ion-spinner></ion-spinner>
   </div>
 

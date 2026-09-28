@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonicModule, ToastController } from '@ionic/angular';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { RouterModule } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 
 @Component({
@@ -14,7 +14,6 @@ import { AuthService } from '../../core/auth.service';
 })
 export class RegisterPage {
   private authService = inject(AuthService);
-  private router = inject(Router);
   private toastController = inject(ToastController);
 
   form = {
@@ -68,24 +67,18 @@ export class RegisterPage {
       .subscribe({
         next: () => {
           this.presentToast('Welcome to LiftBig!', 'success');
-          this.navigateByRole();
+          this.authService.navigateToDashboard({ replaceUrl: true });
         },
         error: (err) => {
           this.submitting = false;
           console.error('Registration failed', err);
+          // Validation errors arrive as an array of messages
+          const message = err.error?.message;
           this.presentToast(
-            err.error?.message || 'Registration failed. Please try again.',
+            (Array.isArray(message) ? message.join('\n') : message) ||
+              'Registration failed. Please try again.',
           );
         },
       });
-  }
-
-  private navigateByRole() {
-    const user = this.authService.currentUser();
-    if (user?.role === 'COACH') {
-      this.router.navigate(['/coach/dashboard']);
-    } else {
-      this.router.navigate(['/dashboard']);
-    }
   }
 }

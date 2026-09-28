@@ -17,7 +17,7 @@
   <!-- Clients Section -->
   <h2 class="section-title">My Clients</h2>
 
-  <div *ngIf="!(clients$ | async)" class="flex justify-center mt-10">
+  <div *ngIf="(clients$ | async) === null" class="flex justify-center mt-10">
     <ion-spinner></ion-spinner>
   </div>
 

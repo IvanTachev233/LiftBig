@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonicModule, ToastController } from '@ionic/angular';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { RouterModule } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 
 @Component({
@@ -14,7 +14,6 @@ import { AuthService } from '../../core/auth.service';
 })
 export class LoginPage {
   private authService = inject(AuthService);
-  private router = inject(Router);
   private toastController = inject(ToastController);
 
   credentials = {
@@ -32,27 +31,21 @@ export class LoginPage {
     await toast.present();
   }
 
-  private navigateByRole() {
-    const user = this.authService.currentUser();
-    if (user?.role === 'COACH') {
-      this.router.navigate(['/coach/dashboard']);
-    } else {
-      this.router.navigate(['/dashboard']);
-    }
-  }
-
   login() {
-    if (!this.credentials.email || !this.credentials.password) {
+    const email = this.credentials.email.trim();
+    if (!email || !this.credentials.password) {
       return;
     }
-    this.authService.login(this.credentials).subscribe({
-      next: () => {
-        this.navigateByRole();
-      },
-      error: (err) => {
-        console.error('Login failed', err);
-        this.presentToast('Login failed. Please check your credentials.');
-      },
-    });
+    this.authService
+      .login({ email, password: this.credentials.password })
+      .subscribe({
+        next: () => {
+          this.authService.navigateToDashboard({ replaceUrl: true });
+        },
+        error: (err) => {
+          console.error('Login failed', err);
+          this.presentToast('Login failed. Please check your credentials.');
+        },
+      });
   }
 }

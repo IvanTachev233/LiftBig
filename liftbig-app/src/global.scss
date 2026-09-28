@@ -45,8 +45,7 @@ h4,
 h5,
 h6,
 p,
-span,
-div.flex-col > div.text-center {
+span {
   color: var(--ion-text-color, inherit);
 }
 
@@ -184,40 +183,12 @@ ion-alert {
   display: flex;
 }
 
-.flex-col {
-  flex-direction: column;
-}
-
-.flex-1 {
-  flex: 1 1 0%;
-}
-
 .block {
   display: block;
 }
 
-.h-full {
-  height: 100%;
-}
-
 .justify-center {
   justify-content: center;
-}
-
-.justify-between {
-  justify-content: space-between;
-}
-
-.items-center {
-  align-items: center;
-}
-
-.gap-2 {
-  gap: 0.5rem;
-}
-
-.gap-4 {
-  gap: 1rem;
 }
 
 /* Spacing */
@@ -249,10 +220,6 @@ ion-alert {
   margin-bottom: 1rem;
 }
 
-.mb-8 {
-  margin-bottom: 2rem;
-}
-
 .mx-auto {
   margin-left: auto;
   margin-right: auto;
@@ -263,24 +230,8 @@ ion-alert {
   text-align: center;
 }
 
-.text-xl {
-  font-size: 1.25rem;
-}
-
-.text-3xl {
-  font-size: 1.875rem;
-}
-
-.font-bold {
-  font-weight: 700;
-}
-
 .font-mono {
   font-family: monospace;
-}
-
-.text-primary {
-  color: var(--ion-color-primary);
 }
 
 .text-muted {
@@ -288,10 +239,6 @@ ion-alert {
 }
 
 /* Misc */
-.rounded-lg {
-  border-radius: 0.5rem;
-}
-
 .bg-transparent {
   background: transparent;
   --background: transparent;
