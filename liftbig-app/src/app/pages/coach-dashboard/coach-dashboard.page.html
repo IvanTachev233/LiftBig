@@ -15,7 +15,7 @@
   </ion-header>
 
   <!-- Clients Section -->
-  <h2 class="text-xl font-bold mb-4 ion-color-dark">My Clients</h2>
+  <h2 class="section-title">My Clients</h2>
 
   <div *ngIf="!(clients$ | async)" class="flex justify-center mt-10">
     <ion-spinner></ion-spinner>
@@ -30,7 +30,12 @@
       <ion-card-header>
         <div class="client-header-row">
           <div>
-            <ion-card-title class="client-title">{{ client.email }}</ion-card-title>
+            <ion-card-title class="client-title">{{
+              client.name || client.email
+            }}</ion-card-title>
+            <ion-card-subtitle *ngIf="client.name" class="client-subtitle">{{
+              client.email
+            }}</ion-card-subtitle>
           </div>
           <ion-button
             color="danger"
@@ -58,7 +63,7 @@
 
   <!-- Pending Invites Section -->
   <h2
-    class="text-xl font-bold mb-4 mt-8 ion-color-dark"
+    class="section-title mt-8"
     *ngIf="(pendingInvites$ | async)?.length"
   >
     Pending Invites

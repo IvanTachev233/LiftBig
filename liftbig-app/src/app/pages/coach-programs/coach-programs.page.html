@@ -8,28 +8,20 @@
 </ion-header>
 
 <ion-content [fullscreen]="true" class="ion-padding">
-  <h2 class="text-xl font-bold mb-4 ion-color-dark">Programs</h2>
+  <h2 class="section-title">Programs</h2>
 
   <div *ngIf="!(programs$ | async)" class="flex justify-center mt-10">
     <ion-spinner></ion-spinner>
   </div>
 
   <ion-list lines="none" class="bg-transparent">
-    <div *ngFor="let program of programs$ | async" class="program-item">
-      <app-program-card
-        [program]="program"
-        [routerLink]="['/coach/program-editor', program.id]"
-      ></app-program-card>
-      <ion-button
-        color="danger"
-        fill="clear"
-        size="small"
-        class="delete-btn"
-        (click)="deleteProgram(program, $event)"
-      >
-        <ion-icon name="trash-outline"></ion-icon>
-      </ion-button>
-    </div>
+    <app-program-card
+      *ngFor="let program of programs$ | async"
+      [program]="program"
+      [routerLink]="['/coach/program-editor', program.id]"
+      [showDelete]="true"
+      (remove)="deleteProgram(program)"
+    ></app-program-card>
   </ion-list>
 
   <div

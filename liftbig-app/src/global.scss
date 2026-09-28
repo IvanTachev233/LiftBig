@@ -50,12 +50,80 @@ div.flex-col > div.text-center {
   color: var(--ion-text-color, inherit);
 }
 
-.text-muted {
-  color: var(--ion-color-medium, #92949c);
+/* ---------------------------------------------------------------------------
+ * Shared component styles
+ * ------------------------------------------------------------------------- */
+
+/* Canonical section heading (spec: 600 weight, -0.025em letter spacing) */
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--text-main);
+  margin: 0 0 1rem;
 }
 
-.font-mono {
-  font-family: monospace;
+/* Canonical set-entry input (workout logger, program editor, program logger).
+   Spec: large input fields for weight/reps, easy thumb typing. */
+ion-input.set-input {
+  --background: var(--bg-deep);
+  --color: var(--ion-text-color);
+  --placeholder-color: var(--ion-color-medium);
+  --padding-start: 8px;
+  --padding-end: 8px;
+  --padding-top: 8px;
+  --padding-bottom: 8px;
+  min-height: 44px;
+  border: 1px solid var(--border-color);
+  border-radius: 0.25rem;
+  text-align: center;
+}
+
+/* Shared auth form styles (login + register) */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 28rem;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 1rem;
+
+  h1 {
+    font-size: 1.875rem;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    color: var(--ion-color-primary);
+    margin: 0;
+  }
+
+  p {
+    color: var(--text-muted);
+    margin: 0.25rem 0 0;
+  }
+}
+
+.auth-item {
+  --background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  --highlight-height: 0;
+}
+
+.auth-footer {
+  text-align: center;
+  color: var(--text-muted);
+  margin-top: 1.5rem;
+
+  a {
+    color: var(--ion-color-primary);
+    font-weight: 600;
+    text-decoration: none;
+  }
 }
 
 /* Global Ionic card dark-mode text fix */
@@ -102,4 +170,129 @@ ion-alert {
   .alert-message {
     color: var(--ion-text-color) !important;
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * Utility classes
+ * The templates use Tailwind-style utilities but Tailwind is not installed,
+ * so the classes are defined here. Spacing scale: 1 unit = 0.25rem.
+ * Kept last so utilities win over component styles of equal specificity.
+ * ------------------------------------------------------------------------- */
+
+/* Layout */
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.flex-1 {
+  flex: 1 1 0%;
+}
+
+.block {
+  display: block;
+}
+
+.h-full {
+  height: 100%;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.gap-2 {
+  gap: 0.5rem;
+}
+
+.gap-4 {
+  gap: 1rem;
+}
+
+/* Spacing */
+.mt-4 {
+  margin-top: 1rem;
+}
+
+.mt-6 {
+  margin-top: 1.5rem;
+}
+
+.mt-8 {
+  margin-top: 2rem;
+}
+
+.mt-10 {
+  margin-top: 2.5rem;
+}
+
+.mt-20 {
+  margin-top: 5rem;
+}
+
+.mb-2 {
+  margin-bottom: 0.5rem;
+}
+
+.mb-4 {
+  margin-bottom: 1rem;
+}
+
+.mb-8 {
+  margin-bottom: 2rem;
+}
+
+.mx-auto {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Typography */
+.text-center {
+  text-align: center;
+}
+
+.text-xl {
+  font-size: 1.25rem;
+}
+
+.text-3xl {
+  font-size: 1.875rem;
+}
+
+.font-bold {
+  font-weight: 700;
+}
+
+.font-mono {
+  font-family: monospace;
+}
+
+.text-primary {
+  color: var(--ion-color-primary);
+}
+
+.text-muted {
+  color: var(--ion-color-medium, #92949c);
+}
+
+/* Misc */
+.rounded-lg {
+  border-radius: 0.5rem;
+}
+
+.bg-transparent {
+  background: transparent;
+  --background: transparent;
 }

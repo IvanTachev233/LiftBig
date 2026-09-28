@@ -14,7 +14,7 @@
     </ion-toolbar>
   </ion-header>
 
-  <h2 class="text-xl font-bold mb-4 ion-color-dark">Upcoming Workouts</h2>
+  <h2 class="section-title">Upcoming Workouts</h2>
 
   <!-- Loading State (Simple) -->
   <div *ngIf="!(upcomingWorkouts$ | async)" class="flex justify-center mt-10">
@@ -36,7 +36,7 @@
   </div>
 
   <!-- Upcoming Programs Section -->
-  <h2 class="text-xl font-bold mb-4 mt-8 ion-color-dark">Upcoming Programs</h2>
+  <h2 class="section-title mt-8">Upcoming Programs</h2>
 
   <div *ngIf="!(upcomingPrograms$ | async)" class="flex justify-center mt-4">
     <ion-spinner></ion-spinner>

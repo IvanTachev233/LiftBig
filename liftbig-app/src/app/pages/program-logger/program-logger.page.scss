@@ -9,23 +9,20 @@
 .set-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   padding: 4px 0;
-  border-bottom: 1px solid var(--ion-color-light);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .set-order {
   min-width: 28px;
-  font-weight: bold;
+  font-weight: 500;
   color: var(--ion-color-medium);
   font-size: 0.85rem;
 }
 
 .set-input {
   flex: 1;
-  --padding-start: 4px;
-  --padding-end: 4px;
-  font-size: 0.9rem;
 }
 
 .notes-input {
@@ -33,7 +30,7 @@
 }
 
 .column-headers {
-  border-bottom: 2px solid var(--ion-color-medium);
+  border-bottom: 2px solid var(--border-color);
   padding-bottom: 6px;
   margin-bottom: 2px;
 }
@@ -43,6 +40,7 @@
   font-weight: 600;
   text-transform: uppercase;
   color: var(--ion-color-medium);
+  text-align: center;
 }
 
 .status-col {

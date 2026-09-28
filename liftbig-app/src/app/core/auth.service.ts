@@ -9,8 +9,16 @@ import { environment } from '../../environments/environment';
 export interface User {
   id: string;
   email: string;
+  name?: string | null;
   role: 'COACH' | 'CLIENT';
   coachId?: string | null;
+}
+
+export interface RegisterData {
+  name: string;
+  email: string;
+  password: string;
+  role: 'COACH' | 'CLIENT';
 }
 
 @Injectable({
@@ -47,7 +55,7 @@ export class AuthService {
       );
   }
 
-  register(data: any) {
+  register(data: RegisterData) {
     return this.http
       .post<{ user: User; token: string }>(`${this.apiUrl}/register`, data)
       .pipe(
