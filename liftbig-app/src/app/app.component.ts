@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from './core/auth.service';
 
@@ -9,10 +9,8 @@ import { AuthService } from './core/auth.service';
   standalone: false,
 })
 export class AppComponent {
-  constructor(
-    private authService: AuthService,
-    private router: Router,
-  ) {}
+  private authService = inject(AuthService);
+  private router = inject(Router);
 
   logout() {
     this.authService.logout();

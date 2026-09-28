@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonicModule } from '@ionic/angular';
 import { RouterModule } from '@angular/router';
@@ -21,6 +21,13 @@ interface ExerciseSummary {
 export class ProgramCardComponent {
   @Input() program!: Program;
   @Input() routerLink: any[] = [];
+  @Input() showDelete = false;
+  @Output() remove = new EventEmitter<void>();
+
+  onRemove(event: Event) {
+    event.stopPropagation();
+    this.remove.emit();
+  }
 
   get exerciseSummaries(): ExerciseSummary[] {
     if (!this.program.exercises) return [];

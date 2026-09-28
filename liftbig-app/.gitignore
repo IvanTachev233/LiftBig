@@ -68,3 +68,12 @@ testem.log
 # System files
 .DS_Store
 Thumbs.db
+
+# Signing keys
+*.keystore
+*.jks
+
+# Claude Code (local only)
+/CLAUDE.md
+/.claude/state/
+/.claude/sessions/

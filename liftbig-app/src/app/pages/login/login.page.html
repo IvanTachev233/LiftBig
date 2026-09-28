@@ -1,49 +1,53 @@
 <ion-header [translucent]="true">
   <ion-toolbar>
-    <ion-title>LiftBig Login</ion-title>
+    <ion-title>Login</ion-title>
   </ion-toolbar>
 </ion-header>
 
-<ion-content
-  [fullscreen]="true"
-  class="ion-padding flex flex-col justify-center h-full"
->
-  <div class="flex flex-col gap-4 mt-10">
-    <div class="text-center mb-8">
-      <h1 class="text-3xl font-bold text-primary">LiftBig</h1>
-      <p class="text-muted">Train like a champion.</p>
+<ion-content [fullscreen]="true" class="ion-padding">
+  <form class="auth-form mt-10" (ngSubmit)="login()">
+    <div class="auth-header">
+      <h1>LiftBig</h1>
+      <p>Train like a champion.</p>
     </div>
 
-    <ion-item class="rounded-lg">
-      <ion-label position="stacked">Email</ion-label>
+    <ion-item class="auth-item" lines="none">
       <ion-input
+        label="Email"
+        labelPlacement="stacked"
         type="email"
+        name="email"
+        autocomplete="email"
         [(ngModel)]="credentials.email"
         placeholder="email@example.com"
+        required
       ></ion-input>
     </ion-item>
 
-    <ion-item class="rounded-lg">
-      <ion-label position="stacked">Password</ion-label>
+    <ion-item class="auth-item" lines="none">
       <ion-input
+        label="Password"
+        labelPlacement="stacked"
         type="password"
+        name="password"
+        autocomplete="current-password"
         [(ngModel)]="credentials.password"
-        placeholder="******"
+        placeholder="Your password"
+        required
       ></ion-input>
     </ion-item>
 
-    <div class="flex gap-2 mt-6">
-      <ion-button expand="block" class="flex-1" (click)="login()">
-        Login
-      </ion-button>
-      <ion-button
-        expand="block"
-        fill="outline"
-        class="flex-1"
-        (click)="register()"
-      >
-        Register
-      </ion-button>
-    </div>
-  </div>
+    <ion-button
+      expand="block"
+      type="submit"
+      class="mt-4"
+      [disabled]="!credentials.email || !credentials.password"
+    >
+      Login
+    </ion-button>
+
+    <p class="auth-footer">
+      Don't have an account? <a routerLink="/register">Create one</a>
+    </p>
+  </form>
 </ion-content>

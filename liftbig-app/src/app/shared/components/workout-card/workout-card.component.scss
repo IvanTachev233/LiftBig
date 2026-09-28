@@ -1,8 +1,10 @@
 .workout-card {
-  --background: var(--ion-card-background, #1e1e1e);
+  /* Ionic's dark palette sets --ion-card-background per mode (:root.md/.ios),
+     which beats our :root value, so use the surface token directly. */
+  --background: var(--bg-surface);
   --color: var(--ion-text-color);
   color: var(--ion-text-color);
-  background: var(--ion-card-background, #1e1e1e);
+  background: var(--bg-surface);
   border-radius: 8px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   margin-inline: 0;

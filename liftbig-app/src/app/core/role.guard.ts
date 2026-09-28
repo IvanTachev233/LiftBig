@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { CanActivate, ActivatedRouteSnapshot, Router } from '@angular/router';
+import { CanActivate, ActivatedRouteSnapshot } from '@angular/router';
 import { AuthService } from './auth.service';
 
 @Injectable({
@@ -7,7 +7,6 @@ import { AuthService } from './auth.service';
 })
 export class RoleGuard implements CanActivate {
   private authService = inject(AuthService);
-  private router = inject(Router);
 
   canActivate(route: ActivatedRouteSnapshot): boolean {
     const requiredRole = route.data['role'];
@@ -17,12 +16,7 @@ export class RoleGuard implements CanActivate {
       return true;
     }
 
-    // Redirect to appropriate dashboard based on role
-    if (user?.role === 'COACH') {
-      this.router.navigate(['/coach/dashboard']);
-    } else {
-      this.router.navigate(['/dashboard']);
-    }
+    this.authService.navigateToDashboard();
     return false;
   }
 }
