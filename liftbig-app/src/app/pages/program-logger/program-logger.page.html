@@ -49,13 +49,20 @@
             placeholder="Notes"
             class="set-input notes-input"
           ></ion-input>
-          <ion-checkbox
-            [checked]="set.made === true"
-            [indeterminate]="set.made === null"
-            (ionChange)="toggleMade(set)"
+          <ion-button
+            fill="clear"
+            size="small"
             class="made-col"
-            [color]="set.made === true ? 'success' : set.made === false ? 'danger' : 'medium'"
-          ></ion-checkbox>
+            [color]="madeState(set).color"
+            [attr.aria-label]="madeState(set).label"
+            (click)="toggleMade(set)"
+          >
+            <ion-icon
+              slot="icon-only"
+              [name]="madeState(set).icon"
+              aria-hidden="true"
+            ></ion-icon>
+          </ion-button>
           <ion-button
             *ngIf="set.isNew"
             fill="clear"

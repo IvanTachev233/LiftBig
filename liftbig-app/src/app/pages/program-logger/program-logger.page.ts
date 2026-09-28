@@ -16,6 +16,25 @@ interface ExerciseGroup {
   sets: LoggableSet[];
 }
 
+// Icons match the Result column in the program editor
+const MADE_STATES = {
+  made: {
+    icon: 'checkmark-circle',
+    color: 'success',
+    label: 'Made. Tap to mark as missed',
+  },
+  missed: {
+    icon: 'close-circle',
+    color: 'danger',
+    label: 'Missed. Tap to clear result',
+  },
+  unset: {
+    icon: 'remove-circle-outline',
+    color: 'medium',
+    label: 'No result. Tap to mark as made',
+  },
+};
+
 @Component({
   selector: 'app-program-logger',
   templateUrl: './program-logger.page.html',
@@ -68,14 +87,20 @@ export class ProgramLoggerPage implements OnInit {
     set.dirty = true;
   }
 
+  madeState(set: LoggableSet) {
+    if (set.made === true) return MADE_STATES.made;
+    if (set.made === false) return MADE_STATES.missed;
+    return MADE_STATES.unset;
+  }
+
   toggleMade(set: LoggableSet) {
-    // Cycle: null (unset) -> true (make) -> false (miss) -> null
-    if (set.made === null) {
-      set.made = true;
-    } else if (set.made === true) {
+    // Cycle: unset -> true (make) -> false (miss) -> null
+    if (set.made === true) {
       set.made = false;
-    } else {
+    } else if (set.made === false) {
       set.made = null;
+    } else {
+      set.made = true;
     }
     set.dirty = true;
   }
