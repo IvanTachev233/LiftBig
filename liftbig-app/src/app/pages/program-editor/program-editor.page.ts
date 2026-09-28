@@ -8,6 +8,8 @@ import { WorkoutService } from '../../core/workout.service';
 import { Observable } from 'rxjs';
 
 interface SetRow {
+  // Set id from the API; absent for sets added in this editor session
+  id?: string;
   reps: number;
   weight: number | null;
   notes: string;
@@ -78,6 +80,7 @@ export class ProgramEditorPage implements OnInit {
         });
       }
       map.get(id)!.sets.push({
+        id: e.id,
         reps: e.reps,
         weight: e.weight,
         notes: e.notes || '',
@@ -146,6 +149,7 @@ export class ProgramEditorPage implements OnInit {
     for (const group of this.exerciseGroups) {
       for (const set of group.sets) {
         exercises.push({
+          id: set.id,
           exerciseId: group.exerciseId,
           reps: set.reps,
           weight: set.weight,
