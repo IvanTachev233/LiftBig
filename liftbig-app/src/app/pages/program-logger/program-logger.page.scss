@@ -43,6 +43,12 @@
   text-align: center;
 }
 
+.made-col {
+  min-width: 36px;
+  display: flex;
+  justify-content: center;
+}
+
 .status-col {
   min-width: 36px;
 }

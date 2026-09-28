@@ -16,6 +16,25 @@ interface ExerciseGroup {
   sets: LoggableSet[];
 }
 
+// Icons match the Result column in the program editor
+const MADE_STATES = {
+  made: {
+    icon: 'checkmark-circle',
+    color: 'success',
+    label: 'Made. Tap to mark as missed',
+  },
+  missed: {
+    icon: 'close-circle',
+    color: 'danger',
+    label: 'Missed. Tap to clear result',
+  },
+  unset: {
+    icon: 'remove-circle-outline',
+    color: 'medium',
+    label: 'No result. Tap to mark as made',
+  },
+};
+
 @Component({
   selector: 'app-program-logger',
   templateUrl: './program-logger.page.html',
@@ -68,6 +87,24 @@ export class ProgramLoggerPage implements OnInit {
     set.dirty = true;
   }
 
+  madeState(set: LoggableSet) {
+    if (set.made === true) return MADE_STATES.made;
+    if (set.made === false) return MADE_STATES.missed;
+    return MADE_STATES.unset;
+  }
+
+  toggleMade(set: LoggableSet) {
+    // Cycle: unset -> true (make) -> false (miss) -> null
+    if (set.made === true) {
+      set.made = false;
+    } else if (set.made === false) {
+      set.made = null;
+    } else {
+      set.made = true;
+    }
+    set.dirty = true;
+  }
+
   addSet(group: ExerciseGroup) {
     const lastSet = group.sets[group.sets.length - 1];
     const newSet: LoggableSet = {
@@ -78,6 +115,7 @@ export class ProgramLoggerPage implements OnInit {
       weight: lastSet ? lastSet.weight : null,
       notes: null,
       order: group.sets.length + 1,
+      made: null,
       dirty: true,
       isNew: true,
     };
@@ -108,11 +146,13 @@ export class ProgramLoggerPage implements OnInit {
             reps: set.reps,
             weight: set.weight,
             notes: set.notes,
+            made: set.made,
           })
         : this.programService.patchExercise(this.program!.id, set.id, {
             reps: set.reps,
             weight: set.weight,
             notes: set.notes,
+            made: set.made,
           });
 
       obs.subscribe({

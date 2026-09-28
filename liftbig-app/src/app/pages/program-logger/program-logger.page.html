@@ -23,6 +23,7 @@
           <span class="set-input col-header">Reps</span>
           <span class="set-input col-header">Weight</span>
           <span class="set-input notes-input col-header">Notes</span>
+          <span class="made-col col-header">Make</span>
           <span class="status-col"></span>
         </div>
         <!-- Set rows -->
@@ -48,6 +49,20 @@
             placeholder="Notes"
             class="set-input notes-input"
           ></ion-input>
+          <ion-button
+            fill="clear"
+            size="small"
+            class="made-col"
+            [color]="madeState(set).color"
+            [attr.aria-label]="madeState(set).label"
+            (click)="toggleMade(set)"
+          >
+            <ion-icon
+              slot="icon-only"
+              [name]="madeState(set).icon"
+              aria-hidden="true"
+            ></ion-icon>
+          </ion-button>
           <ion-button
             *ngIf="set.isNew"
             fill="clear"

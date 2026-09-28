@@ -8,9 +8,12 @@ import { WorkoutService } from '../../core/workout.service';
 import { Observable } from 'rxjs';
 
 interface SetRow {
+  // Set id from the API; absent for sets added in this editor session
+  id?: string;
   reps: number;
   weight: number | null;
   notes: string;
+  made: boolean | null;
 }
 
 interface ExerciseGroup {
@@ -77,9 +80,11 @@ export class ProgramEditorPage implements OnInit {
         });
       }
       map.get(id)!.sets.push({
+        id: e.id,
         reps: e.reps,
         weight: e.weight,
         notes: e.notes || '',
+        made: e.made ?? null,
       });
     }
     this.exerciseGroups = Array.from(map.values());
@@ -93,7 +98,7 @@ export class ProgramEditorPage implements OnInit {
     this.exerciseGroups.push({
       exerciseId: this.selectedExerciseId,
       exerciseName: exercise?.name || 'Exercise',
-      sets: [{ reps: 5, weight: null, notes: '' }],
+      sets: [{ reps: 5, weight: null, notes: '', made: null }],
     });
     this.selectedExerciseId = '';
   }
@@ -104,6 +109,7 @@ export class ProgramEditorPage implements OnInit {
       reps: lastSet ? lastSet.reps : 5,
       weight: lastSet ? lastSet.weight : null,
       notes: '',
+      made: null,
     });
   }
 
@@ -143,6 +149,7 @@ export class ProgramEditorPage implements OnInit {
     for (const group of this.exerciseGroups) {
       for (const set of group.sets) {
         exercises.push({
+          id: set.id,
           exerciseId: group.exerciseId,
           reps: set.reps,
           weight: set.weight,
