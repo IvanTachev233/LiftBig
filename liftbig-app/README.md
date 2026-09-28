@@ -1,0 +1,138 @@
+# LiftBig
+
+LiftBig is a strength-training app for coaches and their clients. Coaches build programs and invite clients; clients log workouts and track their stats.
+
+This repo (`LiftBigMobile`) is the mobile/web app: Ionic 8 + Angular 20, packaged for Android and iOS with Capacitor 8. The backend is a separate repo, [LiftBigMobile-API](https://github.com/IvanTachev233/LiftBigMobile-API) (NestJS 11 + PostgreSQL). You need both to run the app locally.
+
+## Prerequisites
+
+- **Node.js 22** (22.12 or newer). The version is pinned in [`.nvmrc`](.nvmrc), so `nvm use` picks it up. Angular 20 needs `^20.19 || ^22.12 || >=24`, and the Capacitor 8 CLI needs 22 or newer.
+- **Docker** with the Compose plugin (`docker compose`, not `docker-compose`), for PostgreSQL and the optional containerized stack.
+- For device builds only: Android Studio and/or Xcode (see [Running on a device](#running-on-a-device)).
+
+## Clone both repos side by side
+
+The compose file here builds the API from `../liftbig-api`, so the folder names matter:
+
+```bash
+mkdir liftbig && cd liftbig
+git clone https://github.com/IvanTachev233/LiftBigMobile.git liftbig-app
+git clone https://github.com/IvanTachev233/LiftBigMobile-API.git liftbig-api
+cd liftbig-app
+```
+
+Run every command below from `liftbig-app/` unless it says otherwise.
+
+## Quick start: full stack in Docker
+
+The quickest way to see the app working. Nothing to install except Docker:
+
+```bash
+docker compose up -d --build
+```
+
+Then open <http://localhost:4200>. This starts PostgreSQL, pgAdmin, the API and the app (served by nginx). The app is built with `--configuration production,docker`, so it calls the **local** API through nginx's `/api` proxy rather than production.
+
+Stop everything with `docker compose down`. Your data stays in the `liftbigmobile_postgres_data` volume. Don't add `-v` unless you want to wipe the database.
+
+## Day-to-day development (native dev loop)
+
+For coding, run the API and app on your machine with live reload, and only the database in Docker.
+
+1. Stop the containerized API and app if they are running (they hold ports 3000 and 4200), then start the database:
+
+   ```bash
+   docker compose stop liftbig_api liftbig_app
+   docker compose up -d postgres
+   ```
+
+2. In a second terminal, start the API. Its defaults connect to the database above, and it creates the schema on first run:
+
+   ```bash
+   cd ../liftbig-api
+   npm install
+   npm run start:dev
+   ```
+
+   The API listens on <http://localhost:3000>.
+
+3. In a third terminal, start the app:
+
+   ```bash
+   npm install --legacy-peer-deps
+   npm start
+   ```
+
+   Open <http://localhost:4200>. In development the app calls the API at `http://localhost:3000` directly (`src/environments/environment.ts`).
+
+`--legacy-peer-deps` matches how the Docker images install the app's dependencies.
+
+## Hot-reload stack in Docker (dev profile)
+
+If you'd rather not install Node, the `dev` profile runs the API (`npm run start:dev`) and the app (`ng serve`) in containers, with your `src/` folders mounted for live reload:
+
+```bash
+docker compose stop liftbig_api liftbig_app
+docker compose --profile dev up -d --build postgres liftbig_api_dev liftbig_app_dev
+```
+
+Name the services explicitly as above. A bare `docker compose --profile dev up` also starts the production containers, which clash on ports 3000 and 4200. Stop the dev containers with `docker compose --profile dev stop liftbig_api_dev liftbig_app_dev`.
+
+## First run
+
+The database starts empty. Open <http://localhost:4200>, choose **Register**, and create an account:
+
+- **Coach**: builds programs and invites clients from the coach dashboard.
+- **Client** (default): logs workouts and sees stats. Clients can also join a coach through an invite link (`/accept-invite/:token`).
+
+Create one of each to try the coach–client flow.
+
+## Local ports and credentials
+
+These are local development placeholders defined in [`docker-compose.yml`](docker-compose.yml). Never reuse them anywhere else.
+
+| Service | URL / port | Credentials |
+| --- | --- | --- |
+| App | <http://localhost:4200> | the account you register |
+| API | <http://localhost:3000> | JWT from `POST /auth/login` |
+| PostgreSQL | `localhost:5433` (host), `postgres:5432` (inside Docker) | user `liftbig`, password `***REMOVED***`, database `liftbig_db` |
+| pgAdmin | <http://localhost:5050> | `admin@liftbig.com` / `***REMOVED***` |
+
+In pgAdmin, register a server with host `postgres`, port `5432` and the PostgreSQL credentials above.
+
+## Checks
+
+```bash
+npm run build     # production build into www/
+npm run lint
+npm test          # Karma; opens Chrome and watches
+npx ng test --watch=false --browsers=ChromeHeadless   # single headless run
+```
+
+## Troubleshooting
+
+- **Port 3000 or 4200 is already in use.** Usually `liftbig_api` / `liftbig_app` from an earlier `docker compose up`. They use `restart: always`, so they come back whenever Docker restarts. Stop them with `docker compose stop liftbig_api liftbig_app`.
+- **The API in Docker runs old code.** The container keeps its image until rebuilt: `docker compose up -d --build liftbig_api`.
+- **The API can't reach the database.** PostgreSQL is published on host port **5433**, not 5432. Check that `docker compose ps postgres` shows it running.
+- **CORS errors in the browser.** The API only allows `http://localhost:4200`, `http://localhost:8100`, `capacitor://localhost` and `https://localhost` (see `src/main.ts` in the API repo). Serve the app on one of those origins.
+- **The app is talking to production.** Only builds made with plain `npm run build` / `ng build` do that (see below). `npm start` uses the local API, and so does the Docker stack.
+
+## Running on a device
+
+Device builds use the production configuration, which points at the **production API** (`src/environments/environment.prod.ts`). Anything you do in a device build touches real data.
+
+```bash
+npm run build           # production web build into www/
+npx cap sync            # copy www/ and plugins into android/ and ios/
+npx cap open android    # or: npx cap open ios
+```
+
+`npx cap run android` (or `ios`) syncs, builds and deploys to a connected device or emulator in one step.
+
+## Secrets
+
+Never commit release signing material. `*.keystore` is gitignored; keep `liftbig-release.keystore` out of the repo and out of chat and screenshots.
+
+## Related
+
+- API setup, environment variables and deployment: [LiftBigMobile-API README](https://github.com/IvanTachev233/LiftBigMobile-API#readme)
