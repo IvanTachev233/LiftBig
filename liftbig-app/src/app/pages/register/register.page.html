@@ -1,0 +1,106 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/login"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Create Account</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="ion-padding">
+  <form class="auth-form mt-6" (ngSubmit)="register()">
+    <div class="auth-header">
+      <h1>LiftBig</h1>
+      <p>Create your account to start training.</p>
+    </div>
+
+    <ion-item class="auth-item" lines="none">
+      <ion-input
+        label="Full Name"
+        labelPlacement="stacked"
+        type="text"
+        name="name"
+        autocomplete="name"
+        [(ngModel)]="form.name"
+        placeholder="Jane Doe"
+        required
+      ></ion-input>
+    </ion-item>
+
+    <ion-item class="auth-item" lines="none">
+      <ion-input
+        label="Email"
+        labelPlacement="stacked"
+        type="email"
+        name="email"
+        autocomplete="email"
+        [(ngModel)]="form.email"
+        placeholder="email@example.com"
+        required
+      ></ion-input>
+    </ion-item>
+
+    <ion-item class="auth-item" lines="none">
+      <ion-input
+        label="Password"
+        labelPlacement="stacked"
+        type="password"
+        name="password"
+        autocomplete="new-password"
+        [(ngModel)]="form.password"
+        placeholder="At least 6 characters"
+        required
+      ></ion-input>
+    </ion-item>
+
+    <ion-item class="auth-item" lines="none">
+      <ion-input
+        label="Confirm Password"
+        labelPlacement="stacked"
+        type="password"
+        name="confirmPassword"
+        autocomplete="new-password"
+        [(ngModel)]="form.confirmPassword"
+        placeholder="Repeat your password"
+        required
+      ></ion-input>
+    </ion-item>
+
+    <p *ngIf="passwordMismatch" class="field-error">Passwords do not match.</p>
+
+    <div class="role-section">
+      <p class="role-label">I am a…</p>
+      <ion-segment name="role" [(ngModel)]="form.role">
+        <ion-segment-button value="CLIENT">
+          <ion-icon name="barbell-outline"></ion-icon>
+          <ion-label>Client</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="COACH">
+          <ion-icon name="clipboard-outline"></ion-icon>
+          <ion-label>Coach</ion-label>
+        </ion-segment-button>
+      </ion-segment>
+      <p class="role-hint">
+        {{
+          form.role === 'COACH'
+            ? 'Coaches create programs and manage clients.'
+            : 'Clients follow programs assigned by their coach.'
+        }}
+      </p>
+    </div>
+
+    <ion-button
+      expand="block"
+      type="submit"
+      class="mt-4"
+      [disabled]="!formValid || submitting"
+    >
+      <ion-spinner *ngIf="submitting" name="crescent" slot="start"></ion-spinner>
+      Create Account
+    </ion-button>
+
+    <p class="auth-footer">
+      Already have an account? <a routerLink="/login">Log in</a>
+    </p>
+  </form>
+</ion-content>

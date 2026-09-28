@@ -30,8 +30,7 @@ export class CoachProgramsPage implements OnInit {
     );
   }
 
-  async deleteProgram(program: Program, event: Event) {
-    event.stopPropagation();
+  async deleteProgram(program: Program) {
     const alert = await this.alertController.create({
       header: 'Delete Program',
       message: `Delete "${program.name}"?`,

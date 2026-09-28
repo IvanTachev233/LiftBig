@@ -6,6 +6,7 @@ import { tap } from 'rxjs/operators';
 
 export interface Client {
   id: string;
+  name?: string | null;
   email: string;
   role: string;
 }

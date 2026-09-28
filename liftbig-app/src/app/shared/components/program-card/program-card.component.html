@@ -2,7 +2,19 @@
   <ion-card-header>
     <div class="card-header-row">
       <ion-card-title class="card-title">{{ program.name }}</ion-card-title>
-      <ion-badge color="primary">{{ uniqueExerciseCount }} exercises</ion-badge>
+      <div class="card-header-actions">
+        <ion-badge color="primary">{{ uniqueExerciseCount }} exercises</ion-badge>
+        <ion-button
+          *ngIf="showDelete"
+          color="danger"
+          fill="clear"
+          size="small"
+          class="card-delete-btn"
+          (click)="onRemove($event)"
+        >
+          <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
+        </ion-button>
+      </div>
     </div>
     <ion-card-subtitle class="card-subtitle">{{
       program.scheduledDate | date : 'mediumDate'

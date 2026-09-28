@@ -1,6 +1,6 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Router } from '@angular/router';
+import { NavigationBehaviorOptions, Router } from '@angular/router';
 
 import { tap } from 'rxjs/operators';
 import { jwtDecode } from 'jwt-decode';
@@ -9,8 +9,16 @@ import { environment } from '../../environments/environment';
 export interface User {
   id: string;
   email: string;
+  name?: string | null;
   role: 'COACH' | 'CLIENT';
   coachId?: string | null;
+}
+
+export interface RegisterData {
+  name: string;
+  email: string;
+  password: string;
+  role: 'COACH' | 'CLIENT';
 }
 
 @Injectable({
@@ -47,7 +55,7 @@ export class AuthService {
       );
   }
 
-  register(data: any) {
+  register(data: RegisterData) {
     return this.http
       .post<{ user: User; token: string }>(`${this.apiUrl}/register`, data)
       .pipe(
@@ -61,6 +69,12 @@ export class AuthService {
     localStorage.removeItem('token');
     this.tokenSignal.set(null);
     this.router.navigate(['/login']);
+  }
+
+  navigateToDashboard(extras?: NavigationBehaviorOptions) {
+    const url =
+      this.currentUser()?.role === 'COACH' ? '/coach/dashboard' : '/dashboard';
+    return this.router.navigateByUrl(url, extras);
   }
 
   setSession(token: string) {
