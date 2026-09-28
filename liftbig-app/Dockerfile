@@ -7,7 +7,9 @@ COPY package*.json ./
 RUN npm install --legacy-peer-deps
 
 COPY . .
-RUN npm run build -- --configuration production
+# docker-compose.yml passes "production,docker" so the local stack calls the local API via /api.
+ARG NG_CONFIGURATION=production
+RUN npm run build -- --configuration ${NG_CONFIGURATION}
 
 # Stage 2: Serve the application with Nginx
 FROM nginx:alpine

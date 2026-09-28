@@ -75,3 +75,5 @@ Thumbs.db
 
 # Claude Code (local only)
 /CLAUDE.md
+/.claude/state/
+/.claude/sessions/

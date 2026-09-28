@@ -1,0 +1,100 @@
+# Local stack for LiftBig. Expects the API repo cloned next to this one:
+#   <workspace>/liftbig-app  (this repo)
+#   <workspace>/liftbig-api  (LiftBigMobile-API)
+# The project name is pinned so containers and the postgres_data volume keep
+# the same names whether this file is run from here or included from the workspace root.
+name: liftbigmobile
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: liftbig_db
+    environment:
+      POSTGRES_USER: liftbig
+      POSTGRES_PASSWORD: ***REMOVED***
+      POSTGRES_DB: liftbig_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: liftbig_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@liftbig.com
+      PGADMIN_DEFAULT_PASSWORD: ***REMOVED***
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    restart: always
+
+  liftbig_api:
+    build:
+      context: ../liftbig-api
+      target: production
+    container_name: liftbig_api
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: liftbig
+      DB_PASSWORD: ***REMOVED***
+      DB_NAME: liftbig_db
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+    restart: always
+
+  liftbig_api_dev:
+    build:
+      context: ../liftbig-api
+      target: dev
+    container_name: liftbig_api_dev
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: liftbig
+      DB_PASSWORD: ***REMOVED***
+      DB_NAME: liftbig_db
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../liftbig-api/src:/app/src
+    depends_on:
+      - postgres
+    profiles:
+      - dev
+
+  liftbig_app:
+    build:
+      context: .
+      args:
+        # Point the built app at the local API (nginx proxies /api) instead of production.
+        NG_CONFIGURATION: production,docker
+    container_name: liftbig_app
+    ports:
+      - "4200:80"
+    depends_on:
+      - liftbig_api
+    restart: always
+
+  liftbig_app_dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: liftbig_app_dev
+    ports:
+      - "4200:4200"
+    volumes:
+      - ./src:/usr/src/app/src
+    depends_on:
+      # Must be the dev API: liftbig_api also binds host port 3000.
+      - liftbig_api_dev
+    profiles:
+      - dev
+
+volumes:
+  postgres_data:
