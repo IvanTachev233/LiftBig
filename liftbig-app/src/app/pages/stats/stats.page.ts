@@ -2,8 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonicModule } from '@ionic/angular';
 import { WorkoutService, Workout } from '../../core/workout.service';
-import { WorkoutCardComponent } from '../../shared/components/workout-card/workout-card.component';
-import { Observable } from 'rxjs';
+import { WorkoutListItemComponent } from '../../shared/components/workout-list-item/workout-list-item.component';
 import { RouterModule } from '@angular/router';
 
 @Component({
@@ -11,15 +10,21 @@ import { RouterModule } from '@angular/router';
   templateUrl: './stats.page.html',
   styleUrls: ['./stats.page.scss'],
   standalone: true,
-  imports: [CommonModule, IonicModule, RouterModule, WorkoutCardComponent],
+  imports: [CommonModule, IonicModule, RouterModule, WorkoutListItemComponent],
 })
 export class StatsPage implements OnInit {
   workoutService = inject(WorkoutService);
-  workouts$: Observable<Workout[]> | undefined;
+  workouts: Workout[] | null = null;
 
   constructor() {}
 
   ngOnInit() {
-    this.workouts$ = this.workoutService.getAllWorkouts();
+    this.workoutService.getAllWorkouts().subscribe((workouts) => {
+      this.workouts = workouts;
+    });
+  }
+
+  onWorkoutDeleted(id: string) {
+    this.workouts = this.workouts?.filter((workout) => workout.id !== id) ?? null;
   }
 }

@@ -9,19 +9,20 @@
 </ion-header>
 
 <ion-content [fullscreen]="true" class="ion-padding">
-  <div *ngIf="(workouts$ | async) === null" class="flex justify-center mt-10">
+  <div *ngIf="workouts === null" class="flex justify-center mt-10">
     <ion-spinner></ion-spinner>
   </div>
 
   <ion-list lines="none" class="bg-transparent">
-    <app-workout-card
-      *ngFor="let workout of workouts$ | async"
+    <app-workout-list-item
+      *ngFor="let workout of workouts"
       [workout]="workout"
-    ></app-workout-card>
+      (deleted)="onWorkoutDeleted($event)"
+    ></app-workout-list-item>
   </ion-list>
 
   <div
-    *ngIf="(workouts$ | async)?.length === 0"
+    *ngIf="workouts?.length === 0"
     class="text-center text-muted mt-10"
   >
     <p>No workouts recorded yet.</p>

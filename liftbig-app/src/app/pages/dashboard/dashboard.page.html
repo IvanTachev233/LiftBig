@@ -17,19 +17,20 @@
   <h2 class="section-title">Upcoming Workouts</h2>
 
   <!-- Loading State (Simple) -->
-  <div *ngIf="(upcomingWorkouts$ | async) === null" class="flex justify-center mt-10">
+  <div *ngIf="upcomingWorkouts === null" class="flex justify-center mt-10">
     <ion-spinner></ion-spinner>
   </div>
 
   <ion-list lines="none" class="bg-transparent">
-    <app-workout-card
-      *ngFor="let workout of upcomingWorkouts$ | async"
+    <app-workout-list-item
+      *ngFor="let workout of upcomingWorkouts"
       [workout]="workout"
-    ></app-workout-card>
+      (deleted)="onWorkoutDeleted($event)"
+    ></app-workout-list-item>
   </ion-list>
 
   <div
-    *ngIf="(upcomingWorkouts$ | async)?.length === 0"
+    *ngIf="upcomingWorkouts?.length === 0"
     class="text-center text-muted mt-10"
   >
     <p>No upcoming workouts planned.</p>

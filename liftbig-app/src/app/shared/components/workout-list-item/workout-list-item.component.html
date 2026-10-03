@@ -1,0 +1,14 @@
+<ion-item-sliding #slidingItem>
+  <ion-item lines="none" class="workout-list-item">
+    <app-workout-card [workout]="workout"></app-workout-card>
+  </ion-item>
+  <ion-item-options side="end">
+    <ion-item-option
+      color="danger"
+      aria-label="Delete workout"
+      (click)="confirmDelete()"
+    >
+      Delete
+    </ion-item-option>
+  </ion-item-options>
+</ion-item-sliding>

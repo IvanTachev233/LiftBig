@@ -47,4 +47,8 @@ export class WorkoutService {
   updateWorkout(id: string, data: any) {
     return this.http.patch(`${this.apiUrl}/${id}`, data);
   }
+
+  deleteWorkout(id: string) {
+    return this.http.delete(`${this.apiUrl}/${id}`);
+  }
 }

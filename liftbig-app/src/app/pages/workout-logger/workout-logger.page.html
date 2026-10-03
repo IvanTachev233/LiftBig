@@ -144,6 +144,11 @@
       expand="block"
       color="success"
       class="complete-btn"
+      [disabled]="
+        !workout.sets ||
+        workout.sets.length === 0 ||
+        workout._pendingComplete
+      "
       (click)="completeWorkout()"
     >
       <ion-icon name="checkmark-done-outline" slot="start"></ion-icon>
