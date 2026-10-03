@@ -7,7 +7,7 @@ import { WorkoutService, Workout } from '../../core/workout.service';
 import { AuthService } from '../../core/auth.service';
 import { ProgramService, Program } from '../../core/program.service';
 import { ClientService } from '../../core/client.service';
-import { WorkoutCardComponent } from '../../shared/components/workout-card/workout-card.component';
+import { WorkoutListItemComponent } from '../../shared/components/workout-list-item/workout-list-item.component';
 import { ProgramCardComponent } from '../../shared/components/program-card/program-card.component';
 import { Observable } from 'rxjs';
 
@@ -21,7 +21,7 @@ import { Observable } from 'rxjs';
     IonicModule,
     RouterModule,
     FormsModule,
-    WorkoutCardComponent,
+    WorkoutListItemComponent,
     ProgramCardComponent,
   ],
 })
@@ -32,7 +32,7 @@ export class DashboardPage implements OnInit {
   private toastController = inject(ToastController);
   public authService = inject(AuthService);
 
-  upcomingWorkouts$: Observable<Workout[]> | undefined;
+  upcomingWorkouts: Workout[] | null = null;
   upcomingPrograms$: Observable<Program[]> | undefined;
   user = this.authService.currentUser;
   inviteToken: string = '';
@@ -42,8 +42,15 @@ export class DashboardPage implements OnInit {
   }
 
   ngOnInit() {
-    this.upcomingWorkouts$ = this.workoutService.getUpcoming();
+    this.workoutService.getUpcoming().subscribe((workouts) => {
+      this.upcomingWorkouts = workouts;
+    });
     this.upcomingPrograms$ = this.programService.getUpcomingPrograms();
+  }
+
+  onWorkoutDeleted(id: string) {
+    this.upcomingWorkouts =
+      this.upcomingWorkouts?.filter((workout) => workout.id !== id) ?? null;
   }
 
   acceptInvite() {

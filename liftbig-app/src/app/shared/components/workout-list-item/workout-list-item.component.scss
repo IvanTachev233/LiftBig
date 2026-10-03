@@ -1,0 +1,35 @@
+// Opaque background hides the Delete option while the item slides back
+.workout-list-item {
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  --background: var(--ion-background-color);
+  --border-width: 0;
+}
+
+// Card fills the full item width
+app-workout-card {
+  display: block;
+  flex: 1;
+  width: 100%;
+}
+
+// Rounded Delete option with the same shape as the card
+ion-item-option {
+  overflow: hidden;
+  margin-inline-start: 8px;
+
+  &::part(native) {
+    border-radius: 8px;
+  }
+}
+
+// Match the card's vertical margin per mode (.ios/.md class is on <html>)
+:host-context(.ios) ion-item-option {
+  margin-block: 24px;
+  border-radius: 8px;
+}
+
+:host-context(.md) ion-item-option {
+  margin-block: 10px;
+  border-radius: 8px;
+}
