@@ -21,9 +21,7 @@ export class WorkoutListItemComponent {
   private alertController = inject(AlertController);
   private toastController = inject(ToastController);
 
-  // Re-entrancy guard: without it, double-tapping Delete before the alert
-  // resolves opens two confirmation alerts and can send two DELETE requests
-  // (the second 404s, showing a spurious error toast).
+  // Ignores Delete taps while a delete is already in progress
   private deleting = false;
 
   async confirmDelete() {
@@ -65,8 +63,7 @@ export class WorkoutListItemComponent {
     try {
       await this.slidingItem?.close();
     } catch {
-      // ion-item-sliding may not have an active gesture to close (e.g. the
-      // Delete button was tapped without swiping first); nothing to do.
+      // Slider was already closed
     }
   }
 

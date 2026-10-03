@@ -38,11 +38,7 @@ export class WorkoutLoggerPage implements OnInit {
 
   workoutSubject = new BehaviorSubject<any>(null);
 
-  // Per-draft in-flight guard: tracks which draft objects currently have a
-  // create POST pending, instead of a single global boolean. This lets a
-  // brand new draft (opened while a previous draft's create is still in
-  // flight, e.g. via IonicRouteStrategy reusing this component instance) be
-  // created independently of the stale one.
+  // Drafts whose create request is pending; prevents duplicate creates
   private inFlightCreates = new Set<any>();
 
   ngOnInit() {
@@ -57,10 +53,7 @@ export class WorkoutLoggerPage implements OnInit {
         if (id) {
           const current = this.workoutSubject.value;
           if (current && current.id === id) {
-            // Already loaded (e.g. the replaceUrl navigate after create
-            // re-emits queryParams). Emit nothing so the subscriber below
-            // does not re-run buildGroups() and drop exercise groups that
-            // have no sets yet, or clear half-typed newWeight/newReps.
+            // Already loaded; keep local exercise groups and inputs
             return EMPTY;
           }
           return this.workoutService.getWorkout(id);
@@ -169,11 +162,7 @@ export class WorkoutLoggerPage implements OnInit {
           draft.id = created.id;
           this.inFlightCreates.delete(draft);
 
-          // The view may have moved on to a different draft while this
-          // create was in flight (e.g. IonicRouteStrategy reused this
-          // component instance for a new "New Workout" navigation). In that
-          // case still persist this draft's sets/status on the server, but
-          // don't navigate or touch the currently displayed draft.
+          // Always save the draft; only update the view if it's still shown
           const isCurrent = this.workoutSubject.value === draft;
           const completing = !!draft._pendingComplete;
           const patchName = isCurrent ? this.workoutName : draft.name;
@@ -289,20 +278,14 @@ export class WorkoutLoggerPage implements OnInit {
 
     if (!currentWorkout.id) {
       if (!currentWorkout.sets || currentWorkout.sets.length === 0) {
-        // Defensive: the button is disabled with 0 sets, but if reached
-        // there is nothing to persist, so it's safe to navigate directly.
+        // Nothing to save
         currentWorkout.status = 'COMPLETED';
         this.workoutSubject.next(currentWorkout);
         this.router.navigate(['/dashboard']);
         return;
       }
 
-      // The draft has sets but no id: either a create is still in flight, or
-      // a previous create attempt failed and was never retried. Either way,
-      // defer completion until the draft has actually been created and
-      // saved as COMPLETED on the server, instead of taking the local-only
-      // shortcut above (which would otherwise navigate away, silently
-      // losing the workout).
+      // Unsaved draft with sets: create it, then mark it completed
       currentWorkout._pendingComplete = true;
       this.workoutSubject.next(currentWorkout);
       if (!this.inFlightCreates.has(currentWorkout)) {

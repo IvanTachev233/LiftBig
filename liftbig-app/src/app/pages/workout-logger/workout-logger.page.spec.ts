@@ -139,8 +139,7 @@ describe('WorkoutLoggerPage', () => {
       }),
     );
 
-    // Simulate the router re-emitting queryParams after replaceUrl; the
-    // already-loaded workout must not be refetched.
+    // Re-emitted id after replaceUrl does not refetch
     queryParamsSubject.next({ id: 'w1' });
     httpTesting.expectNone(
       (req) => req.method === 'GET' && req.url === `${workoutsUrl}/w1`,
@@ -183,8 +182,7 @@ describe('WorkoutLoggerPage', () => {
     expect(patchReq.request.body.sets.length).toBe(2);
     patchReq.flush({});
 
-    // A third set, added once the workout already has an id, should PATCH
-    // without ever sending another POST.
+    // Once saved, new sets PATCH instead of POST
     group.newWeight = 80;
     group.newReps = 3;
     component.addSetToExercise(group);
@@ -215,9 +213,7 @@ describe('WorkoutLoggerPage', () => {
       (req) => req.method === 'POST' && req.url === workoutsUrl,
     );
 
-    // Before A's create resolves, the user opens a brand new draft (B), e.g.
-    // via the side menu "New Workout" link. IonicRouteStrategy reuses the
-    // same component instance, so only queryParams re-emits.
+    // User opens a new draft (B) before A's create resolves
     (router.navigate as jasmine.Spy).calls.reset();
     queryParamsSubject.next({});
 
@@ -259,8 +255,7 @@ describe('WorkoutLoggerPage', () => {
 
     component.completeWorkout();
 
-    // Must not take the local-only "no id" shortcut and navigate away before
-    // the workout is actually saved as COMPLETED.
+    // Stays on the page until the workout is saved
     expect(router.navigate).not.toHaveBeenCalled();
 
     postReq.flush({ id: 'w2', name: 'New Workout', date: new Date().toISOString(), sets: [] });
@@ -364,9 +359,7 @@ describe('WorkoutLoggerPage', () => {
 
     expect(toastControllerSpy.create).toHaveBeenCalled();
 
-    // Complete tapped after the create failed and was never retried: must
-    // not take the local-only shortcut and navigate away with the workout
-    // never having been saved.
+    // Complete after a failed create retries the create first
     component.completeWorkout();
 
     expect(router.navigate).not.toHaveBeenCalled();
@@ -433,7 +426,7 @@ describe('WorkoutLoggerPage', () => {
     expect(component.workoutSubject.value.status).not.toBe('COMPLETED');
     expect(component.workoutSubject.value._pendingComplete).toBeFalsy();
 
-    // Retrying now goes through the normal (has-id) PATCH path.
+    // Retry uses PATCH now that the workout has an id
     component.completeWorkout();
 
     const retryPatchReq = httpTesting.expectOne(
@@ -515,8 +508,7 @@ describe('WorkoutLoggerPage', () => {
     );
     patchReq.flush({});
 
-    // The router.navigate([], { queryParams: { id: 'w5' }, replaceUrl: true })
-    // call re-emits queryParams; simulate that here.
+    // Re-emit the id set by replaceUrl
     queryParamsSubject.next({ id: 'w5' });
 
     httpTesting.expectNone(

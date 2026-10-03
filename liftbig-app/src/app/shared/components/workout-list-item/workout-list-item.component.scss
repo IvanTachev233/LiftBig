@@ -1,6 +1,4 @@
-// The item must be opaque: ion-item-sliding keeps the options rendered for
-// ~600ms after closing, and a transparent item lets them show through while
-// it slides back. Use the page background so only the card is visible.
+// Opaque background hides the Delete option while the item slides back
 .workout-list-item {
   --padding-start: 0;
   --inner-padding-end: 0;
@@ -8,22 +6,14 @@
   --border-width: 0;
 }
 
-// Without this the card shrinks to its content inside ion-item.
+// Card fills the full item width
 app-workout-card {
   display: block;
   flex: 1;
   width: 100%;
 }
 
-// ion-item-option fills the full height of ion-item-options, which matches
-// ion-item's height, not app-workout-card's. app-workout-card only zeroes
-// out margin-inline (see workout-card.component.scss), so it keeps Ionic's
-// default vertical margin/border-radius per mode; match those here so the
-// Delete option lines up with the card instead of leaving gaps above/below
-// it. ion-item-option's host element lives in the light DOM (only its
-// internal button is shadowed), so margin/border-radius/overflow on the
-// selector below apply directly; ::part(native) additionally rounds the
-// shadow-DOM button so the visible fill matches the host's rounded corners.
+// Rounded Delete option with the same shape as the card
 ion-item-option {
   overflow: hidden;
   margin-inline-start: 8px;
@@ -33,11 +23,7 @@ ion-item-option {
   }
 }
 
-// Ionic puts the mode class on <html>, not on this component's host, so
-// selecting via :root never matches under emulated view encapsulation
-// (Angular scopes :root to this component's [_ngcontent] attribute too).
-// :host-context looks at ancestors of the host outside the shadow/emulated
-// boundary, so it correctly reaches the mode class on <html>.
+// Match the card's vertical margin per mode (.ios/.md class is on <html>)
 :host-context(.ios) ion-item-option {
   margin-block: 24px;
   border-radius: 8px;

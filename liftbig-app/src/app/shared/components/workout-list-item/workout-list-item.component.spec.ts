@@ -31,10 +31,7 @@ describe('WorkoutListItemComponent', () => {
     alertSpy.onDidDismiss.and.resolveTo({ role } as any);
   }
 
-  // Waits for chained `await`s inside the component (close the slider, then
-  // present a toast) to settle before we assert. Polls instead of a fixed
-  // delay because ion-item-sliding's close() can take longer than one
-  // macrotask under load (e.g. full-suite runs).
+  // Polls until the condition holds; slider close() timing varies
   function flushMicrotasks(
     condition: () => boolean = () => true,
     timeoutMs = 1000,

@@ -19,8 +19,7 @@ describe('DashboardPage', () => {
   let alertSpy: jasmine.SpyObj<HTMLIonAlertElement>;
   let toastSpy: jasmine.SpyObj<HTMLIonToastElement>;
 
-  // Polls instead of a fixed delay because ion-item-sliding's close() can
-  // take longer than one macrotask under load (e.g. full-suite runs).
+  // Polls until the condition holds; slider close() timing varies
   function flushMicrotasks(
     condition: () => boolean,
     timeoutMs = 1000,
