@@ -15,6 +15,8 @@ export interface ProgramExercise {
   notes: string | null;
   order: number;
   made: boolean | null;
+  // Rows sharing a value form one superset
+  supersetGroup?: string | null;
 }
 
 export interface Program {

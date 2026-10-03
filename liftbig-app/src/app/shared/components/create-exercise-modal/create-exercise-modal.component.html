@@ -1,0 +1,76 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button aria-label="Cancel" (click)="cancel()">
+        <ion-icon slot="icon-only" name="chevron-back"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>New Exercise</ion-title>
+    <ion-buttons slot="end">
+      <!-- Outside the form, so it submits it via [form]; ngSubmit calls save() -->
+      <ion-button
+        class="save-button"
+        type="submit"
+        [form]="exerciseForm"
+        [strong]="true"
+        [disabled]="!canSave"
+      >
+        Save
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <form #exerciseForm (ngSubmit)="save()">
+    <div class="field">
+      <ion-input
+        name="name"
+        label="Name"
+        labelPlacement="stacked"
+        placeholder="e.g. Zercher Squat"
+        fill="outline"
+        [maxlength]="100"
+        required
+        [(ngModel)]="name"
+        (ngModelChange)="onNameChange()"
+      ></ion-input>
+      @if (nameError) {
+        <p class="field-error name-error" role="alert">{{ nameError }}</p>
+      }
+    </div>
+
+    <div class="field">
+      <ion-textarea
+        name="description"
+        label="Description"
+        labelPlacement="stacked"
+        placeholder="Setup, cues, common mistakes"
+        fill="outline"
+        [maxlength]="2000"
+        [autoGrow]="true"
+        [rows]="4"
+        [(ngModel)]="description"
+      ></ion-textarea>
+    </div>
+
+    <div class="field">
+      <ion-input
+        name="videoUrl"
+        type="url"
+        inputmode="url"
+        label="Video URL (optional)"
+        labelPlacement="stacked"
+        placeholder="https://youtu.be/..."
+        fill="outline"
+        [(ngModel)]="videoUrl"
+        (ngModelChange)="onVideoUrlChange()"
+      ></ion-input>
+      @if (videoUrlError) {
+        <p class="field-error video-url-error" role="alert">{{ videoUrlError }}</p>
+      } @else {
+        <p class="field-hint">YouTube, Vimeo or a direct .mp4 link</p>
+      }
+    </div>
+  </form>
+</ion-content>

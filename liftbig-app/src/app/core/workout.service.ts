@@ -12,6 +12,23 @@ export interface Workout {
   totalWeightLifted: number;
 }
 
+export interface Exercise {
+  id: string;
+  name: string;
+  description?: string | null;
+  bodyPart?: string | null;
+  videoUrl?: string | null;
+  imageUrl?: string | null;
+  // null = global (seeded) exercise; otherwise the coach who created it
+  createdById?: string | null;
+}
+
+export interface CreateExerciseDto {
+  name: string;
+  description?: string;
+  videoUrl?: string;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -29,7 +46,12 @@ export class WorkoutService {
   }
 
   getExercises() {
-    return this.http.get<any[]>(`${this.apiUrl}/exercises`);
+    return this.http.get<Exercise[]>(`${this.apiUrl}/exercises`);
+  }
+
+  // COACH only; the API returns 409 when the name is already taken
+  createExercise(dto: CreateExerciseDto) {
+    return this.http.post<Exercise>(`${this.apiUrl}/exercises`, dto);
   }
 
   getAllWorkouts() {

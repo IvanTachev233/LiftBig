@@ -1,11 +1,20 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonicModule, ToastController } from '@ionic/angular';
+import { IonicModule, ModalController, ToastController } from '@ionic/angular';
 import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { WorkoutService } from '../../core/workout.service';
+import { Exercise, WorkoutService } from '../../core/workout.service';
 import { Observable, switchMap, BehaviorSubject, of, EMPTY, shareReplay } from 'rxjs';
+import {
+  ExercisePickerComponent,
+  ExercisePickerResult,
+} from '../../shared/components/exercise-picker/exercise-picker.component';
+import {
+  newSupersetId,
+  normalizeSupersets,
+  toGroupBlocks,
+} from '../../shared/superset';
 
 interface ExerciseGroup {
   exerciseId: string;
@@ -13,6 +22,8 @@ interface ExerciseGroup {
   sets: any[];
   newWeight: number | null;
   newReps: number | null;
+  // Groups sharing a value form one superset; null when not in one
+  supersetGroup: string | null;
 }
 
 @Component({
@@ -27,11 +38,11 @@ export class WorkoutLoggerPage implements OnInit {
   private router = inject(Router);
   private workoutService = inject(WorkoutService);
   private toastController = inject(ToastController);
+  private modalCtrl = inject(ModalController);
 
   workout$: Observable<any> | undefined;
   exercises$: Observable<any[]> | undefined;
 
-  selectedExerciseId: string = '';
   workoutName: string = '';
   exercisesList: any[] = [];
   groupedSets: ExerciseGroup[] = [];
@@ -40,6 +51,9 @@ export class WorkoutLoggerPage implements OnInit {
 
   // Drafts whose create request is pending; prevents duplicate creates
   private inFlightCreates = new Set<any>();
+
+  // Prevents a double tap from opening two pickers
+  private pickerOpen = false;
 
   ngOnInit() {
     this.exercises$ = this.workoutService
@@ -92,33 +106,70 @@ export class WorkoutLoggerPage implements OnInit {
           sets: [],
           newWeight: null,
           newReps: null,
+          supersetGroup: set.supersetGroup ?? null,
         });
       }
       map.get(id)!.sets.push(set);
     }
-    this.groupedSets = Array.from(map.values());
+    // Rebuild superset blocks from the stored supersetGroup
+    this.groupedSets = normalizeSupersets(Array.from(map.values()));
   }
 
-  addExercise() {
-    if (!this.selectedExerciseId) return;
-    const alreadyExists = this.groupedSets.some(
-      (g) => g.exerciseId === this.selectedExerciseId,
-    );
-    if (alreadyExists) {
-      this.selectedExerciseId = '';
-      return;
+  /** Exercise cards split into superset blocks and single cards */
+  groupBlocks() {
+    return toGroupBlocks(this.groupedSets);
+  }
+
+  async openExercisePicker() {
+    if (this.pickerOpen) return;
+    this.pickerOpen = true;
+    try {
+      const modal = await this.modalCtrl.create({
+        component: ExercisePickerComponent,
+        // An empty list means it hasn't loaded yet; let the picker load it
+        componentProps: {
+          exercises: this.exercisesList.length ? this.exercisesList : undefined,
+        },
+      });
+      await modal.present();
+      const { data, role } = await modal.onWillDismiss<ExercisePickerResult>();
+      if (role === 'confirm' && data?.exercises?.length) {
+        this.addExercises(data.exercises, data.superset);
+      }
+    } finally {
+      this.pickerOpen = false;
     }
-    const exercise = this.exercisesList.find(
-      (e) => e.id === this.selectedExerciseId,
-    );
-    this.groupedSets.push({
-      exerciseId: this.selectedExerciseId,
-      exerciseName: exercise?.name || 'Exercise',
-      sets: [],
-      newWeight: null,
-      newReps: null,
-    });
-    this.selectedExerciseId = '';
+  }
+
+  /**
+   * Appends a group per exercise, in order, skipping exercises already in the
+   * workout. With superset, the new groups share one supersetGroup (needs >= 2).
+   */
+  addExercises(exercises: Exercise[], superset = false) {
+    const seen = new Set(this.groupedSets.map((g) => g.exerciseId));
+    const toAdd: Exercise[] = [];
+    for (const ex of exercises) {
+      if (seen.has(ex.id)) continue;
+      seen.add(ex.id);
+      toAdd.push(ex);
+    }
+    const supersetGroup =
+      superset && toAdd.length >= 2 ? newSupersetId() : null;
+
+    for (const ex of toAdd) {
+      // Coach-created exercises may be missing from the loaded list
+      if (!this.exercisesList.some((e) => e.id === ex.id)) {
+        this.exercisesList = [...this.exercisesList, ex];
+      }
+      this.groupedSets.push({
+        exerciseId: ex.id,
+        exerciseName: ex.name || 'Exercise',
+        sets: [],
+        newWeight: null,
+        newReps: null,
+        supersetGroup,
+      });
+    }
   }
 
   addSetToExercise(group: ExerciseGroup) {
@@ -132,6 +183,7 @@ export class WorkoutLoggerPage implements OnInit {
       reps: group.newReps,
       order: currentWorkout.sets.length + 1,
       isCompleted: true,
+      supersetGroup: group.supersetGroup ?? null,
       exercise: { id: group.exerciseId, name: group.exerciseName },
     };
 
@@ -166,6 +218,7 @@ export class WorkoutLoggerPage implements OnInit {
           const isCurrent = this.workoutSubject.value === draft;
           const completing = !!draft._pendingComplete;
           const patchName = isCurrent ? this.workoutName : draft.name;
+          if (isCurrent) this.syncSupersetGroups();
 
           this.workoutService
             .updateWorkout(created.id, {
@@ -239,8 +292,9 @@ export class WorkoutLoggerPage implements OnInit {
     currentWorkout.sets = currentWorkout.sets.filter(
       (s: any) => (s.exercise?.id || s.exerciseId) !== exerciseId,
     );
-    this.groupedSets = this.groupedSets.filter(
-      (g) => g.exerciseId !== exerciseId,
+    // A superset left with 1 member is no longer a superset
+    this.groupedSets = normalizeSupersets(
+      this.groupedSets.filter((g) => g.exerciseId !== exerciseId),
     );
 
     this.saveAllSets();
@@ -316,9 +370,19 @@ export class WorkoutLoggerPage implements OnInit {
   private saveAllSets() {
     const currentWorkout = this.workoutSubject.value;
     if (!currentWorkout || !currentWorkout.id) return;
+    this.syncSupersetGroups();
     this.workoutService
       .updateWorkout(currentWorkout.id, { sets: currentWorkout.sets })
       .subscribe({ error: () => this.presentSaveErrorToast() });
+  }
+
+  // Every saved set carries its group's supersetGroup (null when none)
+  private syncSupersetGroups() {
+    for (const group of this.groupedSets) {
+      for (const set of group.sets) {
+        set.supersetGroup = group.supersetGroup ?? null;
+      }
+    }
   }
 
   private async presentSaveErrorToast() {

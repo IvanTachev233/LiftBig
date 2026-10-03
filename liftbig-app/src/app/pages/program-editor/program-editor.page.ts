@@ -1,11 +1,21 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonicModule, ToastController } from '@ionic/angular';
+import { IonicModule, ModalController, ToastController } from '@ionic/angular';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ProgramService } from '../../core/program.service';
-import { WorkoutService } from '../../core/workout.service';
+import { Exercise, WorkoutService } from '../../core/workout.service';
 import { Observable } from 'rxjs';
+import {
+  ExercisePickerComponent,
+  ExercisePickerResult,
+} from '../../shared/components/exercise-picker/exercise-picker.component';
+import {
+  blockRange,
+  newSupersetId,
+  normalizeSupersets,
+  toGroupBlocks,
+} from '../../shared/superset';
 
 interface SetRow {
   // Set id from the API; absent for sets added in this editor session
@@ -20,6 +30,8 @@ interface ExerciseGroup {
   exerciseId: string;
   exerciseName: string;
   sets: SetRow[];
+  // Groups sharing a value form one superset; null when not in one
+  supersetGroup: string | null;
 }
 
 @Component({
@@ -35,6 +47,7 @@ export class ProgramEditorPage implements OnInit {
   private programService = inject(ProgramService);
   private workoutService = inject(WorkoutService);
   private toastController = inject(ToastController);
+  private modalCtrl = inject(ModalController);
 
   exercises$: Observable<any[]> | undefined;
   exercisesList: any[] = [];
@@ -45,7 +58,9 @@ export class ProgramEditorPage implements OnInit {
   programName: string = '';
   scheduledDate: string = new Date().toISOString();
   exerciseGroups: ExerciseGroup[] = [];
-  selectedExerciseId: string = '';
+
+  // Prevents a double tap from opening two pickers
+  private pickerOpen = false;
 
   ngOnInit() {
     this.exercises$ = this.workoutService.getExercises();
@@ -77,6 +92,7 @@ export class ProgramEditorPage implements OnInit {
           exerciseId: id,
           exerciseName: e.exercise?.name || 'Exercise',
           sets: [],
+          supersetGroup: e.supersetGroup ?? null,
         });
       }
       map.get(id)!.sets.push({
@@ -87,20 +103,55 @@ export class ProgramEditorPage implements OnInit {
         made: e.made ?? null,
       });
     }
-    this.exerciseGroups = Array.from(map.values());
+    // Rebuild superset blocks from the stored supersetGroup
+    this.exerciseGroups = normalizeSupersets(Array.from(map.values()));
   }
 
-  addExercise() {
-    if (!this.selectedExerciseId) return;
-    const exercise = this.exercisesList.find(
-      (e) => e.id === this.selectedExerciseId,
-    );
-    this.exerciseGroups.push({
-      exerciseId: this.selectedExerciseId,
-      exerciseName: exercise?.name || 'Exercise',
-      sets: [{ reps: 5, weight: null, notes: '', made: null }],
-    });
-    this.selectedExerciseId = '';
+  /** Exercise cards split into superset blocks and single cards */
+  groupBlocks() {
+    return toGroupBlocks(this.exerciseGroups);
+  }
+
+  async openExercisePicker() {
+    if (this.pickerOpen) return;
+    this.pickerOpen = true;
+    try {
+      const modal = await this.modalCtrl.create({
+        component: ExercisePickerComponent,
+        // An empty list means it hasn't loaded yet; let the picker load it
+        componentProps: {
+          exercises: this.exercisesList.length ? this.exercisesList : undefined,
+        },
+      });
+      await modal.present();
+      const { data, role } = await modal.onWillDismiss<ExercisePickerResult>();
+      if (role === 'confirm' && data?.exercises?.length) {
+        this.addExercises(data.exercises, data.superset);
+      }
+    } finally {
+      this.pickerOpen = false;
+    }
+  }
+
+  /**
+   * Appends a group per exercise, in order, each with one starting set of 5 reps.
+   * With superset, the new groups share one supersetGroup (needs >= 2).
+   */
+  addExercises(exercises: Exercise[], superset = false) {
+    const supersetGroup =
+      superset && exercises.length >= 2 ? newSupersetId() : null;
+    for (const ex of exercises) {
+      // Coach-created exercises may be missing from the loaded list
+      if (!this.exercisesList.some((e) => e.id === ex.id)) {
+        this.exercisesList = [...this.exercisesList, ex];
+      }
+      this.exerciseGroups.push({
+        exerciseId: ex.id,
+        exerciseName: ex.name || 'Exercise',
+        sets: [{ reps: 5, weight: null, notes: '', made: null }],
+        supersetGroup,
+      });
+    }
   }
 
   addSet(group: ExerciseGroup) {
@@ -119,22 +170,39 @@ export class ProgramEditorPage implements OnInit {
 
   removeExercise(groupIndex: number) {
     this.exerciseGroups.splice(groupIndex, 1);
+    // A superset left with 1 member is no longer a superset
+    this.exerciseGroups = normalizeSupersets(this.exerciseGroups);
   }
 
+  // Inside a superset the arrows reorder its members; otherwise the whole
+  // block (single card or superset) moves past the neighbouring block, so
+  // superset members always stay next to each other.
   moveUp(index: number) {
     if (index <= 0) return;
-    [this.exerciseGroups[index - 1], this.exerciseGroups[index]] = [
-      this.exerciseGroups[index],
-      this.exerciseGroups[index - 1],
-    ];
+    const groups = this.exerciseGroups;
+    const group = groups[index];
+    if (group.supersetGroup && groups[index - 1].supersetGroup === group.supersetGroup) {
+      [groups[index - 1], groups[index]] = [groups[index], groups[index - 1]];
+      return;
+    }
+    const [start, end] = blockRange(groups, index);
+    const [prevStart] = blockRange(groups, start - 1);
+    const moved = groups.splice(start, end - start + 1);
+    groups.splice(prevStart, 0, ...moved);
   }
 
   moveDown(index: number) {
-    if (index >= this.exerciseGroups.length - 1) return;
-    [this.exerciseGroups[index], this.exerciseGroups[index + 1]] = [
-      this.exerciseGroups[index + 1],
-      this.exerciseGroups[index],
-    ];
+    const groups = this.exerciseGroups;
+    if (index >= groups.length - 1) return;
+    const group = groups[index];
+    if (group.supersetGroup && groups[index + 1].supersetGroup === group.supersetGroup) {
+      [groups[index], groups[index + 1]] = [groups[index + 1], groups[index]];
+      return;
+    }
+    const [start, end] = blockRange(groups, index);
+    const [nextStart, nextEnd] = blockRange(groups, end + 1);
+    const next = groups.splice(nextStart, nextEnd - nextStart + 1);
+    groups.splice(start, 0, ...next);
   }
 
   save() {
@@ -155,6 +223,7 @@ export class ProgramEditorPage implements OnInit {
           weight: set.weight,
           notes: set.notes || undefined,
           order: order++,
+          supersetGroup: group.supersetGroup ?? null,
         });
       }
     }

@@ -61,8 +61,28 @@
   flex: 1;
 }
 
-.add-exercise-card {
+.add-exercise-btn {
   margin-bottom: 16px;
+}
+
+.superset-block {
+  margin-bottom: 16px;
+  padding: 8px 0 0;
+  border: 2px solid var(--ion-color-primary);
+  border-radius: 12px;
+  background: rgba(var(--ion-color-primary-rgb), 0.06);
+
+  .exercise-card {
+    margin: 0 8px 8px;
+  }
+}
+
+.superset-label {
+  padding: 0 12px 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ion-color-primary);
 }
 
 .empty-sets-message {
