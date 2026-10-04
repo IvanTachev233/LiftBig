@@ -3,7 +3,7 @@
     <div class="card-header-row">
       <ion-card-title class="card-title">{{ program.name }}</ion-card-title>
       <div class="card-header-actions">
-        <ion-badge color="primary">{{ uniqueExerciseCount }} exercises</ion-badge>
+        <ion-badge color="primary">{{ exerciseCount }} exercises</ion-badge>
         <ion-button
           *ngIf="showDelete"
           color="danger"
@@ -27,8 +27,8 @@
         <span *ngIf="ex.weight">@ {{ ex.weight }}kg</span>
       </span>
     </div>
-    <div *ngIf="uniqueExerciseCount > 3" class="more-exercises">
-      +{{ uniqueExerciseCount - 3 }} more
+    <div *ngIf="exerciseCount > 3" class="more-exercises">
+      +{{ exerciseCount - 3 }} more
     </div>
   </ion-card-content>
 </ion-card>

@@ -7,23 +7,23 @@
     </ion-buttons>
     <ion-title class="picker-title">Exercises</ion-title>
     <ion-buttons slot="end">
-      <ion-button
-        class="superset-button"
-        [disabled]="selectedCount() < 2"
-        (click)="addAsSuperset()"
-      >
-        Superset
-      </ion-button>
+      @if (mode !== 'replace') {
+        <ion-button
+          class="superset-button"
+          [disabled]="selectedCount() < 2"
+          (click)="addAsSuperset()"
+        >
+          Superset
+        </ion-button>
+      }
       <ion-button
         class="add-button"
         [strong]="true"
-        [disabled]="selectedCount() < 1"
-        [attr.aria-label]="
-          selectedCount() ? 'Add ' + selectedCount() + ' selected' : 'Add'
-        "
-        (click)="add()"
+        [disabled]="primaryDisabled()"
+        [attr.aria-label]="primaryAriaLabel()"
+        (click)="onPrimary()"
       >
-        Add{{ selectedCount() ? ' (' + selectedCount() + ')' : '' }}
+        {{ primaryLabel() }}
       </ion-button>
     </ion-buttons>
   </ion-toolbar>

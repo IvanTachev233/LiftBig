@@ -1,15 +1,81 @@
-import { Injectable, signal, inject } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../environments/environment';
-import { toSignal } from '@angular/core/rxjs-interop'; // Needs Angular 16+
-// Assuming Angular 17/18/20 based on user request "Angular v20"
+
+export type WorkoutStatus = 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED';
+
+export interface WorkoutSet {
+  id: string;
+  workoutExerciseId?: string;
+  reps: number;
+  weight: number;
+  // Set number inside its card
+  order: number;
+  isCompleted: boolean;
+  weightMode?: 'EX' | 'PC' | 'RP';
+  expectedWeight?: number | null;
+  actualReps?: number | null;
+  actualWeight?: number | null;
+}
+
+// One exercise card; the same exercise may appear on several cards
+export interface WorkoutCard {
+  id: string;
+  workoutId?: string;
+  exerciseId: string;
+  exercise?: Exercise;
+  // Card position in the workout
+  order: number;
+  // Cards sharing a value form one superset
+  supersetGroup: string | null;
+  sets: WorkoutSet[];
+}
 
 export interface Workout {
   id: string;
+  userId?: string;
   name: string;
   date: string;
-  status: 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED';
+  notes?: string | null;
+  isTemplate?: boolean;
+  status: WorkoutStatus;
   totalWeightLifted: number;
+  // Sorted by card order, sets by set order
+  exercises: WorkoutCard[];
+}
+
+export interface CreateWorkoutRequest {
+  name: string;
+  date: string;
+  notes?: string;
+  isTemplate?: boolean;
+}
+
+// `id` keeps an existing set of the same card; omit it for a new set
+export interface WorkoutSetInput {
+  id?: string;
+  reps: number;
+  weight: number;
+  order?: number;
+  isCompleted?: boolean;
+}
+
+// `id` keeps an existing card of the same workout; omit it for a new card
+export interface WorkoutCardInput {
+  id?: string;
+  exerciseId: string;
+  order: number;
+  supersetGroup?: string | null;
+  sets: WorkoutSetInput[];
+}
+
+// `exercises` replaces all cards when present and leaves them as they are when absent
+export interface UpdateWorkoutRequest {
+  name?: string;
+  notes?: string;
+  status?: WorkoutStatus;
+  date?: string;
+  exercises?: WorkoutCardInput[];
 }
 
 export interface Exercise {
@@ -36,11 +102,6 @@ export class WorkoutService {
   private http = inject(HttpClient);
   private apiUrl = `${environment.apiUrl}/workouts`;
 
-  // Signals
-  // In a real app we might want manually manageable signals or resources,
-  // but toSignal is great for read-only streams
-  // We'll stick to simple methods returning Observables or Signals as needed.
-
   getUpcoming() {
     return this.http.get<Workout[]>(`${this.apiUrl}/upcoming`);
   }
@@ -59,15 +120,15 @@ export class WorkoutService {
   }
 
   getWorkout(id: string) {
-    return this.http.get<any>(`${this.apiUrl}/${id}`);
+    return this.http.get<Workout>(`${this.apiUrl}/${id}`);
   }
 
-  createWorkout(workout: any) {
-    return this.http.post(this.apiUrl, workout);
+  createWorkout(workout: CreateWorkoutRequest) {
+    return this.http.post<Workout>(this.apiUrl, workout);
   }
 
-  updateWorkout(id: string, data: any) {
-    return this.http.patch(`${this.apiUrl}/${id}`, data);
+  updateWorkout(id: string, body: UpdateWorkoutRequest) {
+    return this.http.patch<Workout>(`${this.apiUrl}/${id}`, body);
   }
 
   deleteWorkout(id: string) {

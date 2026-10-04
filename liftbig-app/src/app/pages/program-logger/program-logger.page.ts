@@ -3,16 +3,24 @@ import { CommonModule } from '@angular/common';
 import { IonicModule, ToastController } from '@ionic/angular';
 import { RouterModule, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { ProgramService, Program, ProgramExercise } from '../../core/program.service';
+import {
+  ProgramService,
+  Program,
+  ProgramCard,
+  ProgramSet,
+} from '../../core/program.service';
+import { GroupBlock, toGroupBlocks } from '../../shared/superset';
 
-interface LoggableSet extends ProgramExercise {
+interface LoggableSet extends ProgramSet {
   dirty: boolean;
   isNew: boolean;
 }
 
+// One exercise card; duplicates of an exercise stay separate cards
 interface ExerciseGroup {
-  exerciseId: string;
+  cardId: string;
   exerciseName: string;
+  supersetGroup: string | null;
   sets: LoggableSet[];
 }
 
@@ -49,6 +57,7 @@ export class ProgramLoggerPage implements OnInit {
 
   program: Program | null = null;
   exerciseGroups: ExerciseGroup[] = [];
+  groupBlocks: GroupBlock<ExerciseGroup>[] = [];
   loading = true;
 
   ngOnInit() {
@@ -66,21 +75,18 @@ export class ProgramLoggerPage implements OnInit {
     });
   }
 
-  private buildGroups(exercises: ProgramExercise[]) {
-    const map = new Map<string, ExerciseGroup>();
-    const sorted = [...exercises].sort((a, b) => a.order - b.order);
-    for (const e of sorted) {
-      const id = e.exerciseId;
-      if (!map.has(id)) {
-        map.set(id, {
-          exerciseId: id,
-          exerciseName: e.exercise?.name || 'Exercise',
-          sets: [],
-        });
-      }
-      map.get(id)!.sets.push({ ...e, dirty: false, isNew: false });
-    }
-    this.exerciseGroups = Array.from(map.values());
+  private buildGroups(cards: ProgramCard[]) {
+    this.exerciseGroups = [...cards]
+      .sort((a, b) => a.order - b.order)
+      .map((card) => ({
+        cardId: card.id,
+        exerciseName: card.exercise?.name || 'Exercise',
+        supersetGroup: card.supersetGroup,
+        sets: [...(card.sets || [])]
+          .sort((a, b) => a.order - b.order)
+          .map((set) => ({ ...set, dirty: false, isNew: false })),
+      }));
+    this.groupBlocks = toGroupBlocks(this.exerciseGroups);
   }
 
   markDirty(set: LoggableSet) {
@@ -109,8 +115,6 @@ export class ProgramLoggerPage implements OnInit {
     const lastSet = group.sets[group.sets.length - 1];
     const newSet: LoggableSet = {
       id: '',
-      exerciseId: group.exerciseId,
-      exercise: lastSet?.exercise,
       reps: lastSet ? lastSet.reps : 5,
       weight: lastSet ? lastSet.weight : null,
       notes: null,
@@ -127,11 +131,12 @@ export class ProgramLoggerPage implements OnInit {
   }
 
   saveAll() {
-    const allSets: LoggableSet[] = [];
-    for (const g of this.exerciseGroups) {
-      allSets.push(...g.sets);
+    const dirtySets: { group: ExerciseGroup; set: LoggableSet }[] = [];
+    for (const group of this.exerciseGroups) {
+      for (const set of group.sets) {
+        if (set.dirty) dirtySets.push({ group, set });
+      }
     }
-    const dirtySets = allSets.filter((s) => s.dirty);
 
     if (dirtySets.length === 0) {
       this.presentToast('No changes to save', 'success');
@@ -139,21 +144,17 @@ export class ProgramLoggerPage implements OnInit {
     }
 
     let saved = 0;
-    for (const set of dirtySets) {
+    for (const { group, set } of dirtySets) {
+      const body = {
+        // The API takes whole reps; an emptied field stays empty
+        reps: set.reps == null ? set.reps : Math.round(Number(set.reps)),
+        weight: set.weight,
+        notes: set.notes,
+        made: set.made,
+      };
       const obs = set.isNew
-        ? this.programService.addExerciseSet(this.program!.id, {
-            exerciseId: set.exerciseId,
-            reps: set.reps,
-            weight: set.weight,
-            notes: set.notes,
-            made: set.made,
-          })
-        : this.programService.patchExercise(this.program!.id, set.id, {
-            reps: set.reps,
-            weight: set.weight,
-            notes: set.notes,
-            made: set.made,
-          });
+        ? this.programService.addSet(this.program!.id, group.cardId, body)
+        : this.programService.updateSet(this.program!.id, set.id, body);
 
       obs.subscribe({
         next: (result) => {

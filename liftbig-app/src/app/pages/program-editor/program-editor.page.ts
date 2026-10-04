@@ -1,9 +1,18 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonicModule, ModalController, ToastController } from '@ionic/angular';
+import {
+  AlertController,
+  IonicModule,
+  ModalController,
+  ToastController,
+} from '@ionic/angular';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { ProgramService } from '../../core/program.service';
+import {
+  ProgramCard,
+  ProgramService,
+  UpdateProgramCardInput,
+} from '../../core/program.service';
 import { Exercise, WorkoutService } from '../../core/workout.service';
 import { Observable } from 'rxjs';
 import {
@@ -17,6 +26,9 @@ import {
   toGroupBlocks,
 } from '../../shared/superset';
 
+// Makes element ids unique when more than one page instance is in the DOM
+let nextPageId = 0;
+
 interface SetRow {
   // Set id from the API; absent for sets added in this editor session
   id?: string;
@@ -26,7 +38,10 @@ interface SetRow {
   made: boolean | null;
 }
 
+// One exercise card in the editor
 interface ExerciseGroup {
+  // Card id from the API; absent for cards added in this editor session
+  id?: string;
   exerciseId: string;
   exerciseName: string;
   sets: SetRow[];
@@ -48,6 +63,7 @@ export class ProgramEditorPage implements OnInit {
   private workoutService = inject(WorkoutService);
   private toastController = inject(ToastController);
   private modalCtrl = inject(ModalController);
+  private alertCtrl = inject(AlertController);
 
   exercises$: Observable<any[]> | undefined;
   exercisesList: any[] = [];
@@ -58,6 +74,8 @@ export class ProgramEditorPage implements OnInit {
   programName: string = '';
   scheduledDate: string = new Date().toISOString();
   exerciseGroups: ExerciseGroup[] = [];
+
+  readonly idPrefix = `program-editor-${nextPageId++}`;
 
   // Prevents a double tap from opening two pickers
   private pickerOpen = false;
@@ -81,30 +99,22 @@ export class ProgramEditorPage implements OnInit {
     }
   }
 
-  private buildGroups(exercises: any[]) {
-    const map = new Map<string, ExerciseGroup>();
-    // Sort by order to maintain sequence
-    const sorted = [...exercises].sort((a, b) => a.order - b.order);
-    for (const e of sorted) {
-      const id = e.exerciseId;
-      if (!map.has(id)) {
-        map.set(id, {
-          exerciseId: id,
-          exerciseName: e.exercise?.name || 'Exercise',
-          sets: [],
-          supersetGroup: e.supersetGroup ?? null,
-        });
-      }
-      map.get(id)!.sets.push({
-        id: e.id,
-        reps: e.reps,
-        weight: e.weight,
-        notes: e.notes || '',
-        made: e.made ?? null,
-      });
-    }
-    // Rebuild superset blocks from the stored supersetGroup
-    this.exerciseGroups = normalizeSupersets(Array.from(map.values()));
+  private buildGroups(cards: ProgramCard[]) {
+    const groups: ExerciseGroup[] = cards.map((card) => ({
+      id: card.id,
+      exerciseId: card.exerciseId,
+      exerciseName: card.exercise?.name || 'Exercise',
+      supersetGroup: card.supersetGroup ?? null,
+      sets: card.sets.map((set) => ({
+        id: set.id,
+        reps: set.reps,
+        weight: set.weight,
+        notes: set.notes || '',
+        made: set.made ?? null,
+      })),
+    }));
+    // Keeps superset members next to each other for the move arrows
+    this.exerciseGroups = normalizeSupersets(groups);
   }
 
   /** Exercise cards split into superset blocks and single cards */
@@ -152,6 +162,61 @@ export class ProgramEditorPage implements OnInit {
         supersetGroup,
       });
     }
+  }
+
+  /**
+   * Opens the picker in replace mode and swaps the card's exercise in place,
+   * keeping its card and set ids so logged results survive the save
+   */
+  async replaceExercise(group: ExerciseGroup) {
+    if (this.pickerOpen) return;
+    this.pickerOpen = true;
+    try {
+      const modal = await this.modalCtrl.create({
+        component: ExercisePickerComponent,
+        componentProps: {
+          exercises: this.exercisesList.length ? this.exercisesList : undefined,
+          mode: 'replace',
+        },
+      });
+      await modal.present();
+      const { data, role } = await modal.onWillDismiss<ExercisePickerResult>();
+      const ex = data?.exercises?.[0];
+      if (role !== 'confirm' || !ex || ex.id === group.exerciseId) return;
+
+      if (!this.exercisesList.some((e) => e.id === ex.id)) {
+        this.exercisesList = [...this.exercisesList, ex];
+      }
+      group.exerciseId = ex.id;
+      group.exerciseName = ex.name || 'Exercise';
+    } finally {
+      this.pickerOpen = false;
+    }
+  }
+
+  /** Asks to confirm, then removes every member of the superset and their sets */
+  async removeSuperset(supersetGroup: string | null) {
+    if (!supersetGroup) return;
+    const members = this.exerciseGroups.filter(
+      (g) => g.supersetGroup === supersetGroup,
+    );
+    if (!members.length) return;
+
+    const alert = await this.alertCtrl.create({
+      header: 'Delete superset?',
+      message: `Removes ${members.length} exercises and their sets`,
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        { text: 'Delete', role: 'destructive' },
+      ],
+    });
+    await alert.present();
+    const { role } = await alert.onDidDismiss();
+    if (role !== 'destructive') return;
+
+    this.exerciseGroups = normalizeSupersets(
+      this.exerciseGroups.filter((g) => g.supersetGroup !== supersetGroup),
+    );
   }
 
   addSet(group: ExerciseGroup) {
@@ -211,33 +276,37 @@ export class ProgramEditorPage implements OnInit {
       return;
     }
 
-    // Flatten groups into individual exercise rows
-    let order = 1;
-    const exercises: any[] = [];
-    for (const group of this.exerciseGroups) {
-      for (const set of group.sets) {
-        exercises.push({
-          id: set.id,
-          exerciseId: group.exerciseId,
-          reps: set.reps,
+    // Cards and sets keep their ids so the API updates them in place and
+    // keeps the client's results; `made` is never sent
+    const exercises: UpdateProgramCardInput[] = this.exerciseGroups.map(
+      (group, i) => ({
+        ...(group.id ? { id: group.id } : {}),
+        exerciseId: group.exerciseId,
+        order: i + 1,
+        supersetGroup: group.supersetGroup ?? null,
+        sets: group.sets.map((set, si) => ({
+          ...(set.id ? { id: set.id } : {}),
+          // The API takes whole reps; an emptied field stays empty
+          reps: set.reps == null ? set.reps : Math.round(Number(set.reps)),
           weight: set.weight,
-          notes: set.notes || undefined,
-          order: order++,
-          supersetGroup: group.supersetGroup ?? null,
-        });
-      }
-    }
-
-    const data = {
-      clientId: this.clientId,
-      name: this.programName,
-      scheduledDate: this.scheduledDate,
-      exercises,
-    };
+          notes: set.notes || null,
+          order: si + 1,
+        })),
+      }),
+    );
 
     const request = this.isEditMode
-      ? this.programService.updateProgram(this.programId, data)
-      : this.programService.createProgram(data);
+      ? this.programService.updateProgram(this.programId, {
+          name: this.programName,
+          scheduledDate: this.scheduledDate,
+          exercises,
+        })
+      : this.programService.createProgram({
+          clientId: this.clientId,
+          name: this.programName,
+          scheduledDate: this.scheduledDate,
+          exercises,
+        });
 
     request.subscribe({
       next: () => {

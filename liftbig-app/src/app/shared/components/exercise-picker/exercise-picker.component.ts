@@ -36,6 +36,10 @@ export class ExercisePickerComponent implements OnInit {
 
   /** Optional preloaded list (componentProps); otherwise the picker loads it */
   @Input() exercises?: Exercise[];
+  /** 'replace' limits selection to one exercise and hides the Superset action */
+  @Input() mode: 'add' | 'replace' = 'add';
+  /** Ids hidden from the list, e.g. exercises already in the current superset */
+  @Input() excludeIds: string[] = [];
 
   readonly allExercises = signal<Exercise[]>([]);
   readonly query = signal('');
@@ -48,9 +52,25 @@ export class ExercisePickerComponent implements OnInit {
   readonly selectedCount = computed(() => this.selectedIds().length);
   readonly filteredExercises = computed(() => {
     const q = this.query().trim().toLowerCase();
-    const all = this.allExercises();
+    const excluded = new Set(this.excludeIds);
+    const all = this.allExercises().filter((e) => !excluded.has(e.id));
     return q ? all.filter((e) => e.name.toLowerCase().includes(q)) : all;
   });
+  readonly primaryDisabled = computed(() =>
+    this.mode === 'replace' ? this.selectedCount() !== 1 : this.selectedCount() < 1,
+  );
+  readonly primaryLabel = computed(() =>
+    this.mode === 'replace'
+      ? 'Replace'
+      : 'Add' + (this.selectedCount() ? ` (${this.selectedCount()})` : ''),
+  );
+  readonly primaryAriaLabel = computed(() =>
+    this.mode === 'replace'
+      ? 'Replace'
+      : this.selectedCount()
+        ? `Add ${this.selectedCount()} selected`
+        : 'Add',
+  );
 
   // Prevents a double tap from stacking two child modals
   private childModalOpen = false;
@@ -96,7 +116,9 @@ export class ExercisePickerComponent implements OnInit {
 
   private setSelected(exercise: Exercise, selected: boolean) {
     const ids = this.selectedIds();
-    if (selected && !ids.includes(exercise.id)) {
+    if (selected && this.mode === 'replace') {
+      this.selectedIds.set([exercise.id]);
+    } else if (selected && !ids.includes(exercise.id)) {
       this.selectedIds.set([...ids, exercise.id]);
     } else if (!selected && ids.includes(exercise.id)) {
       this.selectedIds.set(ids.filter((id) => id !== exercise.id));
@@ -115,6 +137,19 @@ export class ExercisePickerComponent implements OnInit {
   addAsSuperset() {
     if (this.selectedCount() < 2) return;
     this.confirm(true);
+  }
+
+  replace() {
+    if (this.selectedCount() !== 1) return;
+    this.confirm(false);
+  }
+
+  onPrimary() {
+    if (this.mode === 'replace') {
+      this.replace();
+    } else {
+      this.add();
+    }
   }
 
   private confirm(superset: boolean) {

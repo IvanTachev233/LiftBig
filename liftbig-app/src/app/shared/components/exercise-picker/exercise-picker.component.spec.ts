@@ -391,4 +391,112 @@ describe('ExercisePickerComponent', () => {
       expect(addButton().disabled).toBeTrue();
     });
   });
+
+  describe('replace mode', () => {
+    function setupReplace(options: { user?: User | null; excludeIds?: string[] } = {}) {
+      currentUser = 'user' in options ? (options.user ?? null) : coach;
+      fixture = TestBed.createComponent(ExercisePickerComponent);
+      component = fixture.componentInstance;
+      component.exercises = exercises;
+      component.mode = 'replace';
+      if (options.excludeIds) {
+        component.excludeIds = options.excludeIds;
+      }
+      fixture.detectChanges();
+      httpMock = TestBed.inject(HttpTestingController);
+    }
+
+    function replaceButton(): HTMLIonButtonElement {
+      return addButton();
+    }
+
+    it('hides the Superset button', () => {
+      setupReplace();
+      expect(supersetButton()).toBeNull();
+    });
+
+    it('selecting a row deselects the previous one, keeping only one selected', () => {
+      setupReplace();
+      clickRow('Deadlift');
+      expect(checkbox('Deadlift').checked).toBeTrue();
+
+      clickRow('Bench Press');
+      expect(checkbox('Bench Press').checked).toBeTrue();
+      expect(checkbox('Deadlift').checked).toBeFalse();
+    });
+
+    it('Replace is disabled at 0 selected and enabled with exactly 1', () => {
+      setupReplace();
+      expect(replaceButton().disabled).toBeTrue();
+
+      clickRow('Deadlift');
+      expect(replaceButton().disabled).toBeFalse();
+
+      clickRow('Bench Press');
+      expect(replaceButton().disabled).toBeFalse();
+    });
+
+    it('the primary button reads and is labelled "Replace"', () => {
+      setupReplace();
+      expect(replaceButton().textContent?.trim()).toBe('Replace');
+      expect(replaceButton().getAttribute('aria-label')).toBe('Replace');
+
+      clickRow('Deadlift');
+      expect(replaceButton().textContent?.trim()).toBe('Replace');
+      expect(replaceButton().getAttribute('aria-label')).toBe('Replace');
+    });
+
+    it('confirming dismisses with the single selection and superset false', () => {
+      setupReplace();
+      clickRow('Deadlift');
+      clickRow('Bench Press');
+
+      replaceButton().click();
+
+      expect(modalCtrlSpy.dismiss).toHaveBeenCalledWith(
+        { exercises: [exercises[1]], superset: false },
+        'confirm',
+      );
+    });
+
+    it('does not dismiss from replace() when nothing is selected', () => {
+      setupReplace();
+      component.replace();
+      expect(modalCtrlSpy.dismiss).not.toHaveBeenCalled();
+    });
+
+    it('does not list excluded ids', () => {
+      setupReplace({ excludeIds: ['e2', 'e4'] });
+      expect(rowNames()).toEqual(['Back Squat', 'Deadlift', 'Overhead Press']);
+    });
+
+    it('still shows the Create New Exercise card for coaches', () => {
+      setupReplace({ user: coach });
+      expect(el().querySelector('.create-card')?.textContent).toContain('Create New Exercise');
+    });
+
+    it('keeps the header title as "Exercises"', () => {
+      setupReplace();
+      expect(el().querySelector('.picker-title')?.textContent).toContain('Exercises');
+    });
+
+    it('a created exercise is selected and replaces the previous selection', async () => {
+      setupReplace({ user: coach });
+      clickRow('Overhead Press');
+      const created: Exercise = { id: 'new-3', name: 'barbell Row', createdById: 'coach-1' };
+      childModalSpy.onWillDismiss.and.resolveTo({ data: created, role: 'confirm' });
+
+      (el().querySelector('.create-card') as HTMLElement).click();
+      await settle(() => rowNames().includes('barbell Row'));
+
+      expect(checkbox('barbell Row').checked).toBeTrue();
+      expect(checkbox('Overhead Press').checked).toBeFalse();
+
+      replaceButton().click();
+      expect(modalCtrlSpy.dismiss).toHaveBeenCalledWith(
+        { exercises: [created], superset: false },
+        'confirm',
+      );
+    });
+  });
 });

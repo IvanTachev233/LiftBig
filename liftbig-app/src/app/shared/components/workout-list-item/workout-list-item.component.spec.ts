@@ -25,6 +25,7 @@ describe('WorkoutListItemComponent', () => {
     date: '2026-09-28',
     status: 'PLANNED',
     totalWeightLifted: 0,
+    exercises: [],
   };
 
   function setAlertRole(role: string | undefined) {
