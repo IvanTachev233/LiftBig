@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonicModule } from '@ionic/angular';
 import { RouterModule } from '@angular/router';
-import { Program, ProgramExercise } from '../../../core/program.service';
+import { Program } from '../../../core/program.service';
 
 interface ExerciseSummary {
   name: string;
@@ -29,25 +29,22 @@ export class ProgramCardComponent {
     this.remove.emit();
   }
 
+  // One summary per card, so a repeated exercise is listed again; reps and weight come from the first set
   get exerciseSummaries(): ExerciseSummary[] {
-    if (!this.program.exercises) return [];
-    const map = new Map<string, ExerciseSummary>();
-    for (const e of this.program.exercises) {
-      const id = e.exerciseId;
-      if (!map.has(id)) {
-        map.set(id, {
-          name: e.exercise?.name || 'Exercise',
-          setCount: 0,
-          reps: e.reps,
-          weight: e.weight,
-        });
-      }
-      map.get(id)!.setCount++;
-    }
-    return Array.from(map.values());
+    return [...(this.program.exercises || [])]
+      .sort((a, b) => a.order - b.order)
+      .map((card) => {
+        const sets = [...(card.sets || [])].sort((a, b) => a.order - b.order);
+        return {
+          name: card.exercise?.name || 'Exercise',
+          setCount: sets.length,
+          reps: sets[0]?.reps ?? 0,
+          weight: sets[0]?.weight ?? null,
+        };
+      });
   }
 
-  get uniqueExerciseCount(): number {
-    return this.exerciseSummaries.length;
+  get exerciseCount(): number {
+    return this.program.exercises?.length ?? 0;
   }
 }

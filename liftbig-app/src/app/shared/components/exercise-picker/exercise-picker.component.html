@@ -1,0 +1,106 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button class="back-button" aria-label="Back" (click)="back()">
+        <ion-icon slot="icon-only" name="chevron-back"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title class="picker-title">Exercises</ion-title>
+    <ion-buttons slot="end">
+      @if (mode !== 'replace') {
+        <ion-button
+          class="superset-button"
+          [disabled]="selectedCount() < 2"
+          (click)="addAsSuperset()"
+        >
+          Superset
+        </ion-button>
+      }
+      <ion-button
+        class="add-button"
+        [strong]="true"
+        [disabled]="primaryDisabled()"
+        [attr.aria-label]="primaryAriaLabel()"
+        (click)="onPrimary()"
+      >
+        {{ primaryLabel() }}
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+  <ion-toolbar class="search-toolbar">
+    <ion-searchbar
+      placeholder="Search exercises"
+      showClearButton="always"
+      [debounce]="0"
+      [value]="query()"
+      (ionInput)="onSearch($event)"
+    ></ion-searchbar>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  @if (isCoach()) {
+    <button type="button" class="create-card" (click)="openCreate()">
+      <span class="create-icon" aria-hidden="true">
+        <ion-icon name="add"></ion-icon>
+      </span>
+      <span class="create-text">Create New Exercise</span>
+    </button>
+  }
+
+  @if (loading()) {
+    <div class="state-message">
+      <ion-spinner name="crescent" aria-label="Loading exercises"></ion-spinner>
+    </div>
+  } @else if (loadError()) {
+    <div class="state-message load-error" role="alert">
+      <span>Could not load exercises.</span>
+      <ion-button class="retry-button" fill="outline" size="small" (click)="load()">
+        Retry
+      </ion-button>
+    </div>
+  } @else {
+    <ion-list class="exercise-list" lines="full">
+      @for (exercise of filteredExercises(); track exercise.id) {
+        <ion-item class="exercise-row" (click)="toggle(exercise)">
+          <div class="thumb" slot="start">
+            @if (exercise.imageUrl) {
+              <img [src]="exercise.imageUrl" alt="" loading="lazy" />
+            } @else {
+              <span class="thumb-placeholder" aria-hidden="true">
+                <ion-icon name="barbell-outline"></ion-icon>
+              </span>
+            }
+          </div>
+          <ion-label class="exercise-row-label">
+            <span class="exercise-row-name">{{ exercise.name }}</span>
+          </ion-label>
+          <ion-button
+            slot="end"
+            class="info-button"
+            fill="clear"
+            size="small"
+            [attr.aria-label]="'Details for ' + exercise.name"
+            (click)="openDetails(exercise, $event)"
+          >
+            <ion-icon slot="icon-only" name="information-circle-outline"></ion-icon>
+          </ion-button>
+          <ion-checkbox
+            slot="end"
+            class="select-checkbox"
+            [checked]="isSelected(exercise)"
+            [attr.aria-label]="'Select ' + exercise.name"
+            (ionChange)="onCheckboxChange(exercise, $event)"
+            (click)="$event.stopPropagation()"
+          ></ion-checkbox>
+        </ion-item>
+      } @empty {
+        @if (query().trim()) {
+          <p class="state-message empty-state">No exercises match</p>
+        } @else {
+          <p class="state-message empty-state">No exercises yet</p>
+        }
+      }
+    </ion-list>
+  }
+</ion-content>

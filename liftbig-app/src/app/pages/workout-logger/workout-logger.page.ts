@@ -1,18 +1,63 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonicModule, ToastController } from '@ionic/angular';
+import {
+  AlertController,
+  IonicModule,
+  ModalController,
+  ToastController,
+} from '@ionic/angular';
 import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { WorkoutService } from '../../core/workout.service';
-import { Observable, switchMap, BehaviorSubject, of, EMPTY, shareReplay } from 'rxjs';
+import {
+  Exercise,
+  Workout,
+  WorkoutCardInput,
+  WorkoutService,
+  WorkoutStatus,
+} from '../../core/workout.service';
+import { Observable, switchMap, BehaviorSubject, of, EMPTY, shareReplay, map } from 'rxjs';
+import {
+  ExercisePickerComponent,
+  ExercisePickerResult,
+} from '../../shared/components/exercise-picker/exercise-picker.component';
+import {
+  newSupersetId,
+  normalizeSupersets,
+  toGroupBlocks,
+} from '../../shared/superset';
 
-interface ExerciseGroup {
+// Makes element ids unique when more than one page instance is in the DOM
+let nextPageId = 0;
+
+interface LoggerSet {
+  // From the API; absent for a set logged on this page
+  id?: string;
+  reps: number;
+  weight: number;
+  isCompleted: boolean;
+}
+
+interface LoggerCard {
+  // From the API; absent for a card added on this page
+  id?: string;
   exerciseId: string;
   exerciseName: string;
-  sets: any[];
+  sets: LoggerSet[];
   newWeight: number | null;
   newReps: number | null;
+  // Cards sharing a value form one superset; null when not in one
+  supersetGroup: string | null;
+}
+
+interface LoggerWorkout {
+  id?: string;
+  name: string;
+  date: string;
+  status: WorkoutStatus | 'DRAFT';
+  // In display order
+  cards: LoggerCard[];
+  _pendingComplete?: boolean;
 }
 
 @Component({
@@ -27,19 +72,24 @@ export class WorkoutLoggerPage implements OnInit {
   private router = inject(Router);
   private workoutService = inject(WorkoutService);
   private toastController = inject(ToastController);
+  private modalCtrl = inject(ModalController);
+  private alertCtrl = inject(AlertController);
 
-  workout$: Observable<any> | undefined;
-  exercises$: Observable<any[]> | undefined;
+  workout$: Observable<LoggerWorkout> | undefined;
+  exercises$: Observable<Exercise[]> | undefined;
 
-  selectedExerciseId: string = '';
   workoutName: string = '';
-  exercisesList: any[] = [];
-  groupedSets: ExerciseGroup[] = [];
+  exercisesList: Exercise[] = [];
 
-  workoutSubject = new BehaviorSubject<any>(null);
+  readonly idPrefix = `workout-logger-${nextPageId++}`;
+
+  workoutSubject = new BehaviorSubject<LoggerWorkout | null>(null);
 
   // Drafts whose create request is pending; prevents duplicate creates
-  private inFlightCreates = new Set<any>();
+  private inFlightCreates = new Set<LoggerWorkout>();
+
+  // Prevents a double tap from opening two pickers
+  private pickerOpen = false;
 
   ngOnInit() {
     this.exercises$ = this.workoutService
@@ -53,10 +103,12 @@ export class WorkoutLoggerPage implements OnInit {
         if (id) {
           const current = this.workoutSubject.value;
           if (current && current.id === id) {
-            // Already loaded; keep local exercise groups and inputs
+            // Already loaded; keep local cards and inputs
             return EMPTY;
           }
-          return this.workoutService.getWorkout(id);
+          return this.workoutService
+            .getWorkout(id)
+            .pipe(map((w) => this.toLoggerWorkout(w)));
         }
         return of(this.buildDraftWorkout());
       }),
@@ -64,81 +116,176 @@ export class WorkoutLoggerPage implements OnInit {
 
     this.workout$.subscribe((w) => {
       this.workoutSubject.next(w);
-      if (w) {
-        this.workoutName = w.name;
-        this.buildGroups(w.sets || []);
-      }
+      this.workoutName = w.name;
     });
   }
 
-  private buildDraftWorkout() {
+  /** Exercise cards of the shown workout, in display order */
+  get cards(): LoggerCard[] {
+    return this.workoutSubject.value?.cards ?? [];
+  }
+
+  private buildDraftWorkout(): LoggerWorkout {
     return {
       name: 'New Workout',
       date: new Date().toISOString(),
       status: 'DRAFT',
-      sets: [],
+      cards: [],
     };
   }
 
-  private buildGroups(sets: any[]) {
-    const map = new Map<string, ExerciseGroup>();
-    for (const set of sets) {
-      const id = set.exercise?.id || set.exerciseId;
-      const name = set.exercise?.name || 'Exercise';
-      if (!map.has(id)) {
-        map.set(id, {
-          exerciseId: id,
-          exerciseName: name,
-          sets: [],
-          newWeight: null,
-          newReps: null,
-        });
+  /** One card per API card, in saved order */
+  private toLoggerWorkout(w: Workout): LoggerWorkout {
+    const byOrder = (a: { order: number }, b: { order: number }) => a.order - b.order;
+    const cards = [...(w.exercises ?? [])].sort(byOrder).map(
+      (card): LoggerCard => ({
+        id: card.id,
+        exerciseId: card.exerciseId,
+        exerciseName: card.exercise?.name || 'Exercise',
+        sets: [...card.sets].sort(byOrder).map((set) => ({
+          id: set.id,
+          reps: set.reps,
+          weight: set.weight,
+          isCompleted: set.isCompleted,
+        })),
+        newWeight: null,
+        newReps: null,
+        supersetGroup: card.supersetGroup ?? null,
+      }),
+    );
+    return {
+      id: w.id,
+      name: w.name,
+      date: w.date,
+      status: w.status,
+      // A superset needs 2 members next to each other
+      cards: normalizeSupersets(cards),
+    };
+  }
+
+  /** Exercise cards split into superset blocks and single cards */
+  groupBlocks() {
+    return toGroupBlocks(this.cards);
+  }
+
+  async openExercisePicker() {
+    if (this.pickerOpen) return;
+    this.pickerOpen = true;
+    try {
+      const modal = await this.modalCtrl.create({
+        component: ExercisePickerComponent,
+        // An empty list means it hasn't loaded yet; let the picker load it
+        componentProps: {
+          exercises: this.exercisesList.length ? this.exercisesList : undefined,
+        },
+      });
+      await modal.present();
+      const { data, role } = await modal.onWillDismiss<ExercisePickerResult>();
+      if (role === 'confirm' && data?.exercises?.length) {
+        this.addExercises(data.exercises, data.superset);
       }
-      map.get(id)!.sets.push(set);
+    } finally {
+      this.pickerOpen = false;
     }
-    this.groupedSets = Array.from(map.values());
   }
 
-  addExercise() {
-    if (!this.selectedExerciseId) return;
-    const alreadyExists = this.groupedSets.some(
-      (g) => g.exerciseId === this.selectedExerciseId,
-    );
-    if (alreadyExists) {
-      this.selectedExerciseId = '';
-      return;
+  /**
+   * Appends a card per exercise, in order, including exercises already in the
+   * workout. With superset, the new cards share one supersetGroup (needs >= 2).
+   */
+  addExercises(exercises: Exercise[], superset = false) {
+    const currentWorkout = this.workoutSubject.value;
+    if (!currentWorkout) return;
+    const supersetGroup =
+      superset && exercises.length >= 2 ? newSupersetId() : null;
+
+    for (const ex of exercises) {
+      // Coach-created exercises may be missing from the loaded list
+      if (!this.exercisesList.some((e) => e.id === ex.id)) {
+        this.exercisesList = [...this.exercisesList, ex];
+      }
+      currentWorkout.cards.push({
+        exerciseId: ex.id,
+        exerciseName: ex.name || 'Exercise',
+        sets: [],
+        newWeight: null,
+        newReps: null,
+        supersetGroup,
+      });
     }
-    const exercise = this.exercisesList.find(
-      (e) => e.id === this.selectedExerciseId,
+  }
+
+  /** Opens the picker in replace mode and swaps the card's exercise in place */
+  async replaceExercise(card: LoggerCard) {
+    if (this.pickerOpen) return;
+    this.pickerOpen = true;
+    try {
+      const modal = await this.modalCtrl.create({
+        component: ExercisePickerComponent,
+        componentProps: {
+          exercises: this.exercisesList.length ? this.exercisesList : undefined,
+          mode: 'replace',
+        },
+      });
+      await modal.present();
+      const { data, role } = await modal.onWillDismiss<ExercisePickerResult>();
+      const ex = data?.exercises?.[0];
+      if (role !== 'confirm' || !ex || ex.id === card.exerciseId) return;
+
+      if (!this.exercisesList.some((e) => e.id === ex.id)) {
+        this.exercisesList = [...this.exercisesList, ex];
+      }
+      // Keeps the card's id, position, superset and sets
+      card.exerciseId = ex.id;
+      card.exerciseName = ex.name || 'Exercise';
+      this.saveCards();
+    } finally {
+      this.pickerOpen = false;
+    }
+  }
+
+  /** Asks to confirm, then removes every member of the superset and their sets */
+  async removeSuperset(supersetGroup: string | null) {
+    if (!supersetGroup) return;
+    const members = this.cards.filter(
+      (c) => c.supersetGroup === supersetGroup,
     );
-    this.groupedSets.push({
-      exerciseId: this.selectedExerciseId,
-      exerciseName: exercise?.name || 'Exercise',
-      sets: [],
-      newWeight: null,
-      newReps: null,
+    if (!members.length) return;
+
+    const alert = await this.alertCtrl.create({
+      header: 'Delete superset?',
+      message: `Removes ${members.length} exercises and their sets`,
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        { text: 'Delete', role: 'destructive' },
+      ],
     });
-    this.selectedExerciseId = '';
+    await alert.present();
+    const { role } = await alert.onDidDismiss();
+    if (role !== 'destructive') return;
+
+    const currentWorkout = this.workoutSubject.value;
+    if (!currentWorkout) return;
+    currentWorkout.cards = normalizeSupersets(
+      currentWorkout.cards.filter((c) => !members.includes(c)),
+    );
+
+    this.saveCards();
   }
 
-  addSetToExercise(group: ExerciseGroup) {
-    if (!group.newWeight || !group.newReps) return;
+  addSetToExercise(card: LoggerCard) {
+    if (!card.newWeight || !card.newReps) return;
     const currentWorkout = this.workoutSubject.value;
     if (!currentWorkout) return;
 
-    const newSet = {
-      exerciseId: group.exerciseId,
-      weight: group.newWeight,
-      reps: group.newReps,
-      order: currentWorkout.sets.length + 1,
+    card.sets.push({
+      weight: card.newWeight,
+      // The API takes whole reps
+      reps: Math.max(1, Math.round(Number(card.newReps))),
       isCompleted: true,
-      exercise: { id: group.exerciseId, name: group.exerciseName },
-    };
-
-    group.sets.push(newSet);
-    currentWorkout.sets.push(newSet);
-    group.newWeight = null;
-    group.newReps = null;
+    });
+    card.newWeight = null;
+    card.newReps = null;
 
     if (!currentWorkout.id) {
       if (!this.inFlightCreates.has(currentWorkout)) {
@@ -147,10 +294,10 @@ export class WorkoutLoggerPage implements OnInit {
       return;
     }
 
-    this.saveAllSets();
+    this.saveCards();
   }
 
-  private createDraftWorkout(draft: any) {
+  private createDraftWorkout(draft: LoggerWorkout) {
     this.inFlightCreates.add(draft);
     this.workoutService
       .createWorkout({
@@ -158,7 +305,7 @@ export class WorkoutLoggerPage implements OnInit {
         date: draft.date,
       })
       .subscribe({
-        next: (created: any) => {
+        next: (created) => {
           draft.id = created.id;
           this.inFlightCreates.delete(draft);
 
@@ -171,7 +318,7 @@ export class WorkoutLoggerPage implements OnInit {
             .updateWorkout(created.id, {
               name: patchName,
               date: draft.date,
-              sets: draft.sets,
+              exercises: this.cardsBody(draft.cards),
               status: completing ? 'COMPLETED' : 'IN_PROGRESS',
             })
             .subscribe({
@@ -217,38 +364,30 @@ export class WorkoutLoggerPage implements OnInit {
       });
   }
 
-  removeSet(set: any) {
+  removeSet(set: LoggerSet) {
+    const card = this.cards.find((c) => c.sets.includes(set));
+    // A card keeps at least 1 set; delete the exercise to drop it
+    if (!card || card.sets.length <= 1) return;
+
+    card.sets.splice(card.sets.indexOf(set), 1);
+    this.saveCards();
+  }
+
+  removeExercise(card: LoggerCard) {
     const currentWorkout = this.workoutSubject.value;
     if (!currentWorkout) return;
 
-    const idx = currentWorkout.sets.indexOf(set);
-    if (idx > -1) currentWorkout.sets.splice(idx, 1);
-
-    for (const group of this.groupedSets) {
-      const gi = group.sets.indexOf(set);
-      if (gi > -1) group.sets.splice(gi, 1);
-    }
-
-    this.saveAllSets();
-  }
-
-  removeExercise(exerciseId: string) {
-    const currentWorkout = this.workoutSubject.value;
-    if (!currentWorkout) return;
-
-    currentWorkout.sets = currentWorkout.sets.filter(
-      (s: any) => (s.exercise?.id || s.exerciseId) !== exerciseId,
-    );
-    this.groupedSets = this.groupedSets.filter(
-      (g) => g.exerciseId !== exerciseId,
+    // A superset left with 1 member is no longer a superset
+    currentWorkout.cards = normalizeSupersets(
+      currentWorkout.cards.filter((c) => c !== card),
     );
 
-    this.saveAllSets();
+    this.saveCards();
   }
 
-  toggleSetCompletion(set: any) {
+  toggleSetCompletion(set: LoggerSet) {
     set.isCompleted = !set.isCompleted;
-    this.saveAllSets();
+    this.saveCards();
   }
 
   updateWorkoutName() {
@@ -277,7 +416,7 @@ export class WorkoutLoggerPage implements OnInit {
     if (!currentWorkout || currentWorkout._pendingComplete) return;
 
     if (!currentWorkout.id) {
-      if (!currentWorkout.sets || currentWorkout.sets.length === 0) {
+      if (!this.hasSets(currentWorkout)) {
         // Nothing to save
         currentWorkout.status = 'COMPLETED';
         this.workoutSubject.next(currentWorkout);
@@ -313,12 +452,41 @@ export class WorkoutLoggerPage implements OnInit {
       });
   }
 
-  private saveAllSets() {
+  /** Whether any card has a logged set; Complete needs one */
+  hasSets(workout: LoggerWorkout): boolean {
+    return workout.cards.some((c) => c.sets.length > 0);
+  }
+
+  private saveCards() {
     const currentWorkout = this.workoutSubject.value;
     if (!currentWorkout || !currentWorkout.id) return;
     this.workoutService
-      .updateWorkout(currentWorkout.id, { sets: currentWorkout.sets })
+      .updateWorkout(currentWorkout.id, {
+        exercises: this.cardsBody(currentWorkout.cards),
+      })
       .subscribe({ error: () => this.presentSaveErrorToast() });
+  }
+
+  /**
+   * Cards with sets in display order, positions from 1. Only ids loaded from
+   * the API are sent, so new cards and sets get new ids on every save.
+   */
+  private cardsBody(cards: LoggerCard[]): WorkoutCardInput[] {
+    return cards
+      .filter((card) => card.sets.length > 0)
+      .map((card, i) => ({
+        ...(card.id ? { id: card.id } : {}),
+        exerciseId: card.exerciseId,
+        order: i + 1,
+        supersetGroup: card.supersetGroup,
+        sets: card.sets.map((set, j) => ({
+          ...(set.id ? { id: set.id } : {}),
+          reps: set.reps,
+          weight: set.weight,
+          order: j + 1,
+          isCompleted: set.isCompleted,
+        })),
+      }));
   }
 
   private async presentSaveErrorToast() {

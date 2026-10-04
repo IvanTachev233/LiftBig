@@ -1,0 +1,25 @@
+.field {
+  margin-bottom: 18px;
+}
+
+ion-input,
+ion-textarea {
+  --background: var(--bg-surface);
+  --highlight-color-focused: var(--ion-color-primary);
+  --color: var(--text-main);
+  --placeholder-color: var(--text-muted);
+}
+
+.field-error,
+.field-hint {
+  margin: 6px 4px 0;
+  font-size: 0.8rem;
+}
+
+.field-error {
+  color: var(--ion-color-danger);
+}
+
+.field-hint {
+  color: var(--text-muted);
+}

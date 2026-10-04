@@ -42,6 +42,7 @@ services:
       DB_USERNAME: liftbig
       DB_PASSWORD: ***REMOVED***
       DB_NAME: liftbig_db
+      RUN_MIGRATIONS: "true"
     ports:
       - "3000:3000"
     depends_on:
@@ -59,6 +60,7 @@ services:
       DB_USERNAME: liftbig
       DB_PASSWORD: ***REMOVED***
       DB_NAME: liftbig_db
+      RUN_MIGRATIONS: "true"
     ports:
       - "3000:3000"
     volumes:

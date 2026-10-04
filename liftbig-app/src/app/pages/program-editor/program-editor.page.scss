@@ -12,14 +12,24 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 4px;
+
+  ion-button {
+    flex-shrink: 0;
+  }
 }
 
+// A long name wraps instead of pushing the buttons off the card
 .exercise-title {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 1rem;
 }
 
 .exercise-actions {
   display: flex;
+  flex-shrink: 0;
 }
 
 .set-row {
@@ -73,6 +83,52 @@
 
 .add-set-btn {
   margin-top: 8px;
+}
+
+.add-exercise-btn {
+  margin-top: 16px;
+}
+
+.superset-card {
+  margin-bottom: 8px;
+  border: 2px solid var(--ion-color-primary);
+  border-radius: 12px;
+  // Subtle primary tint over the card surface
+  --background: linear-gradient(
+      rgba(var(--ion-color-primary-rgb), 0.06),
+      rgba(var(--ion-color-primary-rgb), 0.06)
+    ),
+    var(--bg-surface);
+}
+
+.superset-header {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+}
+
+.superset-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ion-color-primary);
+}
+
+.superset-member {
+  padding-top: 12px;
+
+  & + & {
+    border-top: 2px solid var(--border-color);
+  }
+
+  .exercise-header-row {
+    padding: 0 8px 0 16px;
+  }
+
+  .exercise-title {
+    flex: 1;
+  }
 }
 
 .save-btn {

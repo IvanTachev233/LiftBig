@@ -12,7 +12,36 @@
     <h2 class="section-title mb-2">{{ program.name }}</h2>
     <p class="text-muted mb-4">{{ program.scheduledDate | date : 'mediumDate' }}</p>
 
-    <ion-card *ngFor="let group of exerciseGroups" class="exercise-card">
+    <!-- One block per card; cards sharing a superset are drawn as one card -->
+    <ng-container *ngFor="let block of groupBlocks">
+      <ion-card
+        *ngIf="block.superset; else singleCard"
+        class="superset-card"
+        role="group"
+        aria-label="Superset"
+        [attr.aria-labelledby]="'superset-' + block.groups[0].cardId"
+      >
+        <ion-card-header class="superset-header">
+          <div class="superset-label" [id]="'superset-' + block.groups[0].cardId">
+            SUPERSET
+          </div>
+        </ion-card-header>
+        <div *ngFor="let group of block.groups" class="superset-member">
+          <ng-container
+            *ngTemplateOutlet="cardBody; context: { $implicit: group }"
+          ></ng-container>
+        </div>
+      </ion-card>
+      <ng-template #singleCard>
+        <ion-card class="exercise-card">
+          <ng-container
+            *ngTemplateOutlet="cardBody; context: { $implicit: block.groups[0] }"
+          ></ng-container>
+        </ion-card>
+      </ng-template>
+    </ng-container>
+
+    <ng-template #cardBody let-group>
       <ion-card-header>
         <ion-card-title class="exercise-title">{{ group.exerciseName }}</ion-card-title>
       </ion-card-header>
@@ -31,6 +60,8 @@
           <span class="set-order">#{{ si + 1 }}</span>
           <ion-input
             type="number"
+            step="1"
+            inputmode="numeric"
             [(ngModel)]="set.reps"
             (ionInput)="markDirty(set)"
             placeholder="Reps"
@@ -92,7 +123,7 @@
           Add Set
         </ion-button>
       </ion-card-content>
-    </ion-card>
+    </ng-template>
 
     <div *ngIf="exerciseGroups.length === 0" class="text-center text-muted mt-10">
       <p>No exercises in this program.</p>
