@@ -1,0 +1,23 @@
+.client-workout {
+  --background: var(--bg-surface);
+  background: var(--bg-surface);
+  margin: 0 0 8px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.title {
+  font-size: 1.1rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.set-progress {
+  font-family: monospace;
+  color: var(--ion-text-color);
+}

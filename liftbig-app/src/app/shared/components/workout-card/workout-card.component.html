@@ -13,6 +13,9 @@
     <ion-card-subtitle class="card-subtitle">{{
       workout.date | date : 'mediumDate'
     }}</ion-card-subtitle>
+    <span *ngIf="workout.assignedById" class="coach-badge">{{
+      workout.assignedBy?.name ? 'Coach · ' + workout.assignedBy?.name : 'Coach'
+    }}</span>
   </ion-card-header>
   <ion-card-content>
     <div class="card-volume-row">

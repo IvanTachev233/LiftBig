@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   AlertController,
@@ -16,7 +16,19 @@ import {
   WorkoutService,
   WorkoutStatus,
 } from '../../core/workout.service';
-import { Observable, switchMap, BehaviorSubject, of, EMPTY, shareReplay, map } from 'rxjs';
+import {
+  Observable,
+  Subject,
+  switchMap,
+  BehaviorSubject,
+  of,
+  EMPTY,
+  shareReplay,
+  map,
+  concatMap,
+  catchError,
+  tap,
+} from 'rxjs';
 import {
   ExercisePickerComponent,
   ExercisePickerResult,
@@ -33,9 +45,15 @@ let nextPageId = 0;
 interface LoggerSet {
   // From the API; absent for a set logged on this page
   id?: string;
+  // Planned reps and weight
   reps: number;
-  weight: number;
-  isCompleted: boolean;
+  weight: number | null;
+  // true = made, false = missed, null = not logged
+  made: boolean | null;
+  // Logged values; null means "as planned"
+  actualReps: number | null;
+  actualWeight: number | null;
+  notes: string | null;
 }
 
 interface LoggerCard {
@@ -55,10 +73,33 @@ interface LoggerWorkout {
   name: string;
   date: string;
   status: WorkoutStatus | 'DRAFT';
+  // Assigned by a coach: only results, added sets and status can change
+  assigned: boolean;
+  coachName: string | null;
   // In display order
   cards: LoggerCard[];
   _pendingComplete?: boolean;
 }
+
+const MADE_STATES = {
+  made: {
+    icon: 'checkmark-circle',
+    color: 'success',
+    label: 'Made. Tap to mark as missed',
+  },
+  missed: {
+    icon: 'close-circle',
+    color: 'danger',
+    label: 'Missed. Tap to clear result',
+  },
+  unset: {
+    icon: 'remove-circle-outline',
+    color: 'medium',
+    label: 'No result. Tap to mark as made',
+  },
+};
+
+type SetRequest = () => Observable<unknown>;
 
 @Component({
   selector: 'app-workout-logger',
@@ -67,7 +108,7 @@ interface LoggerWorkout {
   standalone: true,
   imports: [CommonModule, IonicModule, RouterModule, FormsModule],
 })
-export class WorkoutLoggerPage implements OnInit {
+export class WorkoutLoggerPage implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private workoutService = inject(WorkoutService);
@@ -90,6 +131,9 @@ export class WorkoutLoggerPage implements OnInit {
 
   // Prevents a double tap from opening two pickers
   private pickerOpen = false;
+
+  // One queue per set of an assigned workout; each request waits for the previous one
+  private setQueues = new Map<LoggerSet, Subject<SetRequest>>();
 
   ngOnInit() {
     this.exercises$ = this.workoutService
@@ -120,6 +164,11 @@ export class WorkoutLoggerPage implements OnInit {
     });
   }
 
+  ngOnDestroy() {
+    // Requests already queued still go out
+    this.setQueues.forEach((queue) => queue.complete());
+  }
+
   /** Exercise cards of the shown workout, in display order */
   get cards(): LoggerCard[] {
     return this.workoutSubject.value?.cards ?? [];
@@ -130,6 +179,8 @@ export class WorkoutLoggerPage implements OnInit {
       name: 'New Workout',
       date: new Date().toISOString(),
       status: 'DRAFT',
+      assigned: false,
+      coachName: null,
       cards: [],
     };
   }
@@ -146,7 +197,10 @@ export class WorkoutLoggerPage implements OnInit {
           id: set.id,
           reps: set.reps,
           weight: set.weight,
-          isCompleted: set.isCompleted,
+          made: set.made,
+          actualReps: set.actualReps,
+          actualWeight: set.actualWeight,
+          notes: set.notes,
         })),
         newWeight: null,
         newReps: null,
@@ -158,6 +212,8 @@ export class WorkoutLoggerPage implements OnInit {
       name: w.name,
       date: w.date,
       status: w.status,
+      assigned: !!w.assignedById,
+      coachName: w.assignedBy?.name ?? null,
       // A superset needs 2 members next to each other
       cards: normalizeSupersets(cards),
     };
@@ -278,14 +334,23 @@ export class WorkoutLoggerPage implements OnInit {
     const currentWorkout = this.workoutSubject.value;
     if (!currentWorkout) return;
 
-    card.sets.push({
+    const set: LoggerSet = {
       weight: card.newWeight,
       // The API takes whole reps
       reps: Math.max(1, Math.round(Number(card.newReps))),
-      isCompleted: true,
-    });
+      made: true,
+      actualReps: null,
+      actualWeight: null,
+      notes: null,
+    };
+    card.sets.push(set);
     card.newWeight = null;
     card.newReps = null;
+
+    if (currentWorkout.assigned) {
+      this.addAssignedSet(currentWorkout, card, set);
+      return;
+    }
 
     if (!currentWorkout.id) {
       if (!this.inFlightCreates.has(currentWorkout)) {
@@ -385,9 +450,107 @@ export class WorkoutLoggerPage implements OnInit {
     this.saveCards();
   }
 
+  /** Self-made tick: made or not logged */
   toggleSetCompletion(set: LoggerSet) {
-    set.isCompleted = !set.isCompleted;
+    set.made = set.made === true ? null : true;
     this.saveCards();
+  }
+
+  madeState(set: LoggerSet) {
+    if (set.made === true) return MADE_STATES.made;
+    if (set.made === false) return MADE_STATES.missed;
+    return MADE_STATES.unset;
+  }
+
+  /** Assigned set result: unset -> made -> missed -> unset */
+  toggleMade(set: LoggerSet) {
+    if (set.made === true) {
+      set.made = false;
+    } else if (set.made === false) {
+      set.made = null;
+    } else {
+      set.made = true;
+    }
+    this.saveResult(set);
+  }
+
+  /** An actual value was committed; an unlogged set sends it with its result */
+  actualChanged(set: LoggerSet) {
+    if (set.made === null) return;
+    this.saveResult(set);
+  }
+
+  coachLabel(workout: LoggerWorkout): string {
+    return workout.coachName ? `Coach · ${workout.coachName}` : 'Coach';
+  }
+
+  weightLabel(weight: number | null): string {
+    return weight == null ? '—' : `${weight} kg`;
+  }
+
+  /** Sends the set's whole result, queued behind its earlier requests */
+  private saveResult(set: LoggerSet) {
+    const workoutId = this.workoutSubject.value?.id;
+    if (!workoutId) return;
+    // The API takes whole reps; an empty input means "as planned"
+    set.actualReps = this.toNumber(set.actualReps, true);
+    set.actualWeight = this.toNumber(set.actualWeight);
+    const body = {
+      made: set.made,
+      actualReps: set.actualReps,
+      actualWeight: set.actualWeight,
+    };
+    // The id is read when the request runs: a pending add sets it first
+    this.enqueue(set, () =>
+      set.id ? this.workoutService.updateSetResult(workoutId, set.id, body) : EMPTY,
+    );
+  }
+
+  private addAssignedSet(workout: LoggerWorkout, card: LoggerCard, set: LoggerSet) {
+    if (!workout.id || !card.id) return;
+    const { id: workoutId } = workout;
+    const cardId = card.id;
+    this.enqueue(set, () =>
+      this.workoutService
+        .addSet(workoutId, cardId, { reps: set.reps, weight: set.weight, made: set.made })
+        .pipe(
+          tap({
+            next: (saved) => (set.id = saved.id),
+            error: () => {
+              const i = card.sets.indexOf(set);
+              if (i >= 0) card.sets.splice(i, 1);
+            },
+          }),
+        ),
+    );
+  }
+
+  private enqueue(set: LoggerSet, request: SetRequest) {
+    let queue = this.setQueues.get(set);
+    if (!queue) {
+      queue = new Subject<SetRequest>();
+      queue
+        .pipe(
+          concatMap((send) =>
+            send().pipe(
+              catchError(() => {
+                this.presentSaveErrorToast();
+                return EMPTY;
+              }),
+            ),
+          ),
+        )
+        .subscribe();
+      this.setQueues.set(set, queue);
+    }
+    queue.next(request);
+  }
+
+  private toNumber(value: unknown, whole = false): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    if (Number.isNaN(n)) return null;
+    return whole ? Math.max(0, Math.round(n)) : n;
   }
 
   updateWorkoutName() {
@@ -459,7 +622,8 @@ export class WorkoutLoggerPage implements OnInit {
 
   private saveCards() {
     const currentWorkout = this.workoutSubject.value;
-    if (!currentWorkout || !currentWorkout.id) return;
+    // An assigned workout's cards can't be changed by the client
+    if (!currentWorkout || !currentWorkout.id || currentWorkout.assigned) return;
     this.workoutService
       .updateWorkout(currentWorkout.id, {
         exercises: this.cardsBody(currentWorkout.cards),
@@ -469,7 +633,8 @@ export class WorkoutLoggerPage implements OnInit {
 
   /**
    * Cards with sets in display order, positions from 1. Only ids loaded from
-   * the API are sent, so new cards and sets get new ids on every save.
+   * the API are sent, so new cards and sets get new ids on every save. Actual
+   * values are left out, so the API keeps them.
    */
   private cardsBody(cards: LoggerCard[]): WorkoutCardInput[] {
     return cards
@@ -484,7 +649,7 @@ export class WorkoutLoggerPage implements OnInit {
           reps: set.reps,
           weight: set.weight,
           order: j + 1,
-          isCompleted: set.isCompleted,
+          made: set.made,
         })),
       }));
   }

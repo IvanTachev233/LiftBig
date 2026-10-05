@@ -36,28 +36,6 @@
     <p>No upcoming workouts planned.</p>
   </div>
 
-  <!-- Upcoming Programs Section -->
-  <h2 class="section-title mt-8">Upcoming Programs</h2>
-
-  <div *ngIf="(upcomingPrograms$ | async) === null" class="flex justify-center mt-4">
-    <ion-spinner></ion-spinner>
-  </div>
-
-  <ion-list lines="none" class="bg-transparent">
-    <app-program-card
-      *ngFor="let program of upcomingPrograms$ | async"
-      [program]="program"
-      [routerLink]="['/program-logger', program.id]"
-    ></app-program-card>
-  </ion-list>
-
-  <div
-    *ngIf="(upcomingPrograms$ | async)?.length === 0"
-    class="text-center text-muted mt-4"
-  >
-    <p>No upcoming programs assigned.</p>
-  </div>
-
   <!-- Accept Invite Section -->
   <ion-card
     *ngIf="!hasCoach && user()?.role === 'CLIENT'"

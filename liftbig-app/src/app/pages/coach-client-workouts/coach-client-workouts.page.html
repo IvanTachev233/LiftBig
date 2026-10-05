@@ -1,0 +1,59 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/coach/dashboard"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Client Workouts</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="ion-padding">
+  <h2 class="section-title">Assigned workouts</h2>
+
+  <ng-container *ngIf="workouts$ | async as workouts; else loading">
+    <ion-card
+      *ngFor="let workout of workouts"
+      class="client-workout"
+      [routerLink]="['/coach/workouts', workout.id]"
+    >
+      <ion-card-header>
+        <div class="row">
+          <ion-card-title class="title">{{ workout.name }}</ion-card-title>
+          <ion-button
+            color="danger"
+            fill="clear"
+            size="small"
+            aria-label="Delete workout"
+            (click)="deleteWorkout(workout, $event)"
+          >
+            <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
+          </ion-button>
+        </div>
+        <ion-card-subtitle>{{ workout.date | date : 'mediumDate' }}</ion-card-subtitle>
+      </ion-card-header>
+      <ion-card-content class="row">
+        <ion-badge [color]="statusColor(workout.status)">{{ workout.status }}</ion-badge>
+        <span class="set-progress">{{ setProgress(workout) }}</span>
+      </ion-card-content>
+    </ion-card>
+
+    <div *ngIf="workouts.length === 0" class="text-center text-muted mt-10">
+      <p>No workouts assigned to this client yet.</p>
+    </div>
+  </ng-container>
+
+  <ng-template #loading>
+    <div class="flex justify-center mt-10">
+      <ion-spinner></ion-spinner>
+    </div>
+  </ng-template>
+
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed">
+    <ion-fab-button
+      aria-label="New workout"
+      [routerLink]="['/coach/clients', clientId, 'workouts', 'new']"
+    >
+      <ion-icon name="add"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+</ion-content>

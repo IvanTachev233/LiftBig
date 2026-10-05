@@ -25,8 +25,23 @@ describe('WorkoutListItemComponent', () => {
     date: '2026-09-28',
     status: 'PLANNED',
     totalWeightLifted: 0,
+    assignedById: null,
+    assignedBy: null,
     exercises: [],
   };
+
+  const assigned: Workout = {
+    ...workout,
+    id: 'assigned-1',
+    name: 'Coach Squats',
+    assignedById: 'coach-1',
+    assignedBy: { id: 'coach-1', name: 'Coach Carter' },
+  };
+
+  function showWorkout(w: Workout) {
+    fixture.componentRef.setInput('workout', w);
+    fixture.detectChanges();
+  }
 
   function setAlertRole(role: string | undefined) {
     alertSpy.onDidDismiss.and.resolveTo({ role } as any);
@@ -84,7 +99,7 @@ describe('WorkoutListItemComponent', () => {
 
     fixture = TestBed.createComponent(WorkoutListItemComponent);
     component = fixture.componentInstance;
-    component.workout = workout;
+    fixture.componentRef.setInput('workout', workout);
     fixture.detectChanges();
     httpMock = TestBed.inject(HttpTestingController);
   });
@@ -100,6 +115,36 @@ describe('WorkoutListItemComponent', () => {
   it('renders the workout card', () => {
     const card = fixture.nativeElement.querySelector('app-workout-card');
     expect(card).toBeTruthy();
+  });
+
+  it('shows no coach badge and offers delete on a self-made workout', () => {
+    expect(fixture.nativeElement.querySelector('.coach-badge')).toBeNull();
+    expect(fixture.nativeElement.querySelector('ion-item-option')).toBeTruthy();
+    const sliding = fixture.nativeElement.querySelector('ion-item-sliding');
+    expect(sliding.disabled).toBeFalsy();
+  });
+
+  it('shows a "Coach · name" badge on an assigned workout', () => {
+    showWorkout(assigned);
+    const badge = fixture.nativeElement.querySelector('.coach-badge');
+    expect(badge?.textContent.trim()).toBe('Coach · Coach Carter');
+  });
+
+  it('falls back to "Coach" when the coach has no name', () => {
+    showWorkout({ ...assigned, assignedBy: { id: 'coach-1', name: null } });
+    const badge = fixture.nativeElement.querySelector('.coach-badge');
+    expect(badge?.textContent.trim()).toBe('Coach');
+  });
+
+  it('offers no swipe delete on an assigned workout', async () => {
+    showWorkout(assigned);
+    expect(fixture.nativeElement.querySelector('ion-item-option')).toBeNull();
+    const sliding = fixture.nativeElement.querySelector('ion-item-sliding');
+    expect(sliding.disabled).toBeTrue();
+
+    await component.confirmDelete();
+    expect(alertControllerSpy.create).not.toHaveBeenCalled();
+    httpMock.expectNone(`${environment.apiUrl}/workouts/${assigned.id}`);
   });
 
   it('confirming delete sends a DELETE request and emits deleted with the id', async () => {

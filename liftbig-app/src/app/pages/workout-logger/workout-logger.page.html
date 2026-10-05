@@ -10,28 +10,35 @@
 
 <ion-content [fullscreen]="true" class="ion-padding">
   <ng-container *ngIf="workoutSubject | async as workout; else loading">
-    <ion-item lines="none" class="workout-name-item">
-      <ion-input
-        [(ngModel)]="workoutName"
-        (ionBlur)="updateWorkoutName()"
-        class="workout-name-input"
-        placeholder="Workout Name"
-      ></ion-input>
-    </ion-item>
-    <ion-item lines="none" class="workout-date-item">
-      <ion-icon name="calendar-outline" slot="start" color="medium"></ion-icon>
-      <ion-datetime-button datetime="workoutDate"></ion-datetime-button>
-      <ion-modal [keepContentsMounted]="true">
-        <ng-template>
-          <ion-datetime
-            id="workoutDate"
-            presentation="date"
-            [value]="workout.date"
-            (ionChange)="updateWorkoutDate($event)"
-          ></ion-datetime>
-        </ng-template>
-      </ion-modal>
-    </ion-item>
+    @let assigned = workout.assigned;
+    @if (assigned) {
+      <ion-badge color="primary" class="coach-badge">{{ coachLabel(workout) }}</ion-badge>
+      <h1 class="workout-title">{{ workout.name }}</h1>
+      <p class="text-muted mb-4">{{ workout.date | date: 'mediumDate' }}</p>
+    } @else {
+      <ion-item lines="none" class="workout-name-item mb-2">
+        <ion-input
+          [(ngModel)]="workoutName"
+          (ionBlur)="updateWorkoutName()"
+          class="workout-name-input"
+          placeholder="Workout Name"
+        ></ion-input>
+      </ion-item>
+      <ion-item lines="none" class="workout-date-item mb-4">
+        <ion-icon name="calendar-outline" slot="start" color="medium"></ion-icon>
+        <ion-datetime-button datetime="workoutDate"></ion-datetime-button>
+        <ion-modal [keepContentsMounted]="true">
+          <ng-template>
+            <ion-datetime
+              id="workoutDate"
+              presentation="date"
+              [value]="workout.date"
+              (ionChange)="updateWorkoutDate($event)"
+            ></ion-datetime>
+          </ng-template>
+        </ion-modal>
+      </ion-item>
+    }
 
     <!-- Exercise Cards (a superset is drawn as one card) -->
     @for (block of groupBlocks(); track block.key) {
@@ -46,14 +53,16 @@
         >
           <ion-card-header class="superset-header">
             <div class="superset-label" [id]="labelId">SUPERSET</div>
-            <ion-button
-              color="danger"
-              aria-label="Delete superset"
-              (click)="removeSuperset(block.groups[0].supersetGroup)"
-            >
-              <ion-icon name="trash-outline" slot="start"></ion-icon>
-              Delete
-            </ion-button>
+            @if (!assigned) {
+              <ion-button
+                color="danger"
+                aria-label="Delete superset"
+                (click)="removeSuperset(block.groups[0].supersetGroup)"
+              >
+                <ion-icon name="trash-outline" slot="start"></ion-icon>
+                Delete
+              </ion-button>
+            }
           </ion-card-header>
 
           @for (card of block.groups; track card) {
@@ -62,24 +71,11 @@
                 <ion-card-title class="exercise-title">{{
                   card.exerciseName
                 }}</ion-card-title>
-                <ion-button
-                  fill="clear"
-                  size="small"
-                  class="replace-btn"
-                  [attr.aria-label]="'Replace ' + card.exerciseName"
-                  (click)="replaceExercise(card)"
-                >
-                  Replace
-                </ion-button>
-                <ion-button
-                  color="danger"
-                  fill="clear"
-                  size="small"
-                  [attr.aria-label]="'Remove ' + card.exerciseName"
-                  (click)="removeExercise(card)"
-                >
-                  <ion-icon name="trash-outline"></ion-icon>
-                </ion-button>
+                @if (!assigned) {
+                  <ng-container
+                    *ngTemplateOutlet="cardActions; context: { $implicit: card }"
+                  ></ng-container>
+                }
               </div>
               <ng-container
                 *ngTemplateOutlet="setRows; context: { $implicit: card }"
@@ -95,24 +91,11 @@
                 <ion-card-title class="exercise-title">{{
                   card.exerciseName
                 }}</ion-card-title>
-                <ion-button
-                  fill="clear"
-                  size="small"
-                  class="replace-btn"
-                  [attr.aria-label]="'Replace ' + card.exerciseName"
-                  (click)="replaceExercise(card)"
-                >
-                  Replace
-                </ion-button>
-                <ion-button
-                  color="danger"
-                  fill="clear"
-                  size="small"
-                  [attr.aria-label]="'Remove ' + card.exerciseName"
-                  (click)="removeExercise(card)"
-                >
-                  <ion-icon name="trash-outline"></ion-icon>
-                </ion-button>
+                @if (!assigned) {
+                  <ng-container
+                    *ngTemplateOutlet="cardActions; context: { $implicit: card }"
+                  ></ng-container>
+                }
               </div>
             </ion-card-header>
 
@@ -124,33 +107,106 @@
       }
     }
 
+    <!-- Replace and remove buttons of a self-made card -->
+    <ng-template #cardActions let-card>
+      <ion-button
+        fill="clear"
+        size="small"
+        class="replace-btn"
+        [attr.aria-label]="'Replace ' + card.exerciseName"
+        (click)="replaceExercise(card)"
+      >
+        Replace
+      </ion-button>
+      <ion-button
+        color="danger"
+        fill="clear"
+        size="small"
+        [attr.aria-label]="'Remove ' + card.exerciseName"
+        (click)="removeExercise(card)"
+      >
+        <ion-icon name="trash-outline"></ion-icon>
+      </ion-button>
+    </ng-template>
+
     <!-- Sets and add-set row of one exercise -->
     <ng-template #setRows let-card>
-      <!-- Existing sets -->
-      <div *ngFor="let set of card.sets; let si = index" class="set-row">
-        <span class="set-order">#{{ si + 1 }}</span>
-        <span class="set-info">{{ set.weight }} kg</span>
-        <span class="set-info">x {{ set.reps }}</span>
-        <div class="set-actions">
-          <ion-button
-            [color]="set.isCompleted ? 'success' : 'medium'"
-            (click)="toggleSetCompletion(set)"
-            size="small"
-          >
-            <ion-icon name="checkmark"></ion-icon>
-          </ion-button>
-          <ion-button
-            color="danger"
-            fill="clear"
-            size="small"
-            [attr.aria-label]="'Remove set ' + (si + 1)"
-            [disabled]="card.sets.length <= 1"
-            (click)="removeSet(set)"
-          >
-            <ion-icon name="close-outline"></ion-icon>
-          </ion-button>
+      @if (assigned && card.sets.length) {
+        <div class="set-row set-head text-muted" aria-hidden="true">
+          <span class="set-order">Set</span>
+          <span class="set-plan">Plan</span>
+          <span class="set-input">Reps</span>
+          <span class="set-input">kg</span>
+          <span class="made-col text-center">Made</span>
         </div>
-      </div>
+      }
+      @for (set of card.sets; track set; let si = $index) {
+        @if (assigned) {
+          <!-- Plan, actual inputs (placeholder = plan) and result -->
+          <div class="set-row">
+            <span class="set-order text-muted">#{{ si + 1 }}</span>
+            <span class="set-plan">{{ set.reps }} × {{ weightLabel(set.weight) }}</span>
+            <ion-input
+              type="number"
+              step="1"
+              inputmode="numeric"
+              class="set-input actual-reps"
+              [(ngModel)]="set.actualReps"
+              (ionChange)="actualChanged(set)"
+              [placeholder]="'' + set.reps"
+              [attr.aria-label]="'Actual reps, set ' + (si + 1)"
+            ></ion-input>
+            <ion-input
+              type="number"
+              inputmode="decimal"
+              class="set-input actual-weight"
+              [(ngModel)]="set.actualWeight"
+              (ionChange)="actualChanged(set)"
+              [placeholder]="set.weight === null ? 'kg' : '' + set.weight"
+              [attr.aria-label]="'Actual kg, set ' + (si + 1)"
+            ></ion-input>
+            @let state = madeState(set);
+            <ion-button
+              fill="clear"
+              size="small"
+              class="made-col"
+              [color]="state.color"
+              [attr.aria-label]="state.label"
+              (click)="toggleMade(set)"
+            >
+              <ion-icon slot="icon-only" [name]="state.icon" aria-hidden="true"></ion-icon>
+            </ion-button>
+          </div>
+          @if (set.notes) {
+            <p class="set-notes text-muted">{{ set.notes }}</p>
+          }
+        } @else {
+          <div class="set-row">
+            <span class="set-order text-muted">#{{ si + 1 }}</span>
+            <span class="set-info">{{ weightLabel(set.weight) }}</span>
+            <span class="set-info">x {{ set.reps }}</span>
+            <div class="set-actions">
+              <ion-button
+                [color]="set.made === true ? 'success' : 'medium'"
+                (click)="toggleSetCompletion(set)"
+                size="small"
+              >
+                <ion-icon name="checkmark"></ion-icon>
+              </ion-button>
+              <ion-button
+                color="danger"
+                fill="clear"
+                size="small"
+                [attr.aria-label]="'Remove set ' + (si + 1)"
+                [disabled]="card.sets.length <= 1"
+                (click)="removeSet(set)"
+              >
+                <ion-icon name="close-outline"></ion-icon>
+              </ion-button>
+            </div>
+          </div>
+        }
+      }
 
       <!-- Add set row -->
       <div class="add-set-row">
@@ -181,28 +237,30 @@
     <!-- Empty state -->
     <div
       *ngIf="cards.length === 0"
-      class="empty-sets-message"
+      class="empty-sets-message text-center text-muted"
     >
       <p>No exercises added yet.</p>
     </div>
 
     <!-- Add Exercise -->
-    <ion-button
-      expand="block"
-      fill="outline"
-      class="add-exercise-btn"
-      (click)="openExercisePicker()"
-    >
-      <ion-icon name="barbell-outline" slot="start"></ion-icon>
-      Add Exercise
-    </ion-button>
+    @if (!assigned) {
+      <ion-button
+        expand="block"
+        fill="outline"
+        class="add-exercise-btn mb-4"
+        (click)="openExercisePicker()"
+      >
+        <ion-icon name="barbell-outline" slot="start"></ion-icon>
+        Add Exercise
+      </ion-button>
+    }
 
     <!-- Complete Workout -->
     <ion-button
       *ngIf="workout.status !== 'COMPLETED'"
       expand="block"
       color="success"
-      class="complete-btn"
+      class="complete-btn mt-4"
       [disabled]="!hasSets(workout) || workout._pendingComplete"
       (click)="completeWorkout()"
     >
@@ -215,7 +273,7 @@
       expand="block"
       color="medium"
       fill="outline"
-      class="complete-btn"
+      class="complete-btn mt-4"
       disabled
     >
       <ion-icon name="checkmark-done-outline" slot="start"></ion-icon>

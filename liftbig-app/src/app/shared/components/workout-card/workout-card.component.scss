@@ -38,6 +38,17 @@
   color: var(--ion-color-medium);
 }
 
+.coach-badge {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--ion-color-primary);
+  color: var(--ion-color-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
 .card-volume-row {
   display: flex;
   justify-content: space-between;

@@ -7,9 +7,11 @@ import {
 import {
   CreateExerciseDto,
   Exercise,
+  SetResultRequest,
   UpdateWorkoutRequest,
   Workout,
   WorkoutService,
+  WorkoutSet,
 } from './workout.service';
 import { environment } from '../../environments/environment';
 
@@ -83,6 +85,8 @@ describe('WorkoutService', () => {
         isTemplate: false,
         status: 'IN_PROGRESS',
         totalWeightLifted: 1000,
+        assignedById: 'coach-1',
+        assignedBy: { id: 'coach-1', name: 'Coach Carter' },
         exercises: [
           {
             id: 'card-1',
@@ -92,8 +96,8 @@ describe('WorkoutService', () => {
             order: 1,
             supersetGroup: null,
             sets: [
-              { id: 's1', workoutExerciseId: 'card-1', reps: 5, weight: 100, order: 1, isCompleted: true },
-              { id: 's2', workoutExerciseId: 'card-1', reps: 5, weight: 100, order: 2, isCompleted: false },
+              { id: 's1', workoutExerciseId: 'card-1', reps: 5, weight: 100, order: 1, made: true, actualReps: 4, actualWeight: 102.5, notes: 'pause' },
+              { id: 's2', workoutExerciseId: 'card-1', reps: 5, weight: null, order: 2, made: null, actualReps: null, actualWeight: null, notes: null },
             ],
           },
           {
@@ -103,7 +107,7 @@ describe('WorkoutService', () => {
             exercise: { id: 'e1', name: 'Bench Press' },
             order: 2,
             supersetGroup: null,
-            sets: [{ id: 's3', workoutExerciseId: 'card-2', reps: 8, weight: 80, order: 1, isCompleted: false }],
+            sets: [{ id: 's3', workoutExerciseId: 'card-2', reps: 8, weight: 80, order: 1, made: false, actualReps: null, actualWeight: null, notes: null }],
           },
         ],
       };
@@ -117,6 +121,7 @@ describe('WorkoutService', () => {
       expect(result).toEqual(workout);
       expect(result?.exercises.length).toBe(2);
       expect(result?.exercises[1].sets[0].reps).toBe(8);
+      expect(result?.assignedBy?.name).toBe('Coach Carter');
     });
   });
 
@@ -131,7 +136,7 @@ describe('WorkoutService', () => {
             order: 1,
             supersetGroup: 'a1b2c3d4-0000-4000-8000-000000000001',
             sets: [
-              { id: 's1', reps: 5, weight: 100, order: 1, isCompleted: true },
+              { id: 's1', reps: 5, weight: 100, order: 1, made: true },
               { reps: 5, weight: 100, order: 2 },
             ],
           },
@@ -161,6 +166,48 @@ describe('WorkoutService', () => {
       const req = httpMock.expectOne({ method: 'PATCH', url: `${environment.apiUrl}/workouts/w1` });
       expect(req.request.body).toEqual({ name: 'Renamed' });
       expect('exercises' in req.request.body).toBeFalse();
+      req.flush({});
+    });
+  });
+
+  describe('addSet', () => {
+    it('sends a POST to /workouts/:id/cards/:cardId/sets with the set', () => {
+      let result: WorkoutSet | undefined;
+      service
+        .addSet('w1', 'card-1', { reps: 5, weight: null, made: true, actualReps: 4 })
+        .subscribe((set) => (result = set));
+
+      const req = httpMock.expectOne({
+        method: 'POST',
+        url: `${environment.apiUrl}/workouts/w1/cards/card-1/sets`,
+      });
+      expect(req.request.body).toEqual({ reps: 5, weight: null, made: true, actualReps: 4 });
+      const created = { id: 's9', reps: 5, order: 3 } as WorkoutSet;
+      req.flush(created, { status: 201, statusText: 'Created' });
+      expect(result).toEqual(created);
+    });
+  });
+
+  describe('updateSetResult', () => {
+    it('sends a PATCH to /workouts/:id/sets/:setId with only the result fields', () => {
+      service
+        .updateSetResult('w1', 's1', { actualReps: 3, actualWeight: 105, made: true })
+        .subscribe();
+
+      const req = httpMock.expectOne({
+        method: 'PATCH',
+        url: `${environment.apiUrl}/workouts/w1/sets/s1`,
+      });
+      expect(req.request.body).toEqual({ actualReps: 3, actualWeight: 105, made: true });
+      req.flush({});
+    });
+
+    it('drops planned fields a caller passes along', () => {
+      const body = { made: false, reps: 5, weight: 100 } as SetResultRequest;
+      service.updateSetResult('w1', 's1', body).subscribe();
+
+      const req = httpMock.expectOne(`${environment.apiUrl}/workouts/w1/sets/s1`);
+      expect(req.request.body).toEqual({ made: false });
       req.flush({});
     });
   });

@@ -9,11 +9,15 @@ import {
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import {
-  ProgramCard,
-  ProgramService,
-  UpdateProgramCardInput,
-} from '../../core/program.service';
-import { Exercise, WorkoutService } from '../../core/workout.service';
+  CoachCardInput,
+  CoachWorkoutService,
+} from '../../core/coach-workout.service';
+import {
+  Exercise,
+  Workout,
+  WorkoutCard,
+  WorkoutService,
+} from '../../core/workout.service';
 import { Observable } from 'rxjs';
 import {
   ExercisePickerComponent,
@@ -29,13 +33,28 @@ import {
 // Makes element ids unique when more than one page instance is in the DOM
 let nextPageId = 0;
 
+// Calendar day (YYYY-MM-DD) of an ISO date or timestamp, as the picker shows it
+function dayOf(value: string): string {
+  return value.slice(0, 10);
+}
+
+// Today's local calendar day
+function today(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 interface SetRow {
   // Set id from the API; absent for sets added in this editor session
   id?: string;
   reps: number;
   weight: number | null;
   notes: string;
+  // The client's result, shown read-only and never sent
   made: boolean | null;
+  actualReps: number | null;
+  actualWeight: number | null;
 }
 
 // One exercise card in the editor
@@ -50,16 +69,16 @@ interface ExerciseGroup {
 }
 
 @Component({
-  selector: 'app-program-editor',
-  templateUrl: './program-editor.page.html',
-  styleUrls: ['./program-editor.page.scss'],
+  selector: 'app-coach-workout-editor',
+  templateUrl: './coach-workout-editor.page.html',
+  styleUrls: ['./coach-workout-editor.page.scss'],
   standalone: true,
   imports: [CommonModule, IonicModule, RouterModule, FormsModule],
 })
-export class ProgramEditorPage implements OnInit {
+export class CoachWorkoutEditorPage implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
-  private programService = inject(ProgramService);
+  private coachWorkoutService = inject(CoachWorkoutService);
   private workoutService = inject(WorkoutService);
   private toastController = inject(ToastController);
   private modalCtrl = inject(ModalController);
@@ -69,13 +88,14 @@ export class ProgramEditorPage implements OnInit {
   exercisesList: any[] = [];
 
   isEditMode = false;
-  programId: string = '';
-  clientId: string = '';
-  programName: string = '';
-  scheduledDate: string = new Date().toISOString();
+  workoutId = '';
+  clientId = '';
+  workoutName = '';
+  // YYYY-MM-DD; the picker may add a time, which save() drops
+  workoutDate = today();
   exerciseGroups: ExerciseGroup[] = [];
 
-  readonly idPrefix = `program-editor-${nextPageId++}`;
+  readonly idPrefix = `coach-workout-editor-${nextPageId++}`;
 
   // Prevents a double tap from opening two pickers
   private pickerOpen = false;
@@ -84,22 +104,31 @@ export class ProgramEditorPage implements OnInit {
     this.exercises$ = this.workoutService.getExercises();
     this.exercises$.subscribe((exs) => (this.exercisesList = exs));
 
-    this.programId = this.route.snapshot.paramMap.get('id') || '';
-    this.clientId =
-      this.route.snapshot.queryParamMap.get('clientId') || '';
+    const params = this.route.snapshot.paramMap;
+    this.workoutId = params.get('id') || '';
+    this.clientId = params.get('clientId') || '';
 
-    if (this.programId) {
+    if (this.workoutId) {
       this.isEditMode = true;
-      this.programService.getProgram(this.programId).subscribe((program) => {
-        this.programName = program.name;
-        this.scheduledDate = program.scheduledDate;
-        this.clientId = program.clientId;
-        this.buildGroups(program.exercises || []);
+      this.coachWorkoutService.getWorkout(this.workoutId).subscribe({
+        next: (workout) => this.load(workout),
+        error: () => this.presentToast('Failed to load workout', 'danger'),
       });
     }
   }
 
-  private buildGroups(cards: ProgramCard[]) {
+  get backHref() {
+    return `/coach/clients/${this.clientId}/workouts`;
+  }
+
+  private load(workout: Workout) {
+    this.workoutName = workout.name;
+    this.workoutDate = dayOf(workout.date);
+    this.clientId = workout.userId || '';
+    this.buildGroups(workout.exercises || []);
+  }
+
+  private buildGroups(cards: WorkoutCard[]) {
     const groups: ExerciseGroup[] = cards.map((card) => ({
       id: card.id,
       exerciseId: card.exerciseId,
@@ -111,6 +140,8 @@ export class ProgramEditorPage implements OnInit {
         weight: set.weight,
         notes: set.notes || '',
         made: set.made ?? null,
+        actualReps: set.actualReps ?? null,
+        actualWeight: set.actualWeight ?? null,
       })),
     }));
     // Keeps superset members next to each other for the move arrows
@@ -158,7 +189,7 @@ export class ProgramEditorPage implements OnInit {
       this.exerciseGroups.push({
         exerciseId: ex.id,
         exerciseName: ex.name || 'Exercise',
-        sets: [{ reps: 5, weight: null, notes: '', made: null }],
+        sets: [this.newSet(5, null)],
         supersetGroup,
       });
     }
@@ -202,17 +233,13 @@ export class ProgramEditorPage implements OnInit {
     );
     if (!members.length) return;
 
-    const alert = await this.alertCtrl.create({
-      header: 'Delete superset?',
-      message: `Removes ${members.length} exercises and their sets`,
-      buttons: [
-        { text: 'Cancel', role: 'cancel' },
-        { text: 'Delete', role: 'destructive' },
-      ],
-    });
-    await alert.present();
-    const { role } = await alert.onDidDismiss();
-    if (role !== 'destructive') return;
+    const logged = members.some((g) => this.hasResult(g));
+    const confirmed = await this.confirmDelete(
+      'Delete superset?',
+      `Removes ${members.length} exercises and their sets` +
+        (logged ? ', including logged results' : ''),
+    );
+    if (!confirmed) return;
 
     this.exerciseGroups = normalizeSupersets(
       this.exerciseGroups.filter((g) => g.supersetGroup !== supersetGroup),
@@ -221,22 +248,86 @@ export class ProgramEditorPage implements OnInit {
 
   addSet(group: ExerciseGroup) {
     const lastSet = group.sets[group.sets.length - 1];
-    group.sets.push({
-      reps: lastSet ? lastSet.reps : 5,
-      weight: lastSet ? lastSet.weight : null,
-      notes: '',
-      made: null,
-    });
+    group.sets.push(
+      this.newSet(lastSet ? lastSet.reps : 5, lastSet ? lastSet.weight : null),
+    );
   }
 
-  removeSet(group: ExerciseGroup, setIndex: number) {
-    group.sets.splice(setIndex, 1);
+  /** Removes a set; one with a logged result needs confirming first */
+  async removeSet(group: ExerciseGroup, setIndex: number) {
+    const set = group.sets[setIndex];
+    if (!set) return;
+    if (
+      set.made !== null &&
+      !(await this.confirmDelete(
+        'Delete logged set?',
+        'This set has a logged result, which is deleted with it',
+      ))
+    ) {
+      return;
+    }
+    const i = group.sets.indexOf(set);
+    if (i >= 0) group.sets.splice(i, 1);
   }
 
-  removeExercise(groupIndex: number) {
-    this.exerciseGroups.splice(groupIndex, 1);
+  /** Removes a card; one with a logged result needs confirming first */
+  async removeExercise(groupIndex: number) {
+    const group = this.exerciseGroups[groupIndex];
+    if (!group) return;
+    if (
+      this.hasResult(group) &&
+      !(await this.confirmDelete(
+        'Delete logged exercise?',
+        `${group.exerciseName} has logged results, which are deleted with it`,
+      ))
+    ) {
+      return;
+    }
+    const i = this.exerciseGroups.indexOf(group);
+    if (i < 0) return;
+    this.exerciseGroups.splice(i, 1);
     // A superset left with 1 member is no longer a superset
     this.exerciseGroups = normalizeSupersets(this.exerciseGroups);
+  }
+
+  /** Read-only result line of a logged set, e.g. "Made: 3 × 105 kg" */
+  resultText(set: SetRow): string {
+    const label = set.made ? 'Made' : 'Missed';
+    if (set.actualReps == null && set.actualWeight == null) return label;
+    const reps = set.actualReps ?? set.reps;
+    const weight = set.actualWeight ?? set.weight;
+    return weight == null
+      ? `${label}: ${reps} reps`
+      : `${label}: ${reps} × ${weight} kg`;
+  }
+
+  private hasResult(group: ExerciseGroup) {
+    return group.sets.some((s) => s.made !== null);
+  }
+
+  private newSet(reps: number, weight: number | null): SetRow {
+    return {
+      reps,
+      weight,
+      notes: '',
+      made: null,
+      actualReps: null,
+      actualWeight: null,
+    };
+  }
+
+  private async confirmDelete(header: string, message: string) {
+    const alert = await this.alertCtrl.create({
+      header,
+      message,
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        { text: 'Delete', role: 'destructive' },
+      ],
+    });
+    await alert.present();
+    const { role } = await alert.onDidDismiss();
+    return role === 'destructive';
   }
 
   // Inside a superset the arrows reorder its members; otherwise the whole
@@ -271,14 +362,14 @@ export class ProgramEditorPage implements OnInit {
   }
 
   save() {
-    if (!this.programName || !this.clientId) {
+    if (!this.workoutName || !this.clientId) {
       this.presentToast('Please fill in all required fields', 'danger');
       return;
     }
 
     // Cards and sets keep their ids so the API updates them in place and
-    // keeps the client's results; `made` is never sent
-    const exercises: UpdateProgramCardInput[] = this.exerciseGroups.map(
+    // keeps the client's results; results are never sent
+    const exercises: CoachCardInput[] = this.exerciseGroups.map(
       (group, i) => ({
         ...(group.id ? { id: group.id } : {}),
         exerciseId: group.exerciseId,
@@ -295,30 +386,26 @@ export class ProgramEditorPage implements OnInit {
       }),
     );
 
+    const fields = {
+      name: this.workoutName,
+      date: dayOf(this.workoutDate),
+      exercises,
+    };
     const request = this.isEditMode
-      ? this.programService.updateProgram(this.programId, {
-          name: this.programName,
-          scheduledDate: this.scheduledDate,
-          exercises,
-        })
-      : this.programService.createProgram({
-          clientId: this.clientId,
-          name: this.programName,
-          scheduledDate: this.scheduledDate,
-          exercises,
-        });
+      ? this.coachWorkoutService.updateWorkout(this.workoutId, fields)
+      : this.coachWorkoutService.createWorkout(this.clientId, fields);
 
     request.subscribe({
       next: () => {
         this.presentToast(
-          this.isEditMode ? 'Program updated' : 'Program created',
+          this.isEditMode ? 'Workout updated' : 'Workout created',
           'success',
         );
-        this.router.navigate(['/coach/programs', this.clientId]);
+        this.router.navigate(['/coach/clients', this.clientId, 'workouts']);
       },
       error: (err) => {
         this.presentToast(
-          err.error?.message || 'Failed to save program',
+          err.error?.message || 'Failed to save workout',
           'danger',
         );
       },

@@ -83,6 +83,43 @@ describe('StatsPage', () => {
     httpMock.expectOne(`${environment.apiUrl}/workouts`).flush([]);
   });
 
+  it('includes assigned workouts with the coach badge and no delete option', () => {
+    httpMock.expectOne(`${environment.apiUrl}/workouts`).flush([
+      {
+        id: 'assigned-1',
+        name: 'Coach Squats',
+        date: '2026-09-27',
+        status: 'COMPLETED',
+        totalWeightLifted: 300,
+        assignedById: 'coach-1',
+        assignedBy: { id: 'coach-1', name: 'Coach Carter' },
+        exercises: [],
+      },
+      {
+        id: 'workout-1',
+        name: 'Leg Day',
+        date: '2026-09-28',
+        status: 'COMPLETED',
+        totalWeightLifted: 500,
+        assignedById: null,
+        assignedBy: null,
+        exercises: [],
+      },
+    ]);
+    fixture.detectChanges();
+
+    const items: HTMLElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('app-workout-list-item'),
+    );
+    expect(items.length).toBe(2);
+    expect(items[0].querySelector('.coach-badge')?.textContent?.trim()).toBe(
+      'Coach · Coach Carter',
+    );
+    expect(items[0].querySelector('ion-item-option')).toBeNull();
+    expect(items[1].querySelector('.coach-badge')).toBeNull();
+    expect(items[1].querySelector('ion-item-option')).toBeTruthy();
+  });
+
   it('confirming delete on a workout card removes it from the rendered list', async () => {
     httpMock.expectOne(`${environment.apiUrl}/workouts`).flush([
       {
@@ -91,6 +128,9 @@ describe('StatsPage', () => {
         date: '2026-09-28',
         status: 'COMPLETED',
         totalWeightLifted: 500,
+        assignedById: null,
+        assignedBy: null,
+        exercises: [],
       },
     ]);
     fixture.detectChanges();

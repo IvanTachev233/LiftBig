@@ -25,7 +25,7 @@
     <ion-card
       *ngFor="let client of clients$ | async"
       class="client-card"
-      [routerLink]="['/coach/programs', client.id]"
+      [routerLink]="['/coach/clients', client.id, 'workouts']"
     >
       <ion-card-header>
         <div class="client-header-row">
