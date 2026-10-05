@@ -1,6 +1,6 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonicModule, ToastController } from '@ionic/angular';
+import { IonicModule, ToastController, ViewWillEnter } from '@ionic/angular';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { WorkoutService, Workout } from '../../core/workout.service';
@@ -21,7 +21,7 @@ import { WorkoutListItemComponent } from '../../shared/components/workout-list-i
     WorkoutListItemComponent,
   ],
 })
-export class DashboardPage implements OnInit {
+export class DashboardPage implements ViewWillEnter {
   private workoutService = inject(WorkoutService);
   private clientService = inject(ClientService);
   private toastController = inject(ToastController);
@@ -36,7 +36,8 @@ export class DashboardPage implements OnInit {
     return !!this.user()?.coachId;
   }
 
-  ngOnInit() {
+  // Runs on every visit; cached pages don't re-run ngOnInit
+  ionViewWillEnter() {
     this.loadUpcoming();
   }
 

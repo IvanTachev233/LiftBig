@@ -1,6 +1,6 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonicModule } from '@ionic/angular';
+import { IonicModule, ViewWillEnter } from '@ionic/angular';
 import { WorkoutService, Workout } from '../../core/workout.service';
 import { WorkoutListItemComponent } from '../../shared/components/workout-list-item/workout-list-item.component';
 import { RouterModule } from '@angular/router';
@@ -13,14 +13,15 @@ import { AuthService } from '../../core/auth.service';
   standalone: true,
   imports: [CommonModule, IonicModule, RouterModule, WorkoutListItemComponent],
 })
-export class StatsPage implements OnInit {
+export class StatsPage implements ViewWillEnter {
   workoutService = inject(WorkoutService);
   dashboardUrl = inject(AuthService).dashboardUrl;
   workouts: Workout[] | null = null;
 
   constructor() {}
 
-  ngOnInit() {
+  // Runs on every visit; cached pages don't re-run ngOnInit
+  ionViewWillEnter() {
     this.workoutService.getAllWorkouts().subscribe((workouts) => {
       this.workouts = workouts;
     });
