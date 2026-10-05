@@ -92,6 +92,7 @@ describe('CoachClientWorkoutsPage', () => {
     Array.from(fixture.nativeElement.querySelectorAll('.client-workout'));
 
   it('lists the assigned workouts with their status and logged/total sets', () => {
+    component.ionViewWillEnter();
     httpMock.expectOne(listUrl).flush([
       workout({
         id: 'w1',
@@ -133,6 +134,7 @@ describe('CoachClientWorkoutsPage', () => {
   });
 
   it('links each workout to the editor and the add button to a new workout', () => {
+    component.ionViewWillEnter();
     httpMock.expectOne(listUrl).flush([workout({ id: 'w1' })]);
     fixture.detectChanges();
 
@@ -144,6 +146,7 @@ describe('CoachClientWorkoutsPage', () => {
   });
 
   it('shows an empty state', () => {
+    component.ionViewWillEnter();
     httpMock.expectOne(listUrl).flush([]);
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain(
@@ -152,6 +155,7 @@ describe('CoachClientWorkoutsPage', () => {
   });
 
   it('deletes a workout after confirming and reloads the list', async () => {
+    component.ionViewWillEnter();
     httpMock.expectOne(listUrl).flush([workout({ id: 'w1' })]);
     fixture.detectChanges();
 
@@ -168,10 +172,38 @@ describe('CoachClientWorkoutsPage', () => {
   });
 
   it('keeps the workout when the delete is cancelled', async () => {
+    component.ionViewWillEnter();
     httpMock.expectOne(listUrl).flush([workout({ id: 'w1' })]);
     alertSpy.onDidDismiss.and.resolveTo({ role: 'cancel' } as any);
 
     await component.deleteWorkout(workout({ id: 'w1' }));
     httpMock.expectNone(`${environment.apiUrl}/coach/workouts/w1`);
+  });
+
+  describe('page visits', () => {
+    it('makes no request until the page is entered', () => {
+      httpMock.expectNone(listUrl);
+      component.ionViewWillEnter();
+      httpMock.expectOne(listUrl).flush([]);
+    });
+
+    it('reloads on every visit and keeps the current list while reloading', () => {
+      component.ionViewWillEnter();
+      httpMock.expectOne(listUrl).flush([workout({ id: 'w1', name: 'Week 1' })]);
+      fixture.detectChanges();
+
+      component.ionViewWillEnter();
+      const reload = httpMock.expectOne(listUrl);
+      fixture.detectChanges();
+      expect(rows().length).toBe(1);
+
+      reload.flush([
+        workout({ id: 'w1', name: 'Week 1' }),
+        workout({ id: 'w2', name: 'Week 2' }),
+      ]);
+      fixture.detectChanges();
+      expect(rows().length).toBe(2);
+      expect(rows()[1].textContent).toContain('Week 2');
+    });
   });
 });

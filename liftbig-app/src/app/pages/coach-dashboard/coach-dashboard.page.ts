@@ -1,11 +1,16 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonicModule, AlertController, ToastController } from '@ionic/angular';
+import {
+  IonicModule,
+  AlertController,
+  ToastController,
+  ViewWillEnter,
+} from '@ionic/angular';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/auth.service';
 import { ClientService, Client, Invite } from '../../core/client.service';
-import { Observable, BehaviorSubject, switchMap } from 'rxjs';
+import { Observable, Subject, shareReplay, switchMap } from 'rxjs';
 
 @Component({
   selector: 'app-coach-dashboard',
@@ -14,25 +19,33 @@ import { Observable, BehaviorSubject, switchMap } from 'rxjs';
   standalone: true,
   imports: [CommonModule, IonicModule, RouterModule, FormsModule],
 })
-export class CoachDashboardPage implements OnInit {
+export class CoachDashboardPage implements OnInit, ViewWillEnter {
   public authService = inject(AuthService);
   private clientService = inject(ClientService);
   private alertController = inject(AlertController);
   private toastController = inject(ToastController);
 
-  private refreshTrigger = new BehaviorSubject<void>(undefined);
+  private refreshTrigger = new Subject<void>();
   clients$: Observable<Client[]> | undefined;
   pendingInvites$: Observable<Invite[]> | undefined;
 
   user = this.authService.currentUser;
 
+  // Shared so the template's several async pipes make one request per refresh
   ngOnInit() {
     this.clients$ = this.refreshTrigger.pipe(
       switchMap(() => this.clientService.getClients()),
+      shareReplay({ bufferSize: 1, refCount: true }),
     );
     this.pendingInvites$ = this.refreshTrigger.pipe(
       switchMap(() => this.clientService.getPendingInvites()),
+      shareReplay({ bufferSize: 1, refCount: true }),
     );
+  }
+
+  // Runs on every visit; cached pages don't re-run ngOnInit
+  ionViewWillEnter() {
+    this.refreshTrigger.next();
   }
 
   async inviteClient() {

@@ -92,11 +92,13 @@ describe('DashboardPage', () => {
   });
 
   it('should create', () => {
+    component.ionViewWillEnter();
     expect(component).toBeTruthy();
     httpMock.expectOne(`${environment.apiUrl}/workouts/upcoming`).flush([]);
   });
 
   it('loads one upcoming list and no programs', () => {
+    component.ionViewWillEnter();
     httpMock.expectOne(`${environment.apiUrl}/workouts/upcoming`).flush([]);
     httpMock.expectNone(`${environment.apiUrl}/programs/upcoming`);
     fixture.detectChanges();
@@ -104,6 +106,7 @@ describe('DashboardPage', () => {
   });
 
   it('mixes own and assigned upcoming workouts sorted by date, badging only the assigned ones', () => {
+    component.ionViewWillEnter();
     httpMock.expectOne(`${environment.apiUrl}/workouts/upcoming`).flush([
       workout({ id: 'own-late', name: 'Own late', date: '2030-01-03T00:00:00.000Z' }),
       workout({
@@ -129,6 +132,7 @@ describe('DashboardPage', () => {
   });
 
   it('offers no delete option on an assigned workout', () => {
+    component.ionViewWillEnter();
     httpMock.expectOne(`${environment.apiUrl}/workouts/upcoming`).flush([
       workout({ id: 'a1', assignedById: 'coach-1', assignedBy: { id: 'coach-1', name: 'C' } }),
     ]);
@@ -137,6 +141,7 @@ describe('DashboardPage', () => {
   });
 
   it('reloads the upcoming list after accepting an invite', () => {
+    component.ionViewWillEnter();
     httpMock.expectOne(`${environment.apiUrl}/workouts/upcoming`).flush([]);
     component.inviteToken = 'token-1';
     component.acceptInvite();
@@ -150,6 +155,7 @@ describe('DashboardPage', () => {
   });
 
   it('confirming delete on a workout card removes it from the rendered list', async () => {
+    component.ionViewWillEnter();
     httpMock.expectOne(`${environment.apiUrl}/workouts/upcoming`).flush([
       workout({ id: 'workout-1', name: 'Leg Day', date: '2026-09-28' }),
     ]);
@@ -174,5 +180,41 @@ describe('DashboardPage', () => {
     expect(
       fixture.nativeElement.querySelectorAll('app-workout-list-item').length,
     ).toBe(0);
+  });
+
+  describe('page visits', () => {
+    const upcomingUrl = `${environment.apiUrl}/workouts/upcoming`;
+
+    it('makes no request until the page is entered', () => {
+      httpMock.expectNone(upcomingUrl);
+      component.ionViewWillEnter();
+      httpMock.expectOne(upcomingUrl).flush([]);
+    });
+
+    it('reloads on every visit and keeps the current list while reloading', () => {
+      component.ionViewWillEnter();
+      httpMock
+        .expectOne(upcomingUrl)
+        .flush([workout({ id: 'w1', name: 'Leg Day' })]);
+      fixture.detectChanges();
+
+      component.ionViewWillEnter();
+      const reload = httpMock.expectOne(upcomingUrl);
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelectorAll('app-workout-list-item').length,
+      ).toBe(1);
+
+      reload.flush([
+        workout({ id: 'w1', name: 'Leg Day' }),
+        workout({ id: 'w2', name: 'Push Day', date: '2030-01-02T00:00:00.000Z' }),
+      ]);
+      fixture.detectChanges();
+      const items: HTMLElement[] = Array.from(
+        fixture.nativeElement.querySelectorAll('app-workout-list-item'),
+      );
+      expect(items.length).toBe(2);
+      expect(items[1].textContent).toContain('Push Day');
+    });
   });
 });

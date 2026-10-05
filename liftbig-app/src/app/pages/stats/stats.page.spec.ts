@@ -81,11 +81,13 @@ describe('StatsPage', () => {
   });
 
   it('should create', () => {
+    component.ionViewWillEnter();
     expect(component).toBeTruthy();
     httpMock.expectOne(`${environment.apiUrl}/workouts`).flush([]);
   });
 
   it('includes assigned workouts with the coach badge and no delete option', () => {
+    component.ionViewWillEnter();
     httpMock.expectOne(`${environment.apiUrl}/workouts`).flush([
       {
         id: 'assigned-1',
@@ -123,6 +125,7 @@ describe('StatsPage', () => {
   });
 
   it('confirming delete on a workout card removes it from the rendered list', async () => {
+    component.ionViewWillEnter();
     httpMock.expectOne(`${environment.apiUrl}/workouts`).flush([
       {
         id: 'workout-1',
@@ -158,6 +161,47 @@ describe('StatsPage', () => {
     ).toBe(0);
   });
 
+  describe('page visits', () => {
+    const workoutsUrl = `${environment.apiUrl}/workouts`;
+    const completed = (id: string, name: string) => ({
+      id,
+      name,
+      date: '2026-09-28',
+      status: 'COMPLETED',
+      totalWeightLifted: 500,
+      assignedById: null,
+      assignedBy: null,
+      exercises: [],
+    });
+
+    it('makes no request until the page is entered', () => {
+      httpMock.expectNone(workoutsUrl);
+      component.ionViewWillEnter();
+      httpMock.expectOne(workoutsUrl).flush([]);
+    });
+
+    it('reloads on every visit and keeps the current list while reloading', () => {
+      component.ionViewWillEnter();
+      httpMock.expectOne(workoutsUrl).flush([completed('w1', 'Leg Day')]);
+      fixture.detectChanges();
+
+      component.ionViewWillEnter();
+      const reload = httpMock.expectOne(workoutsUrl);
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelectorAll('app-workout-list-item').length,
+      ).toBe(1);
+
+      reload.flush([completed('w1', 'Leg Day'), completed('w2', 'Push Day')]);
+      fixture.detectChanges();
+      const items: HTMLElement[] = Array.from(
+        fixture.nativeElement.querySelectorAll('app-workout-list-item'),
+      );
+      expect(items.length).toBe(2);
+      expect(items[1].textContent).toContain('Push Day');
+    });
+  });
+
   describe('back button', () => {
     afterEach(() => {
       localStorage.removeItem('token');
@@ -170,6 +214,7 @@ describe('StatsPage', () => {
 
     for (const { role, url } of cases) {
       it(`falls back to ${url} for a ${role}`, () => {
+        component.ionViewWillEnter();
         httpMock.expectOne(`${environment.apiUrl}/workouts`).flush([]);
         TestBed.inject(AuthService).setSession(fakeToken(role));
         fixture.detectChanges();

@@ -1,8 +1,13 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonicModule, AlertController, ToastController } from '@ionic/angular';
+import {
+  IonicModule,
+  AlertController,
+  ToastController,
+  ViewWillEnter,
+} from '@ionic/angular';
 import { RouterModule, ActivatedRoute } from '@angular/router';
-import { BehaviorSubject, Observable, switchMap } from 'rxjs';
+import { Observable, Subject, switchMap } from 'rxjs';
 import { CoachWorkoutService } from '../../core/coach-workout.service';
 import { Workout } from '../../core/workout.service';
 
@@ -13,14 +18,14 @@ import { Workout } from '../../core/workout.service';
   standalone: true,
   imports: [CommonModule, IonicModule, RouterModule],
 })
-export class CoachClientWorkoutsPage implements OnInit {
+export class CoachClientWorkoutsPage implements OnInit, ViewWillEnter {
   private route = inject(ActivatedRoute);
   private coachWorkoutService = inject(CoachWorkoutService);
   private alertController = inject(AlertController);
   private toastController = inject(ToastController);
 
   clientId = '';
-  private refreshTrigger = new BehaviorSubject<void>(undefined);
+  private refreshTrigger = new Subject<void>();
   workouts$: Observable<Workout[]> | undefined;
 
   ngOnInit() {
@@ -28,6 +33,11 @@ export class CoachClientWorkoutsPage implements OnInit {
     this.workouts$ = this.refreshTrigger.pipe(
       switchMap(() => this.coachWorkoutService.getClientWorkouts(this.clientId)),
     );
+  }
+
+  // Runs on every visit; cached pages don't re-run ngOnInit
+  ionViewWillEnter() {
+    this.refreshTrigger.next();
   }
 
   // "logged/total sets", where a set is logged once marked made or missed
