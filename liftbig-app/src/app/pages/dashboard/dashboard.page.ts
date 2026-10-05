@@ -5,11 +5,8 @@ import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { WorkoutService, Workout } from '../../core/workout.service';
 import { AuthService } from '../../core/auth.service';
-import { ProgramService, Program } from '../../core/program.service';
 import { ClientService } from '../../core/client.service';
 import { WorkoutListItemComponent } from '../../shared/components/workout-list-item/workout-list-item.component';
-import { ProgramCardComponent } from '../../shared/components/program-card/program-card.component';
-import { Observable } from 'rxjs';
 
 @Component({
   selector: 'app-dashboard',
@@ -22,18 +19,16 @@ import { Observable } from 'rxjs';
     RouterModule,
     FormsModule,
     WorkoutListItemComponent,
-    ProgramCardComponent,
   ],
 })
 export class DashboardPage implements OnInit {
   private workoutService = inject(WorkoutService);
-  private programService = inject(ProgramService);
   private clientService = inject(ClientService);
   private toastController = inject(ToastController);
   public authService = inject(AuthService);
 
+  // Own and coach-assigned workouts, soonest first
   upcomingWorkouts: Workout[] | null = null;
-  upcomingPrograms$: Observable<Program[]> | undefined;
   user = this.authService.currentUser;
   inviteToken: string = '';
 
@@ -42,10 +37,15 @@ export class DashboardPage implements OnInit {
   }
 
   ngOnInit() {
+    this.loadUpcoming();
+  }
+
+  private loadUpcoming() {
     this.workoutService.getUpcoming().subscribe((workouts) => {
-      this.upcomingWorkouts = workouts;
+      this.upcomingWorkouts = [...workouts].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+      );
     });
-    this.upcomingPrograms$ = this.programService.getUpcomingPrograms();
   }
 
   onWorkoutDeleted(id: string) {
@@ -59,7 +59,7 @@ export class DashboardPage implements OnInit {
       next: () => {
         this.presentToast('Invite accepted! You are now linked to your coach.', 'success');
         this.inviteToken = '';
-        this.upcomingPrograms$ = this.programService.getUpcomingPrograms();
+        this.loadUpcoming();
       },
       error: (err) => {
         this.presentToast(

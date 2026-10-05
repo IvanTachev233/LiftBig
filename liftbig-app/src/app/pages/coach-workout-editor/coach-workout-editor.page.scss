@@ -1,4 +1,4 @@
-.program-name-input {
+.workout-name-input {
   font-size: 1.2rem;
   font-weight: 600;
   letter-spacing: -0.025em;
@@ -79,6 +79,12 @@
 
 .remove-col {
   min-width: 36px;
+}
+
+.set-result {
+  padding: 2px 0 4px 36px;
+  font-size: 0.8rem;
+  color: var(--ion-color-medium);
 }
 
 .add-set-btn {

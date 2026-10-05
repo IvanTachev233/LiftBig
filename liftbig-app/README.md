@@ -1,6 +1,6 @@
 # LiftBig
 
-LiftBig is a strength-training app for coaches and their clients. Coaches build programs and invite clients; clients log workouts and track their stats.
+LiftBig is a strength-training app for coaches and their clients. Coaches invite clients and assign them workouts; clients log their own and assigned workouts and track their stats.
 
 This repo (`LiftBigMobile`) is the mobile/web app: Ionic 8 + Angular 20, packaged for Android and iOS with Capacitor 8. The backend is a separate repo, [LiftBigMobile-API](https://github.com/IvanTachev233/LiftBigMobile-API) (NestJS 11 + PostgreSQL). You need both to run the app locally.
 
@@ -82,7 +82,7 @@ Name the services explicitly as above. A bare `docker compose --profile dev up` 
 
 The database starts empty. Open <http://localhost:4200>, choose **Register**, and create an account:
 
-- **Coach**: builds programs and invites clients from the coach dashboard.
+- **Coach**: invites clients and assigns them workouts from the coach dashboard.
 - **Client** (default): logs workouts and sees stats. Clients can also join a coach through an invite link (`/accept-invite/:token`).
 
 Create one of each to try the coach–client flow.

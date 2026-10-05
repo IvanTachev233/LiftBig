@@ -58,40 +58,30 @@ const routes: Routes = [
       ),
   },
   {
-    path: 'coach/programs/:clientId',
+    path: 'coach/clients/:clientId/workouts',
     canActivate: [AuthGuard, RoleGuard],
     data: { role: 'COACH' },
     loadComponent: () =>
-      import('./pages/coach-programs/coach-programs.page').then(
-        (m) => m.CoachProgramsPage,
+      import('./pages/coach-client-workouts/coach-client-workouts.page').then(
+        (m) => m.CoachClientWorkoutsPage,
       ),
   },
   {
-    path: 'coach/program-editor',
+    path: 'coach/clients/:clientId/workouts/new',
     canActivate: [AuthGuard, RoleGuard],
     data: { role: 'COACH' },
     loadComponent: () =>
-      import('./pages/program-editor/program-editor.page').then(
-        (m) => m.ProgramEditorPage,
+      import('./pages/coach-workout-editor/coach-workout-editor.page').then(
+        (m) => m.CoachWorkoutEditorPage,
       ),
   },
   {
-    path: 'coach/program-editor/:id',
+    path: 'coach/workouts/:id',
     canActivate: [AuthGuard, RoleGuard],
     data: { role: 'COACH' },
     loadComponent: () =>
-      import('./pages/program-editor/program-editor.page').then(
-        (m) => m.ProgramEditorPage,
-      ),
-  },
-  // Client program routes
-  {
-    path: 'program-logger/:id',
-    canActivate: [AuthGuard, RoleGuard],
-    data: { role: 'CLIENT' },
-    loadComponent: () =>
-      import('./pages/program-logger/program-logger.page').then(
-        (m) => m.ProgramLoggerPage,
+      import('./pages/coach-workout-editor/coach-workout-editor.page').then(
+        (m) => m.CoachWorkoutEditorPage,
       ),
   },
   // Accept invite (any authenticated user)

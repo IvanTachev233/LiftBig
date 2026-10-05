@@ -8,7 +8,20 @@ import { provideRouter } from '@angular/router';
 import { AlertController, ToastController } from '@ionic/angular';
 import { DashboardPage } from './dashboard.page';
 import { WorkoutListItemComponent } from '../../shared/components/workout-list-item/workout-list-item.component';
+import { Workout } from '../../core/workout.service';
 import { environment } from '../../../environments/environment';
+
+const workout = (overrides: Partial<Workout>): Workout => ({
+  id: 'w',
+  name: 'Workout',
+  date: '2030-01-01T00:00:00.000Z',
+  status: 'PLANNED',
+  totalWeightLifted: 0,
+  assignedById: null,
+  assignedBy: null,
+  exercises: [],
+  ...overrides,
+});
 
 describe('DashboardPage', () => {
   let component: DashboardPage;
@@ -81,24 +94,65 @@ describe('DashboardPage', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
     httpMock.expectOne(`${environment.apiUrl}/workouts/upcoming`).flush([]);
+  });
+
+  it('loads one upcoming list and no programs', () => {
+    httpMock.expectOne(`${environment.apiUrl}/workouts/upcoming`).flush([]);
+    httpMock.expectNone(`${environment.apiUrl}/programs/upcoming`);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toContain('Programs');
+  });
+
+  it('mixes own and assigned upcoming workouts sorted by date, badging only the assigned ones', () => {
+    httpMock.expectOne(`${environment.apiUrl}/workouts/upcoming`).flush([
+      workout({ id: 'own-late', name: 'Own late', date: '2030-01-03T00:00:00.000Z' }),
+      workout({
+        id: 'assigned-early',
+        name: 'Assigned early',
+        date: '2030-01-01T00:00:00.000Z',
+        assignedById: 'coach-1',
+        assignedBy: { id: 'coach-1', name: 'Coach Carter' },
+      }),
+      workout({ id: 'own-mid', name: 'Own mid', date: '2030-01-02T00:00:00.000Z' }),
+    ]);
+    fixture.detectChanges();
+
+    const items: HTMLElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('app-workout-list-item'),
+    );
+    expect(items.map((el) => el.querySelector('ion-card-title')?.textContent?.trim())).toEqual([
+      'Assigned early',
+      'Own mid',
+      'Own late',
+    ]);
+    expect(items.map((el) => !!el.querySelector('.coach-badge'))).toEqual([true, false, false]);
+  });
+
+  it('offers no delete option on an assigned workout', () => {
+    httpMock.expectOne(`${environment.apiUrl}/workouts/upcoming`).flush([
+      workout({ id: 'a1', assignedById: 'coach-1', assignedBy: { id: 'coach-1', name: 'C' } }),
+    ]);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('ion-item-option')).toBeNull();
+  });
+
+  it('reloads the upcoming list after accepting an invite', () => {
+    httpMock.expectOne(`${environment.apiUrl}/workouts/upcoming`).flush([]);
+    component.inviteToken = 'token-1';
+    component.acceptInvite();
     httpMock
-      .match(`${environment.apiUrl}/programs/upcoming`)
-      .forEach((req) => req.flush([]));
+      .expectOne(`${environment.apiUrl}/auth/invites/token-1/accept`)
+      .flush({ user: {}, access_token: '' });
+    httpMock
+      .expectOne(`${environment.apiUrl}/workouts/upcoming`)
+      .flush([workout({ id: 'a1', assignedById: 'coach-1', assignedBy: null })]);
+    expect(component.upcomingWorkouts?.map((w) => w.id)).toEqual(['a1']);
   });
 
   it('confirming delete on a workout card removes it from the rendered list', async () => {
     httpMock.expectOne(`${environment.apiUrl}/workouts/upcoming`).flush([
-      {
-        id: 'workout-1',
-        name: 'Leg Day',
-        date: '2026-09-28',
-        status: 'PLANNED',
-        totalWeightLifted: 0,
-      },
+      workout({ id: 'workout-1', name: 'Leg Day', date: '2026-09-28' }),
     ]);
-    httpMock
-      .match(`${environment.apiUrl}/programs/upcoming`)
-      .forEach((req) => req.flush([]));
     fixture.detectChanges();
 
     expect(

@@ -1,32 +1,32 @@
 <ion-header [translucent]="true">
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-back-button [defaultHref]="'/coach/programs/' + clientId"></ion-back-button>
+      <ion-back-button [defaultHref]="backHref"></ion-back-button>
     </ion-buttons>
-    <ion-title>{{ isEditMode ? 'Edit Program' : 'New Program' }}</ion-title>
+    <ion-title>{{ isEditMode ? 'Edit Workout' : 'New Workout' }}</ion-title>
   </ion-toolbar>
 </ion-header>
 
 <ion-content [fullscreen]="true" class="ion-padding">
-  <!-- Program Name -->
+  <!-- Workout Name -->
   <ion-item lines="none">
     <ion-input
-      [(ngModel)]="programName"
-      placeholder="Program Name"
-      class="program-name-input"
+      [(ngModel)]="workoutName"
+      placeholder="Workout Name"
+      class="workout-name-input"
     ></ion-input>
   </ion-item>
 
-  <!-- Scheduled Date -->
+  <!-- Date -->
   <ion-item lines="none">
     <ion-icon name="calendar-outline" slot="start" color="medium"></ion-icon>
-    <ion-datetime-button datetime="programDate"></ion-datetime-button>
+    <ion-datetime-button datetime="coachWorkoutDate"></ion-datetime-button>
     <ion-modal [keepContentsMounted]="true">
       <ng-template>
         <ion-datetime
-          id="programDate"
+          id="coachWorkoutDate"
           presentation="date"
-          [(ngModel)]="scheduledDate"
+          [(ngModel)]="workoutDate"
         ></ion-datetime>
       </ng-template>
     </ion-modal>
@@ -180,57 +180,62 @@
       <span *ngIf="isEditMode" class="made-col col-header">Result</span>
       <span class="remove-col"></span>
     </div>
-    <!-- Set rows -->
-    <div *ngFor="let set of group.sets; let si = index" class="set-row">
-      <span class="set-order">#{{ si + 1 }}</span>
-      <ion-input
-        type="number"
-        step="1"
-        inputmode="numeric"
-        [(ngModel)]="set.reps"
-        placeholder="Reps"
-        class="set-input"
-      ></ion-input>
-      <ion-input
-        type="number"
-        [(ngModel)]="set.weight"
-        placeholder="kg"
-        class="set-input"
-      ></ion-input>
-      <ion-input
-        [(ngModel)]="set.notes"
-        placeholder="Notes"
-        class="set-input notes-input"
-      ></ion-input>
-      <span *ngIf="isEditMode" class="made-col">
-        <ion-icon
-          *ngIf="set.made === true"
-          name="checkmark-circle"
-          color="success"
-        ></ion-icon>
-        <ion-icon
-          *ngIf="set.made === false"
-          name="close-circle"
+    <!-- Set rows; a logged set gets a read-only result line -->
+    <ng-container *ngFor="let set of group.sets; let si = index">
+      <div class="set-row">
+        <span class="set-order">#{{ si + 1 }}</span>
+        <ion-input
+          type="number"
+          step="1"
+          inputmode="numeric"
+          [(ngModel)]="set.reps"
+          placeholder="Reps"
+          class="set-input"
+        ></ion-input>
+        <ion-input
+          type="number"
+          [(ngModel)]="set.weight"
+          placeholder="kg"
+          class="set-input"
+        ></ion-input>
+        <ion-input
+          [(ngModel)]="set.notes"
+          placeholder="Notes"
+          class="set-input notes-input"
+        ></ion-input>
+        <span *ngIf="isEditMode" class="made-col">
+          <ion-icon
+            *ngIf="set.made === true"
+            name="checkmark-circle"
+            color="success"
+          ></ion-icon>
+          <ion-icon
+            *ngIf="set.made === false"
+            name="close-circle"
+            color="danger"
+          ></ion-icon>
+          <ion-icon
+            *ngIf="set.made === null"
+            name="remove-circle-outline"
+            color="medium"
+          ></ion-icon>
+        </span>
+        <ion-button
+          fill="clear"
+          size="small"
           color="danger"
-        ></ion-icon>
-        <ion-icon
-          *ngIf="set.made === null"
-          name="remove-circle-outline"
-          color="medium"
-        ></ion-icon>
-      </span>
-      <ion-button
-        fill="clear"
-        size="small"
-        color="danger"
-        [attr.aria-label]="'Remove set ' + (si + 1)"
-        (click)="removeSet(group, si)"
-        [disabled]="group.sets.length <= 1"
-        class="remove-col"
-      >
-        <ion-icon name="close-outline"></ion-icon>
-      </ion-button>
-    </div>
+          [attr.aria-label]="'Remove set ' + (si + 1)"
+          (click)="removeSet(group, si)"
+          [disabled]="group.sets.length <= 1"
+          class="remove-col"
+        >
+          <ion-icon name="close-outline"></ion-icon>
+        </ion-button>
+      </div>
+      <div *ngIf="isEditMode && set.made !== null" class="set-result">
+        {{ resultText(set) }}
+      </div>
+    </ng-container>
 
     <!-- Add Set Button -->
     <ion-button
@@ -267,9 +272,9 @@
     color="success"
     class="save-btn"
     (click)="save()"
-    [disabled]="!programName"
+    [disabled]="!workoutName"
   >
     <ion-icon name="save-outline" slot="start"></ion-icon>
-    {{ isEditMode ? 'Update Program' : 'Create Program' }}
+    {{ isEditMode ? 'Update Workout' : 'Create Workout' }}
   </ion-button>
 </ion-content>

@@ -24,8 +24,13 @@ export class WorkoutListItemComponent {
   // Ignores Delete taps while a delete is already in progress
   private deleting = false;
 
+  // Only the coach can delete an assigned workout
+  get isAssigned(): boolean {
+    return !!this.workout.assignedById;
+  }
+
   async confirmDelete() {
-    if (this.deleting) return;
+    if (this.deleting || this.isAssigned) return;
     this.deleting = true;
 
     const alert = await this.alertController.create({

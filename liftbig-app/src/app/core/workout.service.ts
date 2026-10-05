@@ -7,15 +7,17 @@ export type WorkoutStatus = 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED';
 export interface WorkoutSet {
   id: string;
   workoutExerciseId?: string;
+  // Planned reps and weight
   reps: number;
-  weight: number;
+  weight: number | null;
   // Set number inside its card
   order: number;
-  isCompleted: boolean;
-  weightMode?: 'EX' | 'PC' | 'RP';
-  expectedWeight?: number | null;
-  actualReps?: number | null;
-  actualWeight?: number | null;
+  // true = made, false = missed, null = not logged
+  made: boolean | null;
+  // Logged values; null means "as planned" once the set is logged
+  actualReps: number | null;
+  actualWeight: number | null;
+  notes: string | null;
 }
 
 // One exercise card; the same exercise may appear on several cards
@@ -40,6 +42,9 @@ export interface Workout {
   isTemplate?: boolean;
   status: WorkoutStatus;
   totalWeightLifted: number;
+  // The coach who assigned the workout; null for a self-made one
+  assignedById: string | null;
+  assignedBy: { id: string; name: string | null } | null;
   // Sorted by card order, sets by set order
   exercises: WorkoutCard[];
 }
@@ -55,9 +60,11 @@ export interface CreateWorkoutRequest {
 export interface WorkoutSetInput {
   id?: string;
   reps: number;
-  weight: number;
+  weight: number | null;
   order?: number;
-  isCompleted?: boolean;
+  made?: boolean | null;
+  actualReps?: number | null;
+  actualWeight?: number | null;
 }
 
 // `id` keeps an existing card of the same workout; omit it for a new card
@@ -69,13 +76,31 @@ export interface WorkoutCardInput {
   sets: WorkoutSetInput[];
 }
 
-// `exercises` replaces all cards when present and leaves them as they are when absent
+// `exercises` is the full card list when present: kept rows carry their id and
+// keep any result left out, rows left out are deleted. Absent = cards unchanged.
+// An assigned workout accepts `status` only.
 export interface UpdateWorkoutRequest {
   name?: string;
   notes?: string;
   status?: WorkoutStatus;
   date?: string;
   exercises?: WorkoutCardInput[];
+}
+
+// Appends a set to a card of an own workout, self-made or assigned
+export interface AddSetRequest {
+  reps: number;
+  weight?: number | null;
+  made?: boolean | null;
+  actualReps?: number | null;
+  actualWeight?: number | null;
+}
+
+// Result of one set; planned values can't be changed this way
+export interface SetResultRequest {
+  made?: boolean | null;
+  actualReps?: number | null;
+  actualWeight?: number | null;
 }
 
 export interface Exercise {
@@ -133,5 +158,24 @@ export class WorkoutService {
 
   deleteWorkout(id: string) {
     return this.http.delete(`${this.apiUrl}/${id}`);
+  }
+
+  addSet(workoutId: string, cardId: string, body: AddSetRequest) {
+    return this.http.post<WorkoutSet>(
+      `${this.apiUrl}/${workoutId}/cards/${cardId}/sets`,
+      body,
+    );
+  }
+
+  // Sends only the result fields, so a passed-in set can't carry planned values
+  updateSetResult(workoutId: string, setId: string, body: SetResultRequest) {
+    const result: SetResultRequest = {};
+    if (body.made !== undefined) result.made = body.made;
+    if (body.actualReps !== undefined) result.actualReps = body.actualReps;
+    if (body.actualWeight !== undefined) result.actualWeight = body.actualWeight;
+    return this.http.patch<WorkoutSet>(
+      `${this.apiUrl}/${workoutId}/sets/${setId}`,
+      result,
+    );
   }
 }
