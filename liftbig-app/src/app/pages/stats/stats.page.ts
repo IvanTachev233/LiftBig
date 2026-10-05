@@ -4,6 +4,7 @@ import { IonicModule } from '@ionic/angular';
 import { WorkoutService, Workout } from '../../core/workout.service';
 import { WorkoutListItemComponent } from '../../shared/components/workout-list-item/workout-list-item.component';
 import { RouterModule } from '@angular/router';
+import { AuthService } from '../../core/auth.service';
 
 @Component({
   selector: 'app-stats',
@@ -14,6 +15,7 @@ import { RouterModule } from '@angular/router';
 })
 export class StatsPage implements OnInit {
   workoutService = inject(WorkoutService);
+  dashboardUrl = inject(AuthService).dashboardUrl;
   workouts: Workout[] | null = null;
 
   constructor() {}

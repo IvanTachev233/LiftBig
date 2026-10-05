@@ -18,6 +18,8 @@ import {
 } from '../../shared/components/exercise-picker/exercise-picker.component';
 import { Workout, WorkoutCard, WorkoutSet } from '../../core/workout.service';
 import { environment } from '../../../environments/environment';
+import { AuthService } from '../../core/auth.service';
+import { fakeToken } from '../../core/auth.testing';
 
 describe('WorkoutLoggerPage', () => {
   let component: WorkoutLoggerPage;
@@ -1982,5 +1984,61 @@ describe('WorkoutLoggerPage', () => {
       expect(router.navigate).toHaveBeenCalledWith(['/dashboard']);
       expect(current().status).toBe('COMPLETED');
     });
+  });
+
+  describe('leaving to the dashboard', () => {
+    afterEach(() => {
+      localStorage.removeItem('token');
+    });
+
+    const cases = [
+      { role: 'COACH', url: '/coach/dashboard' },
+      { role: 'CLIENT', url: '/dashboard' },
+    ] as const;
+
+    for (const { role, url } of cases) {
+      describe(`as a ${role}`, () => {
+        beforeEach(() => {
+          TestBed.inject(AuthService).setSession(fakeToken(role));
+        });
+
+        it(`the back button falls back to ${url}`, () => {
+          createComponentWithNoId();
+          expect((el('ion-back-button') as any).defaultHref).toBe(url);
+        });
+
+        it(`completing an empty draft goes to ${url}`, () => {
+          createComponentWithNoId();
+          component.completeWorkout();
+          expect(router.navigate).toHaveBeenCalledWith([url]);
+        });
+
+        it(`completing a draft goes to ${url} once it is created`, () => {
+          createComponentWithNoId();
+          component.addExercises([{ id: 'ex1', name: 'Bench Press' }]);
+          const c = component.cards[0];
+          c.newWeight = 100;
+          c.newReps = 5;
+          component.addSetToExercise(c);
+          component.completeWorkout();
+
+          httpTesting
+            .expectOne((req) => req.method === 'POST' && req.url === workoutsUrl)
+            .flush({ id: 'w2', name: 'New Workout', date: new Date().toISOString(), exercises: [] });
+          expect(patchBody('w2').status).toBe('COMPLETED');
+
+          expect(router.navigate).toHaveBeenCalledWith([url]);
+        });
+
+        it(`completing a saved workout goes to ${url}`, () => {
+          createComponentWithNoId();
+          loadWorkout('w9', [card('c1', 'ex1', 'Bench Press', [5])]);
+          component.completeWorkout();
+
+          expect(patchBody('w9').status).toBe('COMPLETED');
+          expect(router.navigate).toHaveBeenCalledWith([url]);
+        });
+      });
+    }
   });
 });

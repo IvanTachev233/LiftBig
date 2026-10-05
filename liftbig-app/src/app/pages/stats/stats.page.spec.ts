@@ -9,6 +9,8 @@ import { AlertController, ToastController } from '@ionic/angular';
 import { StatsPage } from './stats.page';
 import { WorkoutListItemComponent } from '../../shared/components/workout-list-item/workout-list-item.component';
 import { environment } from '../../../environments/environment';
+import { AuthService } from '../../core/auth.service';
+import { fakeToken } from '../../core/auth.testing';
 
 describe('StatsPage', () => {
   let component: StatsPage;
@@ -154,5 +156,28 @@ describe('StatsPage', () => {
     expect(
       fixture.nativeElement.querySelectorAll('app-workout-list-item').length,
     ).toBe(0);
+  });
+
+  describe('back button', () => {
+    afterEach(() => {
+      localStorage.removeItem('token');
+    });
+
+    const cases = [
+      { role: 'COACH', url: '/coach/dashboard' },
+      { role: 'CLIENT', url: '/dashboard' },
+    ] as const;
+
+    for (const { role, url } of cases) {
+      it(`falls back to ${url} for a ${role}`, () => {
+        httpMock.expectOne(`${environment.apiUrl}/workouts`).flush([]);
+        TestBed.inject(AuthService).setSession(fakeToken(role));
+        fixture.detectChanges();
+
+        expect(
+          fixture.nativeElement.querySelector('ion-back-button').defaultHref,
+        ).toBe(url);
+      });
+    }
   });
 });

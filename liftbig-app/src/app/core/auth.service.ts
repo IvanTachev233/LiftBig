@@ -43,6 +43,10 @@ export class AuthService {
     }
   });
 
+  dashboardUrl = computed(() =>
+    this.currentUser()?.role === 'COACH' ? '/coach/dashboard' : '/dashboard',
+  );
+
   private apiUrl = `${environment.apiUrl}/auth`;
 
   login(credentials: { email: string; password: string }) {
@@ -72,9 +76,7 @@ export class AuthService {
   }
 
   navigateToDashboard(extras?: NavigationBehaviorOptions) {
-    const url =
-      this.currentUser()?.role === 'COACH' ? '/coach/dashboard' : '/dashboard';
-    return this.router.navigateByUrl(url, extras);
+    return this.router.navigateByUrl(this.dashboardUrl(), extras);
   }
 
   setSession(token: string) {

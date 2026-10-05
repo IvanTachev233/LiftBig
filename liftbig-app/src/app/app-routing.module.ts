@@ -3,6 +3,7 @@ import { PreloadAllModules, RouterModule, Routes } from '@angular/router';
 
 import { AuthGuard } from './core/auth.guard';
 import { RoleGuard } from './core/role.guard';
+import { clientDashboardGuard } from './core/client-dashboard.guard';
 
 const routes: Routes = [
   {
@@ -27,7 +28,7 @@ const routes: Routes = [
   },
   {
     path: 'dashboard',
-    canActivate: [AuthGuard],
+    canActivate: [AuthGuard, clientDashboardGuard],
     loadChildren: () =>
       import('./pages/dashboard/dashboard.module').then(
         (m) => m.DashboardPageModule,

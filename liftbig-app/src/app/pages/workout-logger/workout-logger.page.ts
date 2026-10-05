@@ -38,6 +38,7 @@ import {
   normalizeSupersets,
   toGroupBlocks,
 } from '../../shared/superset';
+import { AuthService } from '../../core/auth.service';
 
 // Makes element ids unique when more than one page instance is in the DOM
 let nextPageId = 0;
@@ -115,6 +116,9 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
   private toastController = inject(ToastController);
   private modalCtrl = inject(ModalController);
   private alertCtrl = inject(AlertController);
+  private authService = inject(AuthService);
+
+  dashboardUrl = this.authService.dashboardUrl;
 
   workout$: Observable<LoggerWorkout> | undefined;
   exercises$: Observable<Exercise[]> | undefined;
@@ -393,7 +397,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
                   draft.status = 'COMPLETED';
                   if (isCurrent) {
                     this.workoutSubject.next(draft);
-                    this.router.navigate(['/dashboard']);
+                    this.router.navigate([this.dashboardUrl()]);
                   }
                   return;
                 }
@@ -583,7 +587,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
         // Nothing to save
         currentWorkout.status = 'COMPLETED';
         this.workoutSubject.next(currentWorkout);
-        this.router.navigate(['/dashboard']);
+        this.router.navigate([this.dashboardUrl()]);
         return;
       }
 
@@ -605,7 +609,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
           currentWorkout._pendingComplete = false;
           currentWorkout.status = 'COMPLETED';
           this.workoutSubject.next(currentWorkout);
-          this.router.navigate(['/dashboard']);
+          this.router.navigate([this.dashboardUrl()]);
         },
         error: () => {
           currentWorkout._pendingComplete = false;
