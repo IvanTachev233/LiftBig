@@ -20,6 +20,8 @@ import { Workout, WorkoutCard, WorkoutSet } from '../../core/workout.service';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../core/auth.service';
 import { fakeToken } from '../../core/auth.testing';
+import { WeightUnitService } from '../../core/weight-unit.service';
+import { ExerciseHistoryModalComponent } from '../../shared/components/exercise-history-modal/exercise-history-modal.component';
 
 describe('WorkoutLoggerPage', () => {
   let component: WorkoutLoggerPage;
@@ -768,7 +770,7 @@ describe('WorkoutLoggerPage', () => {
       expect(memberTitles()).toEqual(['Bench Press', 'Row']);
     });
 
-    it('never sends a card or set id it did not load: new cards and sets in a saved workout go without ids, even after a save', () => {
+    it('new cards and sets in a saved workout go without ids, and the next save sends the ids the response gave them', () => {
       createComponentWithNoId();
       loadWorkout('w61', [card('c1', 'ex1', 'Bench Press', [5])]);
       component.addExercises([{ id: 'ex2', name: 'Row' }]);
@@ -796,8 +798,6 @@ describe('WorkoutLoggerPage', () => {
           sets: [{ reps: 8, weight: 60, order: 1, made: true }],
         },
       ]);
-      // The response's new ids are not adopted, so a later save can't send ids
-      // that a newer save has already replaced
       patch.flush(savedResponse('w61', body, { ex1: 'Bench Press', ex2: 'Row' }));
 
       bench.newWeight = 100;
@@ -805,6 +805,155 @@ describe('WorkoutLoggerPage', () => {
       component.addSetToExercise(bench);
       const next = patchBody('w61');
       expect(next.exercises[0].id).toBe('c1');
+      expect(next.exercises[0].sets.map((s: any) => s.id)).toEqual(['c1-s1', undefined]);
+      expect(next.exercises[1].id).toBe('w61-new2');
+      expect(next.exercises[1].sets[0].id).toBe('w61-new2-new1');
+    });
+  });
+
+  describe('ids returned by a save', () => {
+    const names = { ex1: 'Back Squat', ex2: 'Row', ex3: 'Curl' };
+
+    function pendingPatch(id: string) {
+      return httpTesting.expectOne(
+        (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/${id}`,
+      );
+    }
+
+    function addSet(c: (typeof component.cards)[number], weight: number, reps: number) {
+      c.newWeight = weight;
+      c.newReps = reps;
+      component.addSetToExercise(c);
+    }
+
+    it('a set added to a saved manual workout gets its API id, goes to the history modal and is sent with that id on the next save', async () => {
+      const modal = jasmine.createSpyObj<HTMLIonModalElement>('HTMLIonModalElement', ['present']);
+      modal.present.and.resolveTo();
+      modalCtrlSpy.create.and.resolveTo(modal);
+      createComponentWithNoId();
+      loadWorkout('w80', [card('c1', 'ex1', 'Back Squat', [5])]);
+      const [squat] = component.cards;
+
+      addSet(squat, 120, 1);
+      const patch = pendingPatch('w80');
+      const body = JSON.parse(JSON.stringify(patch.request.body));
+      patch.flush(savedResponse('w80', body, names));
+
+      expect(squat.sets.map((s) => s.id)).toEqual(['c1-s1', 'c1-new2']);
+
+      await component.openHistory(squat);
+      const props = modalCtrlSpy.create.calls.mostRecent().args[0]!.componentProps as any;
+      expect(props.sets.map((s: any) => [s.id, s.reps, s.weight])).toEqual([
+        ['c1-s1', 5, 100],
+        ['c1-new2', 1, 120],
+      ]);
+
+      addSet(squat, 100, 3);
+      expect(patchBody('w80').exercises[0].sets.map((s: any) => s.id)).toEqual([
+        'c1-s1',
+        'c1-new2',
+        undefined,
+      ]);
+    });
+
+    it("a draft's first save gives every saved card and set an id; a card without sets gets none", () => {
+      createComponentWithNoId();
+      component.addExercises([
+        { id: 'ex1', name: 'Back Squat' },
+        { id: 'ex2', name: 'Row' },
+        { id: 'ex3', name: 'Curl' },
+      ]);
+      const [squat, row, curl] = component.cards;
+      addSet(squat, 100, 5);
+      addSet(squat, 110, 3);
+      addSet(curl, 20, 10);
+
+      httpTesting
+        .expectOne((req) => req.method === 'POST' && req.url === workoutsUrl)
+        .flush({ id: 'w81', name: 'New Workout', date: new Date().toISOString(), exercises: [] });
+      const patch = pendingPatch('w81');
+      const body = JSON.parse(JSON.stringify(patch.request.body));
+      patch.flush(savedResponse('w81', body, names));
+
+      expect(component.cards.map((c) => [c.id, c.sets.map((s) => s.id)])).toEqual([
+        ['w81-new1', ['w81-new1-new1', 'w81-new1-new2']],
+        [undefined, []],
+        ['w81-new2', ['w81-new2-new1']],
+      ]);
+
+      addSet(row, 60, 8);
+      const next = patchBody('w81');
+      expect(next.exercises.map((c: any) => c.id)).toEqual(['w81-new1', undefined, 'w81-new2']);
+      expect(next.exercises[0].sets.map((s: any) => s.id)).toEqual([
+        'w81-new1-new1',
+        'w81-new1-new2',
+      ]);
+      expect(squat.id).toBe('w81-new1');
+      expect(row.id).toBeUndefined();
+    });
+
+    it('a set added while a save is in flight gets no id from that response and gets its own from the next save', () => {
+      createComponentWithNoId();
+      loadWorkout('w82', [card('c1', 'ex1', 'Back Squat', [5])]);
+      const [squat] = component.cards;
+
+      addSet(squat, 120, 1);
+      const first = pendingPatch('w82');
+      const firstBody = JSON.parse(JSON.stringify(first.request.body));
+
+      addSet(squat, 125, 1);
+      // Waits for the first save, so it can send the id that save returns
+      httpTesting.expectNone((req) => req.method === 'PATCH');
+
+      first.flush(savedResponse('w82', firstBody, names));
+      expect(squat.sets.map((s) => s.id)).toEqual(['c1-s1', 'c1-new2', undefined]);
+
+      const second = pendingPatch('w82');
+      const secondBody = JSON.parse(JSON.stringify(second.request.body));
+      expect(secondBody.exercises[0].sets.map((s: any) => [s.id, s.weight])).toEqual([
+        ['c1-s1', 100],
+        ['c1-new2', 120],
+        [undefined, 125],
+      ]);
+      second.flush(savedResponse('w82', secondBody, names));
+      expect(squat.sets.map((s) => s.id)).toEqual(['c1-s1', 'c1-new2', 'c1-new3']);
+    });
+
+    it('ids go to the sets the request sent, by their position in it, not by the current list', () => {
+      createComponentWithNoId();
+      loadWorkout('w83', [card('c1', 'ex1', 'Back Squat', [5])]);
+      const [squat] = component.cards;
+
+      addSet(squat, 120, 1);
+      const [loaded, added] = squat.sets;
+      const first = pendingPatch('w83');
+      const firstBody = JSON.parse(JSON.stringify(first.request.body));
+
+      // The loaded set is removed before the response arrives
+      component.removeSet(loaded);
+      first.flush(savedResponse('w83', firstBody, names));
+
+      expect(added.id).toBe('c1-new2');
+      expect(patchBody('w83').exercises[0].sets.map((s: any) => s.id)).toEqual(['c1-new2']);
+    });
+
+    it('a failed save leaves ids unchanged and the next save still goes out', () => {
+      createComponentWithNoId();
+      loadWorkout('w84', [card('c1', 'ex1', 'Back Squat', [5])]);
+      component.addExercises([{ id: 'ex2', name: 'Row' }]);
+      const [squat, row] = component.cards;
+
+      addSet(row, 60, 8);
+      pendingPatch('w84').flush('failed', { status: 500, statusText: 'Server Error' });
+
+      expect(toastControllerSpy.create).toHaveBeenCalled();
+      expect(squat.id).toBe('c1');
+      expect(squat.sets.map((s) => s.id)).toEqual(['c1-s1']);
+      expect(row.id).toBeUndefined();
+      expect(row.sets.map((s) => s.id)).toEqual([undefined]);
+
+      addSet(squat, 100, 3);
+      const next = patchBody('w84');
       expect(next.exercises[0].sets.map((s: any) => s.id)).toEqual(['c1-s1', undefined]);
       expect('id' in next.exercises[1]).toBeFalse();
       expect('id' in next.exercises[1].sets[0]).toBeFalse();
@@ -1983,6 +2132,147 @@ describe('WorkoutLoggerPage', () => {
       expect(patchBody('a1')).toEqual({ status: 'COMPLETED' });
       expect(router.navigate).toHaveBeenCalledWith(['/dashboard']);
       expect(current().status).toBe('COMPLETED');
+    });
+
+    it('works in pounds for an lb user: plans in lb, typed 225 sent as 102.06 kg and shown as 225', () => {
+      TestBed.inject(WeightUnitService).setUnit('lb');
+      loadAssigned();
+
+      expect(
+        Array.from(fixture.nativeElement.querySelectorAll('.set-row:not(.set-head) .set-plan')).map((p: any) =>
+          p.textContent.trim(),
+        ),
+      ).toEqual(['5 × 220.5 lb', '5 × 220.5 lb', '3 × —', '8 × 176.4 lb', '6 × 132.3 lb', '10 × 110.2 lb']);
+      expect((setRows()[0].querySelector('ion-input.actual-weight') as any).placeholder).toBe('220.5');
+      expect((setRows()[2].querySelector('ion-input.actual-weight') as any).placeholder).toBe('lb');
+
+      enterActual(0, 'actualWeight', 225);
+      expect(resultBody('a1', 's1')).toEqual({ made: true, actualReps: null, actualWeight: 102.06 });
+      fixture.detectChanges();
+      expect(current().cards[0].sets[0].actualWeight).toBe(225);
+    });
+
+    it('converts a pound value added on an assigned card to kg', () => {
+      TestBed.inject(WeightUnitService).setUnit('lb');
+      loadAssigned();
+      const squat = current().cards[1];
+      squat.newWeight = 225;
+      squat.newReps = 5;
+      component.addSetToExercise(squat);
+      const req = httpTesting.expectOne(
+        (r) => r.method === 'POST' && r.url === `${workoutsUrl}/a1/cards/c2/sets`,
+      );
+      expect(req.request.body).toEqual({ reps: 5, weight: 102.06, made: true });
+      req.flush({ id: 's-new' });
+    });
+  });
+
+  describe('program workout', () => {
+    function programSet(id: string, weight: number, percent: number, reference: string): WorkoutSet {
+      return {
+        id,
+        reps: 3,
+        weight,
+        order: 1,
+        made: null,
+        actualReps: null,
+        actualWeight: null,
+        notes: null,
+        prescribedPercent: percent,
+        referenceExerciseId: reference,
+      };
+    }
+
+    function loadProgramWorkout() {
+      const squat = card('c1', 'squat', 'Back Squat', [5]);
+      squat.sets = [programSet('s1', 97.5, 70, 'squat')];
+      const pause = card('c2', 'pause', 'Pause Squat', [3]);
+      pause.sets = [programSet('s2', 77.5, 55, 'squat')];
+      const row = card('c3', 'row', 'Barbell Row', [8]);
+      row.sets[0].weight = null;
+      const response: Workout = {
+        ...workoutResponse('pw1', [squat, pause, row]),
+        name: 'Sample: Squat Day',
+        status: 'PLANNED',
+        source: 'program',
+        program: { enrollmentId: 'en1', name: 'Sample Powerlifting Program' },
+      };
+      createComponentWithNoId();
+      loadResponse(response);
+    }
+
+    it('shows a "Program · name" badge linking to the active program', () => {
+      loadProgramWorkout();
+      expect(el('.program-badge').textContent!.trim()).toBe('Program · Sample Powerlifting Program');
+      expect(el('.coach-badge')).toBeNull();
+    });
+
+    it('renders no structural controls, like an assigned workout', () => {
+      loadProgramWorkout();
+      expect(current().assigned).toBeTrue();
+      for (const selector of [
+        '.workout-name-input',
+        'ion-datetime-button',
+        '.add-exercise-btn',
+        'ion-button[aria-label="Delete superset"]',
+        'ion-button[aria-label^="Replace"]',
+        'ion-button[aria-label^="Remove"]',
+        'ion-icon[name="checkmark"]',
+      ]) {
+        expect(fixture.nativeElement.querySelector(selector)).withContext(selector).toBeNull();
+      }
+      expect(fixture.nativeElement.querySelectorAll('ion-button.made-col').length).toBe(3);
+    });
+
+    it('logs a set with the same PATCH body as an assigned workout', () => {
+      loadProgramWorkout();
+      component.toggleMade(current().cards[0].sets[0]);
+      const req = httpTesting.expectOne(
+        (r) => r.method === 'PATCH' && r.url === `${workoutsUrl}/pw1/sets/s1`,
+      );
+      expect(req.request.body).toEqual({ made: true, actualReps: null, actualWeight: null });
+      req.flush({});
+    });
+
+    it('shows the prescribed percent and reference lift under the target', () => {
+      loadProgramWorkout();
+      const prescriptions = Array.from<HTMLElement>(
+        fixture.nativeElement.querySelectorAll('.set-prescription'),
+      ).map((p) => p.textContent!.trim());
+      expect(prescriptions).toEqual(['70% of Back Squat', '55% of Back Squat']);
+    });
+  });
+
+  describe('exercise history', () => {
+    it('opens the history modal from the exercise name with the saved sets in kg', async () => {
+      TestBed.inject(WeightUnitService).setUnit('lb');
+      const squat = card('c1', 'squat', 'Back Squat', [3, 2]);
+      squat.exercise!.isMaxTrackable = true;
+      squat.sets[1].actualWeight = 102.06;
+      const modal = jasmine.createSpyObj<HTMLIonModalElement>('HTMLIonModalElement', ['present']);
+      modal.present.and.resolveTo();
+      modalCtrlSpy.create.and.resolveTo(modal);
+      createComponentWithNoId();
+      loadResponse(workoutResponse('w1', [squat]));
+
+      (el('.exercise-name-btn') as HTMLButtonElement).click();
+      await fixture.whenStable();
+
+      expect(modalCtrlSpy.create).toHaveBeenCalledWith(
+        jasmine.objectContaining({
+          component: ExerciseHistoryModalComponent,
+          componentProps: {
+            exerciseId: 'squat',
+            exerciseName: 'Back Squat',
+            isMaxTrackable: true,
+            sets: [
+              { id: 'c1-s1', reps: 3, weight: 100, made: true, actualReps: null, actualWeight: null },
+              { id: 'c1-s2', reps: 2, weight: 100, made: true, actualReps: null, actualWeight: 102.06 },
+            ],
+          },
+        }),
+      );
+      expect(modal.present).toHaveBeenCalled();
     });
   });
 

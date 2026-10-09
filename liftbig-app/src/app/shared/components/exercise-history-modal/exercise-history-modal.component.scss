@@ -1,0 +1,20 @@
+.latest-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.latest-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid var(--ion-border-color, #334155);
+  border-radius: 8px;
+  font-size: 0.8125rem;
+
+  strong {
+    font-size: 1rem;
+  }
+}

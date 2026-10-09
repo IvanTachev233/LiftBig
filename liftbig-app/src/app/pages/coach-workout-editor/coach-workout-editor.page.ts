@@ -19,6 +19,7 @@ import {
   WorkoutService,
 } from '../../core/workout.service';
 import { Observable } from 'rxjs';
+import { WeightUnitService } from '../../core/weight-unit.service';
 import {
   ExercisePickerComponent,
   ExercisePickerResult,
@@ -49,6 +50,7 @@ interface SetRow {
   // Set id from the API; absent for sets added in this editor session
   id?: string;
   reps: number;
+  // In the coach's unit, as typed; saved as kg
   weight: number | null;
   notes: string;
   // The client's result, shown read-only and never sent
@@ -83,6 +85,7 @@ export class CoachWorkoutEditorPage implements OnInit {
   private toastController = inject(ToastController);
   private modalCtrl = inject(ModalController);
   private alertCtrl = inject(AlertController);
+  readonly units = inject(WeightUnitService);
 
   exercises$: Observable<any[]> | undefined;
   exercisesList: any[] = [];
@@ -137,7 +140,7 @@ export class CoachWorkoutEditorPage implements OnInit {
       sets: card.sets.map((set) => ({
         id: set.id,
         reps: set.reps,
-        weight: set.weight,
+        weight: this.units.toInput(set.weight),
         notes: set.notes || '',
         made: set.made ?? null,
         actualReps: set.actualReps ?? null,
@@ -295,10 +298,10 @@ export class CoachWorkoutEditorPage implements OnInit {
     const label = set.made ? 'Made' : 'Missed';
     if (set.actualReps == null && set.actualWeight == null) return label;
     const reps = set.actualReps ?? set.reps;
-    const weight = set.actualWeight ?? set.weight;
-    return weight == null
+    const weightKg = set.actualWeight ?? this.units.toKg(set.weight);
+    return weightKg == null
       ? `${label}: ${reps} reps`
-      : `${label}: ${reps} × ${weight} kg`;
+      : `${label}: ${reps} × ${this.units.format(weightKg)}`;
   }
 
   private hasResult(group: ExerciseGroup) {
@@ -379,7 +382,7 @@ export class CoachWorkoutEditorPage implements OnInit {
           ...(set.id ? { id: set.id } : {}),
           // The API takes whole reps; an emptied field stays empty
           reps: set.reps == null ? set.reps : Math.round(Number(set.reps)),
-          weight: set.weight,
+          weight: this.units.toKg(set.weight),
           notes: set.notes || null,
           order: si + 1,
         })),

@@ -5,7 +5,7 @@ import { AuthGuard } from './core/auth.guard';
 import { RoleGuard } from './core/role.guard';
 import { clientDashboardGuard } from './core/client-dashboard.guard';
 
-const routes: Routes = [
+export const routes: Routes = [
   {
     path: 'home',
     loadChildren: () =>
@@ -47,6 +47,38 @@ const routes: Routes = [
     canActivate: [AuthGuard],
     loadChildren: () =>
       import('./pages/stats/stats.module').then((m) => m.StatsPageModule),
+  },
+  {
+    path: 'profile',
+    canActivate: [AuthGuard],
+    loadComponent: () =>
+      import('./pages/profile/profile.page').then((m) => m.ProfilePage),
+  },
+  // Premade programs (clients only)
+  {
+    path: 'programs',
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: 'CLIENT' },
+    loadComponent: () =>
+      import('./pages/programs/programs.page').then((m) => m.ProgramsPage),
+  },
+  {
+    path: 'programs/active',
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: 'CLIENT' },
+    loadComponent: () =>
+      import('./pages/active-program/active-program.page').then(
+        (m) => m.ActiveProgramPage,
+      ),
+  },
+  {
+    path: 'programs/:id',
+    canActivate: [AuthGuard, RoleGuard],
+    data: { role: 'CLIENT' },
+    loadComponent: () =>
+      import('./pages/program-detail/program-detail.page').then(
+        (m) => m.ProgramDetailPage,
+      ),
   },
   // Coach routes
   {

@@ -34,6 +34,24 @@
               <ion-label>Past Workouts</ion-label>
             </ion-item>
           </ion-menu-toggle>
+          @if (user()?.role === 'CLIENT') {
+            <ion-menu-toggle auto-hide="false">
+              <ion-item
+                routerLink="/programs"
+                routerDirection="root"
+                lines="none"
+              >
+                <ion-icon slot="start" name="trophy-outline"></ion-icon>
+                <ion-label>Premade Programs</ion-label>
+              </ion-item>
+            </ion-menu-toggle>
+          }
+          <ion-menu-toggle auto-hide="false">
+            <ion-item routerLink="/profile" routerDirection="root" lines="none">
+              <ion-icon slot="start" name="person-outline"></ion-icon>
+              <ion-label>Profile</ion-label>
+            </ion-item>
+          </ion-menu-toggle>
         </ion-list>
       </ion-content>
       <ion-footer>

@@ -1,7 +1,11 @@
 import { Component, EventEmitter, Input, Output, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonicModule, IonItemSliding, AlertController, ToastController } from '@ionic/angular';
-import { WorkoutService, Workout } from '../../../core/workout.service';
+import {
+  WorkoutService,
+  Workout,
+  isPlanLocked,
+} from '../../../core/workout.service';
 import { WorkoutCardComponent } from '../workout-card/workout-card.component';
 
 @Component({
@@ -24,13 +28,13 @@ export class WorkoutListItemComponent {
   // Ignores Delete taps while a delete is already in progress
   private deleting = false;
 
-  // Only the coach can delete an assigned workout
-  get isAssigned(): boolean {
-    return !!this.workout.assignedById;
+  // Coach and program workouts can't be deleted here
+  get isLocked(): boolean {
+    return isPlanLocked(this.workout);
   }
 
   async confirmDelete() {
-    if (this.deleting || this.isAssigned) return;
+    if (this.deleting || this.isLocked) return;
     this.deleting = true;
 
     const alert = await this.alertController.create({

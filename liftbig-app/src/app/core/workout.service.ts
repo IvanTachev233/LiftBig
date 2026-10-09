@@ -4,6 +4,8 @@ import { environment } from '../../environments/environment';
 
 export type WorkoutStatus = 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED';
 
+export type WorkoutSource = 'manual' | 'coach' | 'program';
+
 export interface WorkoutSet {
   id: string;
   workoutExerciseId?: string;
@@ -18,6 +20,10 @@ export interface WorkoutSet {
   actualReps: number | null;
   actualWeight: number | null;
   notes: string | null;
+  // Program sets: the planned weight is this percent of the 1RM of the
+  // reference exercise
+  prescribedPercent?: number | null;
+  referenceExerciseId?: string | null;
 }
 
 // One exercise card; the same exercise may appear on several cards
@@ -45,8 +51,37 @@ export interface Workout {
   // The coach who assigned the workout; null for a self-made one
   assignedById: string | null;
   assignedBy: { id: string; name: string | null } | null;
+  source?: WorkoutSource;
+  // The program enrollment of a program workout
+  program?: { enrollmentId: string; name: string } | null;
   // Sorted by card order, sets by set order
   exercises: WorkoutCard[];
+}
+
+/** Where a workout came from; older payloads without source fall back to assignedById */
+export function workoutSource(
+  workout: Pick<Workout, 'source' | 'assignedById'>,
+): WorkoutSource {
+  return workout.source ?? (workout.assignedById ? 'coach' : 'manual');
+}
+
+/** Coach and program workouts: the user logs results but can't change the plan */
+export function isPlanLocked(
+  workout: Pick<Workout, 'source' | 'assignedById'>,
+): boolean {
+  return workoutSource(workout) !== 'manual';
+}
+
+/** Badge text of a coach or program workout; null for a self-made one */
+export function sourceBadge(workout: Workout): string | null {
+  switch (workoutSource(workout)) {
+    case 'program':
+      return workout.program?.name ? `Program · ${workout.program.name}` : 'Program';
+    case 'coach':
+      return workout.assignedBy?.name ? `Coach · ${workout.assignedBy.name}` : 'Coach';
+    default:
+      return null;
+  }
 }
 
 export interface CreateWorkoutRequest {
@@ -112,6 +147,8 @@ export interface Exercise {
   imageUrl?: string | null;
   // null = global (seeded) exercise; otherwise the coach who created it
   createdById?: string | null;
+  // Rep maxes can be recorded for it
+  isMaxTrackable?: boolean;
 }
 
 export interface CreateExerciseDto {

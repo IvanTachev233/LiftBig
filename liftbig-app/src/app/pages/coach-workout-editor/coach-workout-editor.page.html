@@ -195,7 +195,7 @@
         <ion-input
           type="number"
           [(ngModel)]="set.weight"
-          placeholder="kg"
+          [placeholder]="units.unit()"
           class="set-input"
         ></ion-input>
         <ion-input

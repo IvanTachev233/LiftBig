@@ -243,3 +243,16 @@ ion-alert {
   background: transparent;
   --background: transparent;
 }
+
+/* A heading that opens details, e.g. an exercise name in the logger */
+.exercise-name-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  text-decoration: underline dotted;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}

@@ -1,8 +1,8 @@
-<ion-item-sliding #slidingItem [disabled]="isAssigned">
+<ion-item-sliding #slidingItem [disabled]="isLocked">
   <ion-item lines="none" class="workout-list-item">
     <app-workout-card [workout]="workout"></app-workout-card>
   </ion-item>
-  <ion-item-options *ngIf="!isAssigned" side="end">
+  <ion-item-options *ngIf="!isLocked" side="end">
     <ion-item-option
       color="danger"
       aria-label="Delete workout"
