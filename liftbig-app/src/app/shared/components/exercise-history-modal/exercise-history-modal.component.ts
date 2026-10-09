@@ -1,7 +1,12 @@
-import { Component, Input, OnInit, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, Input, LOCALE_ID, OnInit, inject } from '@angular/core';
+import { CommonModule, formatDate } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { IonicModule, ModalController, ToastController } from '@ionic/angular';
+import {
+  AlertController,
+  IonicModule,
+  ModalController,
+  ToastController,
+} from '@ionic/angular';
 import {
   ChartConfiguration,
   ChartData,
@@ -12,23 +17,22 @@ import {
   Tooltip,
 } from 'chart.js';
 import { BaseChartDirective, provideCharts } from 'ng2-charts';
-import { LiftHistory, LiftService } from '../../../core/lift.service';
+import {
+  LiftHistory,
+  LiftRecordSource,
+  LiftService,
+  RepMaxEntry,
+} from '../../../core/lift.service';
 import { localDay } from '../../../core/local-date';
 import { WeightUnitService } from '../../../core/weight-unit.service';
 import { WeightPipe } from '../../pipes/weight.pipe';
 import { e1rmPoints } from '../../e1rm';
 
-// A logged set of the card the modal was opened from; weights in kg
-export interface HistorySet {
-  id: string;
-  reps: number;
-  weight: number | null;
-  made: boolean | null;
-  actualReps: number | null;
-  actualWeight: number | null;
-}
-
-const MAX_REP_MAX_REPS = 3;
+const SOURCE_LABELS: Record<LiftRecordSource, string> = {
+  MANUAL: 'Manual',
+  LOGGED_SET: 'Logged set',
+  PROGRAM_SETUP: 'Program setup',
+};
 
 const dayLabel = (time: number) =>
   new Date(time).toLocaleDateString(undefined, {
@@ -37,8 +41,8 @@ const dayLabel = (time: number) =>
     timeZone: 'UTC',
   });
 
-// Rep max history of one exercise: latest 1/2/3RM, an e1RM chart, recording
-// logged sets and adding entries by hand
+// Rep max history of one exercise: latest 1/2/3RM, an e1RM chart, the
+// entries with a remove action and adding entries by hand
 @Component({
   selector: 'app-exercise-history-modal',
   templateUrl: './exercise-history-modal.component.html',
@@ -55,17 +59,18 @@ export class ExerciseHistoryModalComponent implements OnInit {
   private liftService = inject(LiftService);
   private modalCtrl = inject(ModalController);
   private toastController = inject(ToastController);
+  private alertCtrl = inject(AlertController);
+  private locale = inject(LOCALE_ID);
   readonly units = inject(WeightUnitService);
 
   @Input() exerciseId!: string;
   @Input() exerciseName = '';
-  @Input() isMaxTrackable = false;
-  @Input() sets: HistorySet[] = [];
 
   history: LiftHistory | null = null;
-  // Ids of sets recorded as rep maxes, from history or this visit
-  recordedSetIds = new Set<string>();
-  recording = new Set<string>();
+  // Newest first
+  entries: RepMaxEntry[] = [];
+  // Ignores remove taps while one is being confirmed or sent
+  private removing = false;
 
   chartData: ChartData<'line', { x: number; y: number }[]> = { datasets: [] };
   readonly chartOptions: ChartConfiguration<'line'>['options'] = {
@@ -100,9 +105,10 @@ export class ExerciseHistoryModalComponent implements OnInit {
     this.liftService.getHistory(this.exerciseId).subscribe({
       next: (history) => {
         this.history = history;
-        for (const entry of history.entries) {
-          if (entry.workoutSetId) this.recordedSetIds.add(entry.workoutSetId);
-        }
+        this.entries = [...history.entries].sort(
+          (a, b) =>
+            b.achievedOn.localeCompare(a.achievedOn) || b.createdAt.localeCompare(a.createdAt),
+        );
         this.chartData = {
           datasets: [
             {
@@ -122,32 +128,46 @@ export class ExerciseHistoryModalComponent implements OnInit {
     });
   }
 
-  /** Made, logged sets of 1-3 reps of a max-trackable exercise */
-  get recordable(): HistorySet[] {
-    if (!this.isMaxTrackable) return [];
-    return this.sets.filter((set) => {
-      const reps = set.actualReps ?? set.reps;
-      return set.made === true && reps >= 1 && reps <= MAX_REP_MAX_REPS;
+  /** e.g. "3 × 100 kg" */
+  entryLabel(entry: RepMaxEntry): string {
+    return `${entry.reps} × ${this.units.format(entry.weightKg)}`;
+  }
+
+  /** e.g. "Oct 5, 2026" */
+  entryDate(entry: RepMaxEntry): string {
+    return formatDate(entry.achievedOn, 'mediumDate', this.locale);
+  }
+
+  sourceLabel(entry: RepMaxEntry): string {
+    return SOURCE_LABELS[entry.source] ?? entry.source;
+  }
+
+  /** Asks to confirm, then removes the entry and reloads the history */
+  async confirmRemove(entry: RepMaxEntry) {
+    if (this.removing) return;
+    this.removing = true;
+    const alert = await this.alertCtrl.create({
+      header: 'Remove entry?',
+      message: `${this.entryLabel(entry)} on ${this.entryDate(entry)} will no longer count as a personal best.`,
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        { text: 'Remove', role: 'destructive' },
+      ],
     });
-  }
-
-  setLabel(set: HistorySet): string {
-    const reps = set.actualReps ?? set.reps;
-    return `${reps} × ${this.units.format(set.actualWeight ?? set.weight)}`;
-  }
-
-  record(set: HistorySet) {
-    if (this.recordedSetIds.has(set.id) || this.recording.has(set.id)) return;
-    this.recording.add(set.id);
-    this.liftService.recordFromSet(set.id).subscribe({
+    await alert.present();
+    const { role } = await alert.onDidDismiss();
+    if (role !== 'destructive') {
+      this.removing = false;
+      return;
+    }
+    this.liftService.removeRepMax(entry.id).subscribe({
       next: () => {
-        this.recording.delete(set.id);
-        this.recordedSetIds.add(set.id);
+        this.removing = false;
         this.load();
       },
       error: () => {
-        this.recording.delete(set.id);
-        this.presentToast("Couldn't record the rep max");
+        this.removing = false;
+        this.presentToast("Couldn't remove the entry");
       },
     });
   }

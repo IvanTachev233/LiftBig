@@ -77,4 +77,20 @@ describe('WorkoutCardComponent', () => {
     );
     expect(badge()).toBe('Program · Sample Powerlifting Program');
   });
+
+  const trophy = () => fixture.nativeElement.querySelector('.pb-trophy') as HTMLElement | null;
+
+  it('shows a labelled trophy on a workout with a personal best', () => {
+    render(workout({ hasPb: true }));
+    expect(trophy()).toBeTruthy();
+    expect(trophy()!.getAttribute('role')).toBe('img');
+    expect(trophy()!.getAttribute('aria-label')).toBe('Has a personal best');
+  });
+
+  it('shows no trophy when hasPb is false or missing', () => {
+    render(workout({ hasPb: false }));
+    expect(trophy()).toBeNull();
+    render(workout());
+    expect(trophy()).toBeNull();
+  });
 });

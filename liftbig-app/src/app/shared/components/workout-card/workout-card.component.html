@@ -5,7 +5,14 @@
 >
   <ion-card-header>
     <div class="card-header-row">
-      <ion-card-title class="card-title">{{ workout.name }}</ion-card-title>
+      <ion-card-title class="card-title">
+        {{ workout.name }}
+        @if (workout.hasPb) {
+          <span class="pb-trophy" role="img" aria-label="Has a personal best">
+            <ion-icon name="trophy" color="warning" aria-hidden="true"></ion-icon>
+          </span>
+        }
+      </ion-card-title>
       <ion-badge [color]="getBadgeColor(workout.status)">{{
         workout.status
       }}</ion-badge>

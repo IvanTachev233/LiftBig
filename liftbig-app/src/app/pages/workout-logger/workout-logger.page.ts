@@ -11,6 +11,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import {
   Exercise,
+  SetWriteResponse,
   Workout,
   WorkoutCardInput,
   WorkoutService,
@@ -42,10 +43,7 @@ import {
   toGroupBlocks,
 } from '../../shared/superset';
 import { AuthService } from '../../core/auth.service';
-import {
-  ExerciseHistoryModalComponent,
-  HistorySet,
-} from '../../shared/components/exercise-history-modal/exercise-history-modal.component';
+import { ExerciseHistoryModalComponent } from '../../shared/components/exercise-history-modal/exercise-history-modal.component';
 import { WeightUnitService } from '../../core/weight-unit.service';
 
 // Makes element ids unique when more than one page instance is in the DOM
@@ -67,6 +65,8 @@ interface LoggerSet {
   // Program sets: the target is this percent of the reference lift's 1RM
   prescribedPercent?: number | null;
   referenceExerciseId?: string | null;
+  // A personal best, as the last response that included the set said
+  pb: boolean;
 }
 
 interface LoggerCard {
@@ -74,8 +74,6 @@ interface LoggerCard {
   id?: string;
   exerciseId: string;
   exerciseName: string;
-  // Rep maxes can be recorded for the exercise
-  isMaxTrackable: boolean;
   sets: LoggerSet[];
   newWeight: number | null;
   newReps: number | null;
@@ -159,8 +157,9 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
   // Prevents a double tap from opening two pickers
   private pickerOpen = false;
 
-  // One queue per set of an assigned workout; each request waits for the previous one
-  private setQueues = new Map<LoggerSet, Subject<QueuedRequest>>();
+  // Set results and added sets of an assigned workout run one at a time, so
+  // responses apply in the order the server saved them
+  private setWrites = new Subject<QueuedRequest>();
 
   // Card saves run one at a time, so each sends the ids the previous one
   // returned; each request handles its own errors
@@ -169,6 +168,18 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
   constructor() {
     this.cardSaves
       .pipe(concatMap((send) => send().pipe(catchError(() => EMPTY))))
+      .subscribe();
+    this.setWrites
+      .pipe(
+        concatMap((send) =>
+          send().pipe(
+            catchError(() => {
+              this.presentSaveErrorToast();
+              return EMPTY;
+            }),
+          ),
+        ),
+      )
       .subscribe();
   }
 
@@ -203,7 +214,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     // Requests already queued still go out
-    this.setQueues.forEach((queue) => queue.complete());
+    this.setWrites.complete();
     this.cardSaves.complete();
   }
 
@@ -233,7 +244,6 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
         id: card.id,
         exerciseId: card.exerciseId,
         exerciseName: card.exercise?.name || 'Exercise',
-        isMaxTrackable: !!card.exercise?.isMaxTrackable,
         sets: [...card.sets].sort(byOrder).map((set) => ({
           id: set.id,
           reps: set.reps,
@@ -244,6 +254,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
           notes: set.notes,
           prescribedPercent: set.prescribedPercent ?? null,
           referenceExerciseId: set.referenceExerciseId ?? null,
+          pb: !!set.pb,
         })),
         newWeight: null,
         newReps: null,
@@ -308,7 +319,6 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
       currentWorkout.cards.push({
         exerciseId: ex.id,
         exerciseName: ex.name || 'Exercise',
-        isMaxTrackable: !!ex.isMaxTrackable,
         sets: [],
         newWeight: null,
         newReps: null,
@@ -340,32 +350,19 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
       // Keeps the card's id, position, superset and sets
       card.exerciseId = ex.id;
       card.exerciseName = ex.name || 'Exercise';
-      card.isMaxTrackable = !!ex.isMaxTrackable;
       this.saveCards();
     } finally {
       this.pickerOpen = false;
     }
   }
 
-  /** Rep max history of the card's exercise, with its saved sets in kg */
+  /** Rep max history of the card's exercise */
   async openHistory(card: LoggerCard) {
-    const sets: HistorySet[] = card.sets
-      .filter((set) => !!set.id)
-      .map((set) => ({
-        id: set.id!,
-        reps: set.reps,
-        weight: set.weight,
-        made: set.made,
-        actualReps: set.actualReps,
-        actualWeight: this.units.toKg(set.actualWeight),
-      }));
     const modal = await this.modalCtrl.create({
       component: ExerciseHistoryModalComponent,
       componentProps: {
         exerciseId: card.exerciseId,
         exerciseName: card.exerciseName,
-        isMaxTrackable: card.isMaxTrackable,
-        sets,
       },
     });
     await modal.present();
@@ -413,6 +410,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
       actualReps: null,
       actualWeight: null,
       notes: null,
+      pb: false,
     };
     card.sets.push(set);
     card.newWeight = null;
@@ -593,8 +591,12 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
       actualWeight: this.units.toKg(set.actualWeight),
     };
     // The id is read when the request runs: a pending add sets it first
-    this.enqueue(set, () =>
-      set.id ? this.workoutService.updateSetResult(workoutId, set.id, body) : EMPTY,
+    this.setWrites.next(() =>
+      set.id
+        ? this.workoutService
+            .updateSetResult(workoutId, set.id, body)
+            .pipe(tap((saved) => this.adoptPbs(workoutId, set, saved)))
+        : EMPTY,
     );
   }
 
@@ -602,12 +604,15 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     if (!workout.id || !card.id) return;
     const { id: workoutId } = workout;
     const cardId = card.id;
-    this.enqueue(set, () =>
+    this.setWrites.next(() =>
       this.workoutService
         .addSet(workoutId, cardId, { reps: set.reps, weight: set.weight, made: set.made })
         .pipe(
           tap({
-            next: (saved) => (set.id = saved.id),
+            next: (saved) => {
+              set.id = saved.id;
+              this.adoptPbs(workoutId, set, saved);
+            },
             error: () => {
               const i = card.sets.indexOf(set);
               if (i >= 0) card.sets.splice(i, 1);
@@ -615,27 +620,6 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
           }),
         ),
     );
-  }
-
-  private enqueue(set: LoggerSet, request: QueuedRequest) {
-    let queue = this.setQueues.get(set);
-    if (!queue) {
-      queue = new Subject<QueuedRequest>();
-      queue
-        .pipe(
-          concatMap((send) =>
-            send().pipe(
-              catchError(() => {
-                this.presentSaveErrorToast();
-                return EMPTY;
-              }),
-            ),
-          ),
-        )
-        .subscribe();
-      this.setQueues.set(set, queue);
-    }
-    queue.next(request);
   }
 
   private toNumber(value: unknown, whole = false): number | null {
@@ -771,9 +755,30 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
       card.id = savedCard.id;
       sets.forEach((set, j) => {
         const savedSet = savedCard.sets?.find((s) => s.order === j + 1);
-        if (savedSet) set.id = savedSet.id;
+        if (!savedSet) return;
+        set.id = savedSet.id;
+        set.pb = !!savedSet.pb;
       });
     });
+  }
+
+  /**
+   * Trophies from a set write's answer: every shown set from the workout's
+   * PB set ids, or only the set itself when they are missing
+   */
+  private adoptPbs(workoutId: string, set: LoggerSet, saved: SetWriteResponse | null) {
+    const pbSetIds = saved?.workoutPb?.pbSetIds;
+    if (!pbSetIds) {
+      if (saved && saved.id === set.id) set.pb = !!saved.pb;
+      return;
+    }
+    // Another workout may be shown by now
+    if (this.workoutSubject.value?.id !== workoutId) return;
+    for (const card of this.cards) {
+      for (const s of card.sets) {
+        if (s.id) s.pb = pbSetIds.includes(s.id);
+      }
+    }
   }
 
   private async presentSaveErrorToast() {

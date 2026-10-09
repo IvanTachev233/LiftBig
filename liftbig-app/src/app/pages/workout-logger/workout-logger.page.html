@@ -160,7 +160,14 @@
         @if (assigned) {
           <!-- Plan, actual inputs (placeholder = plan) and result -->
           <div class="set-row">
-            <span class="set-order text-muted">#{{ si + 1 }}</span>
+            <span class="set-order text-muted">
+              #{{ si + 1 }}
+              @if (set.pb) {
+                <span class="pb-trophy" role="img" aria-label="Personal best">
+                  <ion-icon name="trophy" color="warning" aria-hidden="true"></ion-icon>
+                </span>
+              }
+            </span>
             <span class="set-plan">{{ set.reps }} × {{ weightLabel(set.weight) }}</span>
             <ion-input
               type="number"
@@ -201,7 +208,14 @@
           }
         } @else {
           <div class="set-row">
-            <span class="set-order text-muted">#{{ si + 1 }}</span>
+            <span class="set-order text-muted">
+              #{{ si + 1 }}
+              @if (set.pb) {
+                <span class="pb-trophy" role="img" aria-label="Personal best">
+                  <ion-icon name="trophy" color="warning" aria-hidden="true"></ion-icon>
+                </span>
+              }
+            </span>
             <span class="set-info">{{ weightLabel(set.weight) }}</span>
             <span class="set-info">x {{ set.reps }}</span>
             <div class="set-actions">

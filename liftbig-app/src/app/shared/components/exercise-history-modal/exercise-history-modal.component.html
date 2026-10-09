@@ -28,20 +28,25 @@
       <p class="history-empty text-center text-muted mt-6">No rep maxes recorded yet.</p>
     }
 
-    @if (recordable.length) {
-      <h2 class="section-title mt-6">This workout</h2>
+    @if (entries.length) {
+      <h2 class="section-title mt-6">Entries</h2>
       <ion-list lines="none" class="bg-transparent">
-        @for (set of recordable; track set.id) {
-          <ion-item>
-            <ion-label>{{ setLabel(set) }}</ion-label>
+        @for (entry of entries; track entry.id) {
+          <ion-item class="entry-row">
+            <ion-label>
+              <strong class="entry-weight">{{ entryLabel(entry) }}</strong>
+              <p class="entry-meta">{{ entryDate(entry) }} · {{ sourceLabel(entry) }}</p>
+            </ion-label>
             <ion-button
               slot="end"
+              fill="clear"
+              color="danger"
               size="small"
-              class="record-btn"
-              [disabled]="recordedSetIds.has(set.id) || recording.has(set.id)"
-              (click)="record(set)"
+              class="remove-entry-btn"
+              [attr.aria-label]="'Remove ' + entryLabel(entry) + ', ' + entryDate(entry)"
+              (click)="confirmRemove(entry)"
             >
-              {{ recordedSetIds.has(set.id) ? 'Recorded' : 'Record as rep max' }}
+              <ion-icon slot="icon-only" name="trash-outline" aria-hidden="true"></ion-icon>
             </ion-button>
           </ion-item>
         }

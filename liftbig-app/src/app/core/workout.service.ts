@@ -24,6 +24,8 @@ export interface WorkoutSet {
   // reference exercise
   prescribedPercent?: number | null;
   referenceExerciseId?: string | null;
+  // A non-removed rep max entry was recorded from this set
+  pb?: boolean;
 }
 
 // One exercise card; the same exercise may appear on several cards
@@ -54,6 +56,8 @@ export interface Workout {
   source?: WorkoutSource;
   // The program enrollment of a program workout
   program?: { enrollmentId: string; name: string } | null;
+  // A set of this workout is a personal best
+  hasPb?: boolean;
   // Sorted by card order, sets by set order
   exercises: WorkoutCard[];
 }
@@ -83,6 +87,11 @@ export function sourceBadge(workout: Workout): string | null {
       return null;
   }
 }
+
+/** A set write's answer: the set, plus the PB sets of its whole workout */
+export type SetWriteResponse = WorkoutSet & {
+  workoutPb?: { hasPb: boolean; pbSetIds: string[] };
+};
 
 export interface CreateWorkoutRequest {
   name: string;
@@ -198,7 +207,7 @@ export class WorkoutService {
   }
 
   addSet(workoutId: string, cardId: string, body: AddSetRequest) {
-    return this.http.post<WorkoutSet>(
+    return this.http.post<SetWriteResponse>(
       `${this.apiUrl}/${workoutId}/cards/${cardId}/sets`,
       body,
     );
@@ -210,7 +219,7 @@ export class WorkoutService {
     if (body.made !== undefined) result.made = body.made;
     if (body.actualReps !== undefined) result.actualReps = body.actualReps;
     if (body.actualWeight !== undefined) result.actualWeight = body.actualWeight;
-    return this.http.patch<WorkoutSet>(
+    return this.http.patch<SetWriteResponse>(
       `${this.apiUrl}/${workoutId}/sets/${setId}`,
       result,
     );

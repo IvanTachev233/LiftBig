@@ -236,6 +236,18 @@ describe('WorkoutListItemComponent', () => {
     await flushMicrotasks(() => deletedSpy.calls.count() > 1);
   });
 
+  it('shows a trophy labelled "Has a personal best" when the workout has one', () => {
+    showWorkout({ ...workout, hasPb: true });
+    const trophy = fixture.nativeElement.querySelector('.pb-trophy');
+    expect(trophy?.getAttribute('aria-label')).toBe('Has a personal best');
+  });
+
+  it('shows no trophy when hasPb is false or missing', () => {
+    expect(fixture.nativeElement.querySelector('.pb-trophy')).toBeNull();
+    showWorkout({ ...workout, hasPb: false });
+    expect(fixture.nativeElement.querySelector('.pb-trophy')).toBeNull();
+  });
+
   describe('program workout', () => {
     const program: Workout = {
       ...workout,

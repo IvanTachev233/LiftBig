@@ -66,11 +66,8 @@ export class LiftService {
     return this.http.post<RecordResult>(`${this.url}/rep-maxes`, body);
   }
 
-  // A made, logged set of 1-3 reps; 409 when it is already recorded
-  recordFromSet(setId: string) {
-    return this.http.post<RecordResult>(
-      `${this.url}/rep-maxes/from-set/${setId}`,
-      {},
-    );
+  // Hides an own entry from history and bests; 404 when it is not found
+  removeRepMax(id: string) {
+    return this.http.delete<unknown>(`${this.url}/rep-maxes/${id}`);
   }
 }
