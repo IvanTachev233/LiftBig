@@ -13,8 +13,8 @@
           </span>
         }
       </ion-card-title>
-      <ion-badge [color]="getBadgeColor(workout.status)">{{
-        workout.status
+      <ion-badge class="status-badge" [color]="getBadgeColor(workout.status)">{{
+        statusLabel(workout.status)
       }}</ion-badge>
     </div>
     <ion-card-subtitle class="card-subtitle">{{

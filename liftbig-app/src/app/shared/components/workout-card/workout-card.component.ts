@@ -6,6 +6,7 @@ import { addIcons } from 'ionicons';
 import { trophy } from 'ionicons/icons';
 import {
   Workout,
+  WorkoutStatus,
   sourceBadge,
   workoutSource,
 } from '../../../core/workout.service';
@@ -33,6 +34,11 @@ export class WorkoutCardComponent {
   /** "Coach · name" or "Program · name"; null for a self-made workout */
   get badge() {
     return sourceBadge(this.workout);
+  }
+
+  // Plain words until the status pill (LB-26 task 73) adds Today / Missed
+  statusLabel(status: WorkoutStatus): string {
+    return { PLANNED: 'Planned', IN_PROGRESS: 'In progress', COMPLETED: 'Completed' }[status];
   }
 
   getBadgeColor(status: string): string {

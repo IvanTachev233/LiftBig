@@ -26,7 +26,18 @@
 .card-header-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+// Long titles wrap instead of squeezing the status badge
+.card-header-row .card-title {
+  min-width: 0;
+}
+
+.status-badge {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .card-title {

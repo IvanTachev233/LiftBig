@@ -93,4 +93,20 @@ describe('WorkoutCardComponent', () => {
     render(workout());
     expect(trophy()).toBeNull();
   });
+
+  describe('status badge', () => {
+    const status = () =>
+      (fixture.nativeElement.querySelector('ion-badge') as HTMLElement).textContent!.trim();
+
+    for (const [value, label] of [
+      ['PLANNED', 'Planned'],
+      ['IN_PROGRESS', 'In progress'],
+      ['COMPLETED', 'Completed'],
+    ] as const) {
+      it(`reads "${label}" for ${value}`, () => {
+        render(workout({ status: value }));
+        expect(status()).toBe(label);
+      });
+    }
+  });
 });
