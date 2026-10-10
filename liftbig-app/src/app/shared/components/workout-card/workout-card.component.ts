@@ -2,6 +2,8 @@ import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonicModule } from '@ionic/angular';
 import { RouterModule } from '@angular/router';
+import { addIcons } from 'ionicons';
+import { trophy } from 'ionicons/icons';
 import {
   Workout,
   sourceBadge,
@@ -18,6 +20,11 @@ import { WeightPipe } from '../../pipes/weight.pipe';
 })
 export class WorkoutCardComponent {
   @Input() workout!: Workout;
+
+  constructor() {
+    // Bundled so the trophy shows without fetching its SVG
+    addIcons({ trophy });
+  }
 
   get source() {
     return workoutSource(this.workout);

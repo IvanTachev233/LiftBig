@@ -39,7 +39,13 @@ export interface WorkoutCard {
   // Cards sharing a value form one superset
   supersetGroup: string | null;
   sets: WorkoutSet[];
+  // Single-workout view only: the heaviest entry (kg) per rep count before
+  // this workout, not counting its own sets; null when there is none
+  pbBars?: PbBars;
 }
+
+/** Keyed by rep count 1-3 */
+export type PbBars = Partial<Record<1 | 2 | 3, number | null>>;
 
 export interface Workout {
   id: string;
