@@ -1,0 +1,61 @@
+// Above fullscreen page content, which scrolls under the bars like the tab bar's
+:host {
+  display: block;
+  z-index: 10;
+}
+
+// Stays dark in the light theme so the live state stands out
+.resume-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: calc(100% - 24px);
+  margin: 0 12px 8px;
+  padding: 10px 10px 10px 16px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--live-bar-bg);
+  color: var(--live-bar-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.live-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.resume-text {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+// Spans take the page text colour from global.scss, so each sets its own
+.resume-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--live-bar-text);
+}
+
+.resume-sub {
+  font-size: 12px;
+  color: var(--live-bar-text-2);
+}
+
+.resume-action {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 14px;
+  font-weight: 600;
+}

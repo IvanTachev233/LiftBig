@@ -208,8 +208,8 @@ describe('StatsPage', () => {
     });
 
     const cases = [
-      { role: 'COACH', url: '/coach/dashboard' },
-      { role: 'CLIENT', url: '/dashboard' },
+      { role: 'COACH', url: '/coach/clients' },
+      { role: 'CLIENT', url: '/today' },
     ] as const;
 
     for (const { role, url } of cases) {

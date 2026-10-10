@@ -109,6 +109,10 @@ export class ExerciseHistoryModalComponent implements OnInit {
           (a, b) =>
             b.achievedOn.localeCompare(a.achievedOn) || b.createdAt.localeCompare(a.createdAt),
         );
+        // The canvas can't read CSS variables, so take the token's value
+        const accent = getComputedStyle(document.documentElement)
+          .getPropertyValue('--accent')
+          .trim();
         this.chartData = {
           datasets: [
             {
@@ -117,8 +121,8 @@ export class ExerciseHistoryModalComponent implements OnInit {
                 x: p.x,
                 y: this.units.toDisplay(p.y),
               })),
-              borderColor: '#6366f1',
-              backgroundColor: '#6366f1',
+              borderColor: accent,
+              backgroundColor: accent,
               tension: 0.2,
             },
           ],

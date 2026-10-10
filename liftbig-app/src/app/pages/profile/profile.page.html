@@ -1,8 +1,5 @@
 <ion-header [translucent]="true">
   <ion-toolbar>
-    <ion-buttons slot="start">
-      <ion-menu-button></ion-menu-button>
-    </ion-buttons>
     <ion-title>Profile</ion-title>
   </ion-toolbar>
 </ion-header>
@@ -40,4 +37,55 @@
   } @else {
     <ion-spinner class="block mx-auto mt-10"></ion-spinner>
   }
+
+  <!-- Stored on the device, so it works without the profile -->
+  <h2 class="section-title mt-6" id="theme-label">Theme</h2>
+  <ion-segment
+    aria-labelledby="theme-label"
+    [value]="theme.setting()"
+    (ionChange)="changeTheme($any($event).detail.value)"
+  >
+    <ion-segment-button value="dark">
+      <ion-label>Dark</ion-label>
+    </ion-segment-button>
+    <ion-segment-button value="light">
+      <ion-label>Light</ion-label>
+    </ion-segment-button>
+    <ion-segment-button value="system">
+      <ion-label>System</ion-label>
+    </ion-segment-button>
+  </ion-segment>
+
+  <!-- Accept Invite Section -->
+  <ion-card
+    *ngIf="!hasCoach && user()?.role === 'CLIENT'"
+    class="invite-card mt-8"
+  >
+    <ion-card-header>
+      <ion-card-title class="card-title">Join a Coach</ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+      <ion-item lines="none">
+        <ion-input
+          [(ngModel)]="inviteToken"
+          placeholder="Paste invite code"
+        ></ion-input>
+      </ion-item>
+      <ion-button
+        expand="block"
+        (click)="acceptInvite()"
+        [disabled]="!inviteToken"
+      >
+        <ion-icon name="link-outline" slot="start"></ion-icon>
+        Accept Invite
+      </ion-button>
+    </ion-card-content>
+  </ion-card>
+
+  <ion-list lines="none" class="bg-transparent mt-8">
+    <ion-item button (click)="logout()" lines="none">
+      <ion-icon slot="start" name="log-out-outline"></ion-icon>
+      <ion-label>Logout</ion-label>
+    </ion-item>
+  </ion-list>
 </ion-content>

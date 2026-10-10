@@ -32,7 +32,7 @@ export class AcceptInvitePage implements OnInit {
       next: () => {
         this.loading = false;
         this.success = true;
-        setTimeout(() => this.router.navigate(['/dashboard']), 2000);
+        setTimeout(() => this.router.navigate(['/today']), 2000);
       },
       error: (err) => {
         this.loading = false;

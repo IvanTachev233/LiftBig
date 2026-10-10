@@ -46,6 +46,7 @@ import {
   normalizeSupersets,
   toGroupBlocks,
 } from '../../shared/superset';
+import { ActiveWorkoutService } from '../../core/active-workout.service';
 import { AuthService } from '../../core/auth.service';
 import { predictPb, PbLift } from '../../shared/pb-predict';
 import { ExerciseHistoryModalComponent } from '../../shared/components/exercise-history-modal/exercise-history-modal.component';
@@ -148,6 +149,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
   private modalCtrl = inject(ModalController);
   private alertCtrl = inject(AlertController);
   private authService = inject(AuthService);
+  private activeWorkout = inject(ActiveWorkoutService);
   readonly units = inject(WeightUnitService);
 
   dashboardUrl = this.authService.dashboardUrl;
@@ -523,6 +525,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
                     if (completing) {
                       draft._pendingComplete = false;
                       draft.status = 'COMPLETED';
+                      this.activeWorkout.completed(created.id);
                       if (isCurrent) {
                         this.workoutSubject.next(draft);
                         this.router.navigate([this.dashboardUrl()]);
@@ -747,6 +750,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
         next: () => {
           currentWorkout._pendingComplete = false;
           currentWorkout.status = 'COMPLETED';
+          this.activeWorkout.completed(currentWorkout.id!);
           this.workoutSubject.next(currentWorkout);
           this.router.navigate([this.dashboardUrl()]);
         },

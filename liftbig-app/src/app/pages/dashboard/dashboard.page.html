@@ -1,8 +1,5 @@
 <ion-header [translucent]="true">
   <ion-toolbar>
-    <ion-buttons slot="start">
-      <ion-menu-button></ion-menu-button>
-    </ion-buttons>
     <ion-title> Dashboard </ion-title>
   </ion-toolbar>
 </ion-header>
@@ -35,32 +32,6 @@
   >
     <p>No upcoming workouts planned.</p>
   </div>
-
-  <!-- Accept Invite Section -->
-  <ion-card
-    *ngIf="!hasCoach && user()?.role === 'CLIENT'"
-    class="invite-card mt-8"
-  >
-    <ion-card-header>
-      <ion-card-title class="card-title">Join a Coach</ion-card-title>
-    </ion-card-header>
-    <ion-card-content>
-      <ion-item lines="none">
-        <ion-input
-          [(ngModel)]="inviteToken"
-          placeholder="Paste invite code"
-        ></ion-input>
-      </ion-item>
-      <ion-button
-        expand="block"
-        (click)="acceptInvite()"
-        [disabled]="!inviteToken"
-      >
-        <ion-icon name="link-outline" slot="start"></ion-icon>
-        Accept Invite
-      </ion-button>
-    </ion-card-content>
-  </ion-card>
 
   <ion-fab vertical="bottom" horizontal="end" slot="fixed">
     <ion-fab-button routerLink="/workout-logger">

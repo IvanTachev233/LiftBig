@@ -140,18 +140,12 @@ describe('DashboardPage', () => {
     expect(fixture.nativeElement.querySelector('ion-item-option')).toBeNull();
   });
 
-  it('reloads the upcoming list after accepting an invite', () => {
+  it('leaves Join a Coach to the Profile tab', () => {
     component.ionViewWillEnter();
     httpMock.expectOne(`${environment.apiUrl}/workouts/upcoming`).flush([]);
-    component.inviteToken = 'token-1';
-    component.acceptInvite();
-    httpMock
-      .expectOne(`${environment.apiUrl}/auth/invites/token-1/accept`)
-      .flush({ user: {}, access_token: '' });
-    httpMock
-      .expectOne(`${environment.apiUrl}/workouts/upcoming`)
-      .flush([workout({ id: 'a1', assignedById: 'coach-1', assignedBy: null })]);
-    expect(component.upcomingWorkouts?.map((w) => w.id)).toEqual(['a1']);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.invite-card')).toBeNull();
+    expect(fixture.nativeElement.querySelector('ion-menu-button')).toBeNull();
   });
 
   it('confirming delete on a workout card removes it from the rendered list', async () => {

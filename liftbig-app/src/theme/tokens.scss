@@ -1,0 +1,105 @@
+// Design tokens ("Graphite + Signal", design handoff tokens.css). Dark is the
+// default; ThemeService sets data-theme="light" on <html> for the light theme.
+// The maps are also read by variables.scss to build the Ionic colours.
+@use 'sass:map';
+
+$dark: (
+  bg: #0c0d0f,
+  surface: #16181b,
+  surface-2: #1e2125,
+  surface-input: #0f1113,
+  line: #23262b,
+  line-strong: #2a2e33,
+  line-stronger: #2e3238,
+  text: #f3f3f1,
+  text-2: #a3a8b0,
+  text-3: #8a9099,
+  icon-muted: #6b717a,
+  placeholder: #80868f,
+  accent: #ff6a3d,
+  on-accent: #120b07,
+  accent-text: #ff6a3d,
+  success: #4cc38a,
+  success-tint: #173426,
+  success-row: #13261c,
+  success-text: #6fd8a2,
+  pr-tint: #3a2f12,
+  pr-text: #f5c451,
+  coach-tint: #1c2233,
+  coach-text: #9db4ff,
+  danger-text: #ff7a70,
+  // Rest timer and resume bar; the text stays light in both themes
+  live-bar-bg: #1e2125,
+  live-bar-text: #f3f3f1,
+  live-bar-text-2: #a3a8b0,
+  tabbar-bg: #0c0d0f,
+);
+
+$light: map.merge(
+  $dark,
+  (
+    bg: #f6f5f2,
+    surface: #ffffff,
+    surface-2: #eeede9,
+    surface-input: #f6f5f2,
+    line: #e6e4df,
+    line-strong: #dedbd5,
+    line-stronger: #d6d3cc,
+    text: #141518,
+    text-2: #5c6068,
+    text-3: #6e727a,
+    icon-muted: #9a9da3,
+    placeholder: #6e727a,
+    accent-text: #c2410c,
+    success: #2f9e6a,
+    success-tint: #e3f3ea,
+    success-row: #eaf6ef,
+    success-text: #1e7a4e,
+    pr-tint: #fbefd2,
+    pr-text: #8a5a00,
+    coach-tint: #e8edfb,
+    coach-text: #3550b8,
+    danger-text: #c8372d,
+    live-bar-bg: #141518,
+    tabbar-bg: #ffffff,
+  )
+);
+
+@mixin colors($palette) {
+  @each $name, $value in $palette {
+    --#{$name}: #{$value};
+  }
+}
+
+:root {
+  color-scheme: dark;
+  @include colors($dark);
+  --card-shadow: none;
+
+  --font-ui: 'Geist', system-ui, sans-serif;
+  --font-num: 'Barlow Condensed', system-ui, sans-serif;
+
+  --radius-pill: 999px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-card: 18px;
+  --radius-lg: 20px;
+  --radius-sheet: 24px;
+  --space: 4px;
+  --gutter: 20px;
+  --gutter-dense: 16px;
+  --tap: 44px;
+
+  // Old "Midnight Momentum" names still used by page styles
+  --bg-deep: var(--bg);
+  --bg-surface: var(--surface);
+  --text-main: var(--text);
+  --text-muted: var(--text-2);
+  --border-color: var(--line);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  @include colors($light);
+  --card-shadow: 0 1px 2px rgba(20, 21, 24, 0.04);
+}

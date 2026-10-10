@@ -18,6 +18,7 @@ import {
 } from '../../shared/components/exercise-picker/exercise-picker.component';
 import { Workout, WorkoutCard, WorkoutSet } from '../../core/workout.service';
 import { environment } from '../../../environments/environment';
+import { ActiveWorkoutService } from '../../core/active-workout.service';
 import { AuthService } from '../../core/auth.service';
 import { fakeToken } from '../../core/auth.testing';
 import { WeightUnitService } from '../../core/weight-unit.service';
@@ -504,7 +505,7 @@ describe('WorkoutLoggerPage', () => {
     expect(patchReq.request.body.exercises.length).toBe(1);
     patchReq.flush({});
 
-    expect(router.navigate).toHaveBeenCalledWith(['/dashboard']);
+    expect(router.navigate).toHaveBeenCalledWith(['/today']);
   });
 
   it('shows a toast when saving a set fails, and retries the POST on the next set after a failed create', () => {
@@ -620,7 +621,7 @@ describe('WorkoutLoggerPage', () => {
 
     patchReq.flush({});
 
-    expect(router.navigate).toHaveBeenCalledWith(['/dashboard']);
+    expect(router.navigate).toHaveBeenCalledWith(['/today']);
   });
 
   it('completing during an in-flight create whose follow-up PATCH fails does not navigate, re-enables completion, and a retry PATCHes the created id', () => {
@@ -670,7 +671,7 @@ describe('WorkoutLoggerPage', () => {
     expect(retryPatchReq.request.body.status).toBe('COMPLETED');
     retryPatchReq.flush({});
 
-    expect(router.navigate).toHaveBeenCalledWith(['/dashboard']);
+    expect(router.navigate).toHaveBeenCalledWith(['/today']);
   });
 
   it('completing a saved workout whose PATCH fails does not navigate and leaves completion available', () => {
@@ -701,7 +702,7 @@ describe('WorkoutLoggerPage', () => {
     expect(retryPatchReq.request.body.status).toBe('COMPLETED');
     retryPatchReq.flush({});
 
-    expect(router.navigate).toHaveBeenCalledWith(['/dashboard']);
+    expect(router.navigate).toHaveBeenCalledWith(['/today']);
   });
 
   it('re-emitting queryParams for the already-loaded workout does not rebuild cards or drop empty cards', () => {
@@ -2121,7 +2122,7 @@ describe('WorkoutLoggerPage', () => {
       (el('.complete-btn') as HTMLElement).click();
 
       expect(patchBody('a1')).toEqual({ status: 'COMPLETED' });
-      expect(router.navigate).toHaveBeenCalledWith(['/dashboard']);
+      expect(router.navigate).toHaveBeenCalledWith(['/today']);
       expect(current().status).toBe('COMPLETED');
     });
 
@@ -2813,8 +2814,8 @@ describe('WorkoutLoggerPage', () => {
     });
 
     const cases = [
-      { role: 'COACH', url: '/coach/dashboard' },
-      { role: 'CLIENT', url: '/dashboard' },
+      { role: 'COACH', url: '/coach/clients' },
+      { role: 'CLIENT', url: '/today' },
     ] as const;
 
     for (const { role, url } of cases) {
@@ -2861,5 +2862,67 @@ describe('WorkoutLoggerPage', () => {
         });
       });
     }
+  });
+
+  describe('resume bar', () => {
+    let completed: jasmine.Spy;
+
+    beforeEach(() => {
+      completed = spyOn(TestBed.inject(ActiveWorkoutService), 'completed');
+    });
+
+    it('minimises with a chevron-down back button', () => {
+      createComponentWithNoId();
+      const back = el('ion-back-button') as HTMLIonBackButtonElement;
+      expect(back.icon).toBe('chevron-down');
+      expect(back.getAttribute('aria-label')).toBe('Minimise workout');
+    });
+
+    it('hides a saved workout once its completion is saved', () => {
+      createComponentWithNoId();
+      loadWorkout('w9', [card('c1', 'ex1', 'Bench Press', [5])]);
+
+      component.completeWorkout();
+      const patchReq = httpTesting.expectOne(
+        (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w9`,
+      );
+      expect(completed).not.toHaveBeenCalled();
+      patchReq.flush({});
+
+      expect(completed).toHaveBeenCalledOnceWith('w9');
+    });
+
+    it('hides a new workout once it is created and completed', () => {
+      createComponentWithNoId();
+      component.exercisesList = [{ id: 'ex1', name: 'Bench Press' }];
+      component.addExercises([{ id: 'ex1', name: 'Bench Press' }]);
+      const c = component.cards[0];
+      c.newWeight = 100;
+      c.newReps = 5;
+      component.addSetToExercise(c);
+      const postReq = httpTesting.expectOne(
+        (req) => req.method === 'POST' && req.url === workoutsUrl,
+      );
+
+      component.completeWorkout();
+      postReq.flush({ id: 'w10', name: 'New Workout', date: new Date().toISOString(), exercises: [] });
+      httpTesting
+        .expectOne((req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w10`)
+        .flush({});
+
+      expect(completed).toHaveBeenCalledOnceWith('w10');
+    });
+
+    it('keeps the workout when completing fails', () => {
+      createComponentWithNoId();
+      loadWorkout('w11', [card('c1', 'ex1', 'Bench Press', [5])]);
+
+      component.completeWorkout();
+      httpTesting
+        .expectOne((req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w11`)
+        .flush('failed', { status: 500, statusText: 'Server Error' });
+
+      expect(completed).not.toHaveBeenCalled();
+    });
   });
 });

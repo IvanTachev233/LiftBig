@@ -32,8 +32,9 @@
  * https://ionicframework.com/docs/theming/dark-mode
  */
 
-@import "@ionic/angular/css/palettes/dark.always.css";
-/* @import "@ionic/angular/css/palettes/dark.class.css"; */
+/* @import "@ionic/angular/css/palettes/dark.always.css"; */
+/* ThemeService adds .ion-palette-dark to <html> for the dark theme */
+@import "@ionic/angular/css/palettes/dark.class.css";
 /* @import "@ionic/angular/css/palettes/dark.system.css"; */
 
 /* Global Typography Fixes */
@@ -52,6 +53,16 @@ span {
 /* ---------------------------------------------------------------------------
  * Shared component styles
  * ------------------------------------------------------------------------- */
+
+/* Ionic draws the primary colour as text here; orange text uses --accent-text,
+   which is darker in light mode */
+ion-button:not([color]):is([fill="clear"], [fill="outline"]) {
+  --color: var(--accent-text);
+}
+
+ion-segment-button {
+  --color-checked: var(--accent-text);
+}
 
 /* Canonical section heading (spec: 600 weight, -0.025em letter spacing) */
 .section-title {
@@ -113,7 +124,7 @@ ion-input.set-input input {
     font-size: 1.875rem;
     font-weight: 600;
     letter-spacing: -0.025em;
-    color: var(--ion-color-primary);
+    color: var(--accent-text);
     margin: 0;
   }
 
@@ -136,7 +147,7 @@ ion-input.set-input input {
   margin-top: 1.5rem;
 
   a {
-    color: var(--ion-color-primary);
+    color: var(--accent-text);
     font-weight: 600;
     text-decoration: none;
   }
@@ -252,7 +263,7 @@ ion-alert {
 }
 
 .text-muted {
-  color: var(--ion-color-medium, #92949c);
+  color: var(--text-muted);
 }
 
 /* Misc */

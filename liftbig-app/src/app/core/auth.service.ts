@@ -44,7 +44,7 @@ export class AuthService {
   });
 
   dashboardUrl = computed(() =>
-    this.currentUser()?.role === 'COACH' ? '/coach/dashboard' : '/dashboard',
+    this.currentUser()?.role === 'COACH' ? '/coach/clients' : '/today',
   );
 
   private apiUrl = `${environment.apiUrl}/auth`;

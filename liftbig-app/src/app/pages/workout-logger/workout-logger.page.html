@@ -1,8 +1,13 @@
 <ion-header [translucent]="true">
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-menu-button></ion-menu-button>
-      <ion-back-button [defaultHref]="dashboardUrl()"></ion-back-button>
+      <!-- Back to the screen it was opened from; the workout stays in progress -->
+      <ion-back-button
+        icon="chevron-down"
+        text=""
+        aria-label="Minimise workout"
+        [defaultHref]="dashboardUrl()"
+      ></ion-back-button>
     </ion-buttons>
     <ion-title>Workout Logger</ion-title>
   </ion-toolbar>

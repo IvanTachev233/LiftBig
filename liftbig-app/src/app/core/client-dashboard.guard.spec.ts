@@ -20,11 +20,18 @@ describe('clientDashboardGuard', () => {
         provideHttpClientTesting(),
         provideRouter([
           {
-            path: 'dashboard',
+            path: 'today',
             canActivate: [clientDashboardGuard],
             component: StubPage,
           },
-          { path: 'coach/dashboard', component: StubPage },
+          {
+            path: 'profile',
+            canActivate: [clientDashboardGuard],
+            data: { coachUrl: '/coach/profile' },
+            component: StubPage,
+          },
+          { path: 'coach/clients', component: StubPage },
+          { path: 'coach/profile', component: StubPage },
         ]),
       ],
     });
@@ -34,18 +41,22 @@ describe('clientDashboardGuard', () => {
     localStorage.removeItem('token');
   });
 
-  async function open(role: 'COACH' | 'CLIENT') {
+  async function open(role: 'COACH' | 'CLIENT', url = '/today') {
     TestBed.inject(AuthService).setSession(fakeToken(role));
     const harness = await RouterTestingHarness.create();
-    await harness.navigateByUrl('/dashboard');
+    await harness.navigateByUrl(url);
     return TestBed.inject(Router).url;
   }
 
-  it('sends a COACH to /coach/dashboard', async () => {
-    expect(await open('COACH')).toBe('/coach/dashboard');
+  it('sends a COACH to /coach/clients', async () => {
+    expect(await open('COACH')).toBe('/coach/clients');
   });
 
-  it('lets a CLIENT open /dashboard', async () => {
-    expect(await open('CLIENT')).toBe('/dashboard');
+  it("sends a COACH to the route's coachUrl when it has one", async () => {
+    expect(await open('COACH', '/profile')).toBe('/coach/profile');
+  });
+
+  it('lets a CLIENT open /today', async () => {
+    expect(await open('CLIENT')).toBe('/today');
   });
 });
