@@ -1,0 +1,85 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/programs"></ion-back-button>
+    </ion-buttons>
+    <ion-title>My Program</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="ion-padding">
+  @if (active; as enrollment) {
+    <h1 class="workout-title program-title">{{ enrollment.program.name }}</h1>
+    <p class="text-muted program-start">
+      Started {{ enrollment.startDate | date: 'mediumDate' }}
+    </p>
+
+    <div class="flex mt-4">
+      <ion-button fill="outline" (click)="openRecalculate()">Recalculate</ion-button>
+      <ion-button fill="outline" color="danger" (click)="abandon()">Abandon</ion-button>
+    </div>
+
+    @if (recalculating) {
+      <ion-card class="mt-4">
+        <ion-card-header>
+          <ion-card-subtitle>New 1RMs ({{ units.unit() }})</ion-card-subtitle>
+        </ion-card-header>
+        <ion-card-content>
+          @for (id of lifts; track id) {
+            <ion-item lines="none">
+              <ion-input
+                type="number"
+                inputmode="decimal"
+                class="max-input"
+                labelPlacement="start"
+                [label]="label(id)"
+                [(ngModel)]="maxes[id]"
+                [placeholder]="units.unit()"
+              ></ion-input>
+            </ion-item>
+          }
+          <ion-button
+            expand="block"
+            class="mt-4"
+            [disabled]="!canRecalculate"
+            (click)="recalculate()"
+          >
+            Update planned targets
+          </ion-button>
+        </ion-card-content>
+      </ion-card>
+    }
+
+    @for (week of weeks; track week.week) {
+      <h2 class="section-title mt-6 week-title">Week {{ week.week }}</h2>
+      <ion-list lines="full" class="bg-transparent">
+        @for (session of week.sessions; track session.id) {
+          <ion-item
+            button
+            [routerLink]="['/workout-logger']"
+            [queryParams]="{ id: session.id }"
+            [class.session-done]="session.status === 'COMPLETED'"
+          >
+            <ion-label>
+              <h3>{{ session.name }}</h3>
+              <p class="session-date">{{ day(session) | date: 'mediumDate' }}</p>
+            </ion-label>
+            <ion-badge
+              slot="end"
+              class="session-status"
+              [color]="session.status === 'COMPLETED' ? 'success' : 'medium'"
+              >{{ statusLabel(session) }}</ion-badge
+            >
+          </ion-item>
+        }
+      </ion-list>
+    }
+  } @else if (loaded) {
+    <div class="no-program text-center text-muted mt-10">
+      <p>You have no active program.</p>
+      <ion-button routerLink="/programs" routerDirection="root">Browse programs</ion-button>
+    </div>
+  } @else {
+    <ion-spinner class="block mx-auto mt-10"></ion-spinner>
+  }
+</ion-content>

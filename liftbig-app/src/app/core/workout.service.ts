@@ -4,6 +4,8 @@ import { environment } from '../../environments/environment';
 
 export type WorkoutStatus = 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED';
 
+export type WorkoutSource = 'manual' | 'coach' | 'program';
+
 export interface WorkoutSet {
   id: string;
   workoutExerciseId?: string;
@@ -18,6 +20,12 @@ export interface WorkoutSet {
   actualReps: number | null;
   actualWeight: number | null;
   notes: string | null;
+  // Program sets: the planned weight is this percent of the 1RM of the
+  // reference exercise
+  prescribedPercent?: number | null;
+  referenceExerciseId?: string | null;
+  // A non-removed rep max entry was recorded from this set
+  pb?: boolean;
 }
 
 // One exercise card; the same exercise may appear on several cards
@@ -31,7 +39,13 @@ export interface WorkoutCard {
   // Cards sharing a value form one superset
   supersetGroup: string | null;
   sets: WorkoutSet[];
+  // Single-workout view only: the heaviest entry (kg) per rep count before
+  // this workout, not counting its own sets; null when there is none
+  pbBars?: PbBars;
 }
+
+/** Keyed by rep count 1-3 */
+export type PbBars = Partial<Record<1 | 2 | 3, number | null>>;
 
 export interface Workout {
   id: string;
@@ -45,9 +59,45 @@ export interface Workout {
   // The coach who assigned the workout; null for a self-made one
   assignedById: string | null;
   assignedBy: { id: string; name: string | null } | null;
+  source?: WorkoutSource;
+  // The program enrollment of a program workout
+  program?: { enrollmentId: string; name: string } | null;
+  // A set of this workout is a personal best
+  hasPb?: boolean;
   // Sorted by card order, sets by set order
   exercises: WorkoutCard[];
 }
+
+/** Where a workout came from; older payloads without source fall back to assignedById */
+export function workoutSource(
+  workout: Pick<Workout, 'source' | 'assignedById'>,
+): WorkoutSource {
+  return workout.source ?? (workout.assignedById ? 'coach' : 'manual');
+}
+
+/** Coach and program workouts: the user logs results but can't change the plan */
+export function isPlanLocked(
+  workout: Pick<Workout, 'source' | 'assignedById'>,
+): boolean {
+  return workoutSource(workout) !== 'manual';
+}
+
+/** Badge text of a coach or program workout; null for a self-made one */
+export function sourceBadge(workout: Workout): string | null {
+  switch (workoutSource(workout)) {
+    case 'program':
+      return workout.program?.name ? `Program · ${workout.program.name}` : 'Program';
+    case 'coach':
+      return workout.assignedBy?.name ? `Coach · ${workout.assignedBy.name}` : 'Coach';
+    default:
+      return null;
+  }
+}
+
+/** A set write's answer: the set, plus the PB sets of its whole workout */
+export type SetWriteResponse = WorkoutSet & {
+  workoutPb?: { hasPb: boolean; pbSetIds: string[] };
+};
 
 export interface CreateWorkoutRequest {
   name: string;
@@ -112,6 +162,8 @@ export interface Exercise {
   imageUrl?: string | null;
   // null = global (seeded) exercise; otherwise the coach who created it
   createdById?: string | null;
+  // Rep maxes can be recorded for it
+  isMaxTrackable?: boolean;
 }
 
 export interface CreateExerciseDto {
@@ -161,7 +213,7 @@ export class WorkoutService {
   }
 
   addSet(workoutId: string, cardId: string, body: AddSetRequest) {
-    return this.http.post<WorkoutSet>(
+    return this.http.post<SetWriteResponse>(
       `${this.apiUrl}/${workoutId}/cards/${cardId}/sets`,
       body,
     );
@@ -173,7 +225,7 @@ export class WorkoutService {
     if (body.made !== undefined) result.made = body.made;
     if (body.actualReps !== undefined) result.actualReps = body.actualReps;
     if (body.actualWeight !== undefined) result.actualWeight = body.actualWeight;
-    return this.http.patch<WorkoutSet>(
+    return this.http.patch<SetWriteResponse>(
       `${this.apiUrl}/${workoutId}/sets/${setId}`,
       result,
     );

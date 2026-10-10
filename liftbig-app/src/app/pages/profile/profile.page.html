@@ -1,0 +1,43 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Profile</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="ion-padding">
+  @if (profile; as p) {
+    <ion-list lines="none" class="bg-transparent">
+      <ion-item>
+        <ion-label>
+          <p>Name</p>
+          <h2 class="profile-name">{{ p.name || '—' }}</h2>
+        </ion-label>
+      </ion-item>
+      <ion-item>
+        <ion-label>
+          <p>Email</p>
+          <h2 class="profile-email">{{ p.email }}</h2>
+        </ion-label>
+      </ion-item>
+    </ion-list>
+
+    <h2 class="section-title mt-6" id="unit-label">Weight unit</h2>
+    <ion-segment
+      aria-labelledby="unit-label"
+      [value]="unit"
+      (ionChange)="changeUnit($any($event).detail.value)"
+    >
+      <ion-segment-button value="kg">
+        <ion-label>kg</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="lb">
+        <ion-label>lb</ion-label>
+      </ion-segment-button>
+    </ion-segment>
+  } @else {
+    <ion-spinner class="block mx-auto mt-10"></ion-spinner>
+  }
+</ion-content>

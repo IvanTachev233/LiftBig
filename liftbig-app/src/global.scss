@@ -78,6 +78,23 @@ ion-input.set-input {
   text-align: center;
 }
 
+// Logger set rows are narrow; keep room for a value like 102.5
+app-workout-logger .set-row ion-input.set-input {
+  --padding-start: 4px;
+  --padding-end: 4px;
+}
+
+// Spin buttons would take the text room of a narrow number input
+ion-input.set-input input {
+  appearance: textfield;
+
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+}
+
 /* Shared auth form styles (login + register) */
 .auth-form {
   display: flex;
@@ -242,4 +259,24 @@ ion-alert {
 .bg-transparent {
   background: transparent;
   --background: transparent;
+}
+
+/* A heading that opens details, e.g. an exercise name in the logger */
+.exercise-name-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  text-decoration: underline dotted;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+// Gold trophy marking a personal best
+.pb-trophy {
+  display: inline-flex;
+  vertical-align: middle;
+  font-size: 1rem;
 }

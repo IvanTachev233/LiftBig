@@ -1,0 +1,96 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>{{ exerciseName }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="close()">Close</ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  @if (history; as h) {
+    <div class="latest-row">
+      @for (latest of h.latest; track latest.reps) {
+        <div class="latest-tile" [class]="'latest-' + latest.reps">
+          <span class="text-muted">{{ latest.reps }}RM</span>
+          <strong>{{ latest.entry ? (latest.entry.weightKg | weight) : '—' }}</strong>
+          @if (latest.entry) {
+            <span class="text-muted">{{ latest.entry.achievedOn | date: 'mediumDate' }}</span>
+          }
+        </div>
+      }
+    </div>
+
+    @if (h.entries.length) {
+      <h2 class="section-title mt-6">Estimated 1RM</h2>
+      <canvas baseChart type="line" [data]="chartData" [options]="chartOptions"></canvas>
+    } @else {
+      <p class="history-empty text-center text-muted mt-6">No rep maxes recorded yet.</p>
+    }
+
+    @if (entries.length) {
+      <h2 class="section-title mt-6">Entries</h2>
+      <ion-list lines="none" class="bg-transparent">
+        @for (entry of entries; track entry.id) {
+          <ion-item class="entry-row">
+            <ion-label>
+              <strong class="entry-weight">{{ entryLabel(entry) }}</strong>
+              <p class="entry-meta">{{ entryDate(entry) }} · {{ sourceLabel(entry) }}</p>
+            </ion-label>
+            <ion-button
+              slot="end"
+              fill="clear"
+              color="danger"
+              size="small"
+              class="remove-entry-btn"
+              [attr.aria-label]="'Remove ' + entryLabel(entry) + ', ' + entryDate(entry)"
+              (click)="confirmRemove(entry)"
+            >
+              <ion-icon slot="icon-only" name="trash-outline" aria-hidden="true"></ion-icon>
+            </ion-button>
+          </ion-item>
+        }
+      </ion-list>
+    }
+
+    <h2 class="section-title mt-6">Add entry</h2>
+    <ion-list lines="none" class="bg-transparent">
+      <ion-item>
+        <ion-select label="Reps" [(ngModel)]="newEntry.reps" interface="popover">
+          <ion-select-option [value]="1">1</ion-select-option>
+          <ion-select-option [value]="2">2</ion-select-option>
+          <ion-select-option [value]="3">3</ion-select-option>
+        </ion-select>
+      </ion-item>
+      <ion-item>
+        <ion-input
+          type="number"
+          inputmode="decimal"
+          labelPlacement="start"
+          [label]="'Weight (' + units.unit() + ')'"
+          [(ngModel)]="newEntry.weight"
+        ></ion-input>
+      </ion-item>
+      <ion-item>
+        <ion-label>Date</ion-label>
+        <ion-datetime-button datetime="repMaxDate"></ion-datetime-button>
+        <ion-modal [keepContentsMounted]="true">
+          <ng-template>
+            <ion-datetime
+              id="repMaxDate"
+              presentation="date"
+              [max]="today"
+              [value]="newEntry.achievedOn"
+              (ionChange)="dateChanged($any($event))"
+            ></ion-datetime>
+          </ng-template>
+        </ion-modal>
+      </ion-item>
+    </ion-list>
+    <ion-button expand="block" class="mt-4" [disabled]="!canAdd" (click)="addEntry()">
+      Add entry
+    </ion-button>
+  } @else {
+    <ion-spinner class="block mx-auto mt-10"></ion-spinner>
+  }
+</ion-content>

@@ -1,0 +1,86 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/programs"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ program?.name || 'Program' }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="ion-padding">
+  @if (program; as p) {
+    <h1 class="workout-title">{{ p.name }}</h1>
+    <p class="text-muted">
+      {{ p.sport.name }} · {{ p.authorName }} · {{ p.durationWeeks }} weeks ·
+      {{ p.sessionsPerWeek }} sessions/week
+    </p>
+    @if (p.description) {
+      <p>{{ p.description }}</p>
+    }
+
+    <h2 class="section-title mt-6">Start this program</h2>
+    @if (p.referenceLifts.length) {
+      <p class="text-muted">Your current 1RM ({{ units.unit() }})</p>
+      <ion-list lines="none" class="bg-transparent">
+        @for (lift of p.referenceLifts; track lift.exerciseId) {
+          <ion-item>
+            <ion-input
+              type="number"
+              inputmode="decimal"
+              class="max-input"
+              labelPlacement="start"
+              [label]="lift.label"
+              [(ngModel)]="maxes[lift.exerciseId]"
+              [placeholder]="units.unit()"
+            ></ion-input>
+          </ion-item>
+        }
+      </ion-list>
+    }
+    <ion-item lines="none">
+      <ion-icon name="calendar-outline" slot="start" color="medium"></ion-icon>
+      <ion-label>First session</ion-label>
+      <ion-datetime-button datetime="programStart"></ion-datetime-button>
+      <ion-modal [keepContentsMounted]="true">
+        <ng-template>
+          <ion-datetime
+            id="programStart"
+            presentation="date"
+            [min]="minDate"
+            [value]="startDate"
+            (ionChange)="dateChanged($any($event))"
+          ></ion-datetime>
+        </ng-template>
+      </ion-modal>
+    </ion-item>
+    <ion-button
+      expand="block"
+      class="start-btn mt-4"
+      [disabled]="!canStart"
+      (click)="start()"
+    >
+      Start
+    </ion-button>
+
+    <h2 class="section-title mt-8">Schedule</h2>
+    @for (week of weeks; track week.week) {
+      <h3 class="week-title">Week {{ week.week }}</h3>
+      @for (session of week.sessions; track session.id) {
+        <ion-card class="session-card">
+          <ion-card-header>
+            <ion-card-subtitle class="session-title"
+              >Day {{ session.dayOffset + 1 }} · {{ session.title }}</ion-card-subtitle
+            >
+          </ion-card-header>
+          <ion-card-content>
+            @for (exercise of session.exercises; track exercise.id) {
+              <div class="session-exercise">{{ exerciseLine(exercise) }}</div>
+            }
+          </ion-card-content>
+        </ion-card>
+      }
+    }
+  } @else {
+    <ion-spinner class="block mx-auto mt-10"></ion-spinner>
+  }
+</ion-content>

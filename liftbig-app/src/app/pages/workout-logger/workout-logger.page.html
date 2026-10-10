@@ -12,7 +12,13 @@
   <ng-container *ngIf="workoutSubject | async as workout; else loading">
     @let assigned = workout.assigned;
     @if (assigned) {
-      <ion-badge color="primary" class="coach-badge">{{ coachLabel(workout) }}</ion-badge>
+      @if (workout.source === 'program') {
+        <ion-badge color="primary" class="program-badge" routerLink="/programs/active">{{
+          programLabel(workout)
+        }}</ion-badge>
+      } @else {
+        <ion-badge color="primary" class="coach-badge">{{ coachLabel(workout) }}</ion-badge>
+      }
       <h1 class="workout-title">{{ workout.name }}</h1>
       <p class="text-muted mb-4">{{ workout.date | date: 'mediumDate' }}</p>
     } @else {
@@ -68,9 +74,14 @@
           @for (card of block.groups; track card) {
             <div class="exercise-card superset-member">
               <div class="exercise-header-row">
-                <ion-card-title class="exercise-title">{{
-                  card.exerciseName
-                }}</ion-card-title>
+                <ion-card-title class="exercise-title"
+                  ><button
+                    type="button"
+                    class="exercise-name-btn"
+                    [attr.aria-label]="card.exerciseName + ', rep max history'"
+                    (click)="openHistory(card)"
+                  >{{ card.exerciseName }}</button></ion-card-title
+                >
                 @if (!assigned) {
                   <ng-container
                     *ngTemplateOutlet="cardActions; context: { $implicit: card }"
@@ -88,9 +99,14 @@
           <ion-card class="exercise-card">
             <ion-card-header class="exercise-card-header">
               <div class="exercise-header-row">
-                <ion-card-title class="exercise-title">{{
-                  card.exerciseName
-                }}</ion-card-title>
+                <ion-card-title class="exercise-title"
+                  ><button
+                    type="button"
+                    class="exercise-name-btn"
+                    [attr.aria-label]="card.exerciseName + ', rep max history'"
+                    (click)="openHistory(card)"
+                  >{{ card.exerciseName }}</button></ion-card-title
+                >
                 @if (!assigned) {
                   <ng-container
                     *ngTemplateOutlet="cardActions; context: { $implicit: card }"
@@ -136,7 +152,7 @@
           <span class="set-order">Set</span>
           <span class="set-plan">Plan</span>
           <span class="set-input">Reps</span>
-          <span class="set-input">kg</span>
+          <span class="set-input">{{ units.unit() }}</span>
           <span class="made-col text-center">Made</span>
         </div>
       }
@@ -144,7 +160,14 @@
         @if (assigned) {
           <!-- Plan, actual inputs (placeholder = plan) and result -->
           <div class="set-row">
-            <span class="set-order text-muted">#{{ si + 1 }}</span>
+            <span class="set-order text-muted">
+              #{{ si + 1 }}
+              @if (set.pb) {
+                <span class="pb-trophy" role="img" aria-label="Personal best">
+                  <ion-icon name="trophy" color="warning" aria-hidden="true"></ion-icon>
+                </span>
+              }
+            </span>
             <span class="set-plan">{{ set.reps }} × {{ weightLabel(set.weight) }}</span>
             <ion-input
               type="number"
@@ -162,8 +185,8 @@
               class="set-input actual-weight"
               [(ngModel)]="set.actualWeight"
               (ionChange)="actualChanged(set)"
-              [placeholder]="set.weight === null ? 'kg' : '' + set.weight"
-              [attr.aria-label]="'Actual kg, set ' + (si + 1)"
+              [placeholder]="set.weight === null ? units.unit() : '' + units.toDisplay(set.weight)"
+              [attr.aria-label]="'Actual ' + units.unit() + ', set ' + (si + 1)"
             ></ion-input>
             @let state = madeState(set);
             <ion-button
@@ -177,12 +200,22 @@
               <ion-icon slot="icon-only" [name]="state.icon" aria-hidden="true"></ion-icon>
             </ion-button>
           </div>
+          @if (set.prescribedPercent) {
+            <p class="set-prescription text-muted">{{ prescriptionLabel(set) }}</p>
+          }
           @if (set.notes) {
             <p class="set-notes text-muted">{{ set.notes }}</p>
           }
         } @else {
           <div class="set-row">
-            <span class="set-order text-muted">#{{ si + 1 }}</span>
+            <span class="set-order text-muted">
+              #{{ si + 1 }}
+              @if (set.pb) {
+                <span class="pb-trophy" role="img" aria-label="Personal best">
+                  <ion-icon name="trophy" color="warning" aria-hidden="true"></ion-icon>
+                </span>
+              }
+            </span>
             <span class="set-info">{{ weightLabel(set.weight) }}</span>
             <span class="set-info">x {{ set.reps }}</span>
             <div class="set-actions">
@@ -213,7 +246,7 @@
         <ion-input
           type="number"
           [(ngModel)]="card.newWeight"
-          placeholder="kg"
+          [placeholder]="units.unit()"
           class="set-input"
         ></ion-input>
         <ion-input

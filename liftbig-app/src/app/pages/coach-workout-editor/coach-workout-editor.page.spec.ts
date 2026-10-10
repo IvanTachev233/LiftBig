@@ -21,6 +21,7 @@ import {
   ExercisePickerResult,
 } from '../../shared/components/exercise-picker/exercise-picker.component';
 import { environment } from '../../../environments/environment';
+import { WeightUnitService } from '../../core/weight-unit.service';
 
 describe('CoachWorkoutEditorPage', () => {
   let component: CoachWorkoutEditorPage;
@@ -1216,6 +1217,38 @@ describe('CoachWorkoutEditorPage', () => {
       expect(
         fixture.nativeElement.querySelectorAll('.superset-card .exercise-title').length,
       ).toBe(2);
+    });
+  });
+  describe('in pounds', () => {
+    it('shows kg weights in lb and sends what the coach types as kg', () => {
+      setup({ id: 'w1' });
+      TestBed.inject(WeightUnitService).setUnit('lb');
+      httpTesting.expectOne(workoutUrl).flush(
+        workoutResponse([card('c1', 'ex1', 'Bench Press', 1, null)]),
+      );
+      fixture.detectChanges();
+
+      const row = component.exerciseGroups[0].sets[0];
+      expect(row.weight).toBe(220.5);
+      row.weight = 225;
+      const body = saveAndGetPut();
+      expect(body.exercises[0].sets[0].weight).toBe(102.06);
+    });
+
+    it('shows a logged result in lb', () => {
+      setup({ id: 'w1' });
+      TestBed.inject(WeightUnitService).setUnit('lb');
+      httpTesting.expectOne(workoutUrl).flush(
+        workoutResponse([
+          card('c1', 'ex1', 'Bench Press', 1, null, [
+            set('c1-s1', 1, { made: true, actualReps: 3, actualWeight: 100 }),
+          ]),
+        ]),
+      );
+      fixture.detectChanges();
+      expect(component.resultText(component.exerciseGroups[0].sets[0])).toBe(
+        'Made: 3 × 220.5 lb',
+      );
     });
   });
 });

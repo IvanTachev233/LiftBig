@@ -1,0 +1,62 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Premade Programs</ion-title>
+    @if (active) {
+      <ion-buttons slot="end">
+        <ion-button class="my-program-btn" routerLink="/programs/active">
+          My program
+        </ion-button>
+      </ion-buttons>
+    }
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="ion-padding">
+  @if (sports?.length) {
+    <ion-segment
+      scrollable="true"
+      aria-label="Sports"
+      [value]="selectedSportId"
+      (ionChange)="selectSport($any($event).detail.value)"
+    >
+      @for (sport of sports; track sport.id) {
+        <ion-segment-button [value]="sport.id">
+          <ion-label>{{ sport.name }}</ion-label>
+        </ion-segment-button>
+      }
+    </ion-segment>
+  }
+
+  @if (failed) {
+    <div class="programs-error text-center text-muted mt-10">
+      <p>Couldn't load programs.</p>
+      <ion-button fill="outline" (click)="loadSports()">Try again</ion-button>
+    </div>
+  } @else if (programs === null) {
+    <ion-spinner class="block mx-auto mt-10"></ion-spinner>
+  } @else if (programs.length === 0) {
+    <p class="programs-empty text-center text-muted mt-10">
+      No programs for this sport yet.
+    </p>
+  } @else {
+    <ion-list lines="none" class="bg-transparent mt-4">
+      @for (program of programs; track program.id) {
+        <ion-card class="program-item" [routerLink]="['/programs', program.id]" button>
+          <ion-card-header>
+            <ion-card-title class="program-name">{{ program.name }}</ion-card-title>
+            <ion-card-subtitle>
+              {{ program.authorName }} · {{ program.durationWeeks }} weeks ·
+              {{ program.sessionsPerWeek }} sessions/week
+            </ion-card-subtitle>
+          </ion-card-header>
+          @if (program.description) {
+            <ion-card-content>{{ program.description }}</ion-card-content>
+          }
+        </ion-card>
+      }
+    </ion-list>
+  }
+</ion-content>

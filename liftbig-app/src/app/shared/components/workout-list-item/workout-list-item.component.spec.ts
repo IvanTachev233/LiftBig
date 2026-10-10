@@ -235,4 +235,40 @@ describe('WorkoutListItemComponent', () => {
     req2.flush(null);
     await flushMicrotasks(() => deletedSpy.calls.count() > 1);
   });
+
+  it('shows a trophy labelled "Has a personal best" when the workout has one', () => {
+    showWorkout({ ...workout, hasPb: true });
+    const trophy = fixture.nativeElement.querySelector('.pb-trophy');
+    expect(trophy?.getAttribute('aria-label')).toBe('Has a personal best');
+  });
+
+  it('shows no trophy when hasPb is false or missing', () => {
+    expect(fixture.nativeElement.querySelector('.pb-trophy')).toBeNull();
+    showWorkout({ ...workout, hasPb: false });
+    expect(fixture.nativeElement.querySelector('.pb-trophy')).toBeNull();
+  });
+
+  describe('program workout', () => {
+    const program: Workout = {
+      ...workout,
+      id: 'program-1',
+      name: 'Sample: Squat Day',
+      source: 'program',
+      program: { enrollmentId: 'en1', name: 'Sample Powerlifting Program' },
+    };
+
+    it('shows a "Program · name" badge', () => {
+      showWorkout(program);
+      const badge = fixture.nativeElement.querySelector('.program-badge');
+      expect(badge?.textContent.trim()).toBe('Program · Sample Powerlifting Program');
+      expect(fixture.nativeElement.querySelector('.coach-badge')).toBeNull();
+    });
+
+    it('offers no swipe delete', async () => {
+      showWorkout(program);
+      expect(fixture.nativeElement.querySelector('ion-item-options')).toBeNull();
+      await component.confirmDelete();
+      expect(alertControllerSpy.create).not.toHaveBeenCalled();
+    });
+  });
 });

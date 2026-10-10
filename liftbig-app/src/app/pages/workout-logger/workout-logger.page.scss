@@ -38,21 +38,20 @@ ion-card.exercise-card {
   align-items: center;
   margin-bottom: 8px;
   padding: 0 16px;
-  gap: 8px;
+  gap: 4px;
 }
 
+// The trophy sits under the set number
 .set-order {
   flex: 0 0 32px;
+  display: flex;
+  flex-direction: column;
   font-weight: 500;
-}
-
-.set-info,
-.set-plan {
-  white-space: nowrap;
 }
 
 .set-info {
   flex: none;
+  white-space: nowrap;
 }
 
 .set-actions {
@@ -74,9 +73,10 @@ ion-card.exercise-card {
   min-width: 0;
 }
 
-// Assigned workout: plan, actual inputs and result per set
+// Assigned workout: plan, actual inputs and result per set; a long plan wraps
 .set-plan {
-  flex: 0 0 5.5rem;
+  flex: 0 0 4.5rem;
+  font-size: 0.875rem;
 }
 
 .made-col {
@@ -87,8 +87,9 @@ ion-card.exercise-card {
   font-size: 0.75rem;
 }
 
-.set-notes {
-  margin: -4px 16px 8px 56px;
+.set-notes,
+.set-prescription {
+  margin: -4px 16px 8px 52px;
   font-size: 0.8125rem;
 }
 
