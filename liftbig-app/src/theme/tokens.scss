@@ -11,10 +11,18 @@ $dark: (
   line: #23262b,
   line-strong: #2a2e33,
   line-stronger: #2e3238,
+  // Unticked ticks/checkboxes, sheet grabber, dashed add buttons
+  line-control: #3a3f46,
+  // List row dividers
+  divider: #1a1c1f,
   text: #f3f3f1,
+  // Field labels, chip and close-button text
+  text-soft: #c9ccd1,
   text-2: #a3a8b0,
   text-3: #8a9099,
   icon-muted: #6b717a,
+  segment-track: #16181b,
+  segment-checked: #2a2e33,
   placeholder: #80868f,
   accent: #ff6a3d,
   on-accent: #120b07,
@@ -45,10 +53,15 @@ $light: map.merge(
     line: #e6e4df,
     line-strong: #dedbd5,
     line-stronger: #d6d3cc,
+    line-control: #c9c5bd,
+    divider: #e6e4df,
     text: #141518,
+    text-soft: #3d4047,
     text-2: #5c6068,
     text-3: #6e727a,
     icon-muted: #9a9da3,
+    segment-track: #eeede9,
+    segment-checked: #ffffff,
     placeholder: #6e727a,
     accent-text: #c2410c,
     success: #2f9e6a,
@@ -75,6 +88,7 @@ $light: map.merge(
   color-scheme: dark;
   @include colors($dark);
   --card-shadow: none;
+  --segment-shadow: none;
 
   --font-ui: 'Geist', system-ui, sans-serif;
   --font-num: 'Barlow Condensed', system-ui, sans-serif;
@@ -102,4 +116,5 @@ $light: map.merge(
   color-scheme: light;
   @include colors($light);
   --card-shadow: 0 1px 2px rgba(20, 21, 24, 0.04);
+  --segment-shadow: 0 1px 2px rgba(20, 21, 24, 0.1);
 }

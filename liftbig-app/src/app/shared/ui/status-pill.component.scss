@@ -1,0 +1,59 @@
+:host {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+:host(.pill-sm) {
+  padding: 1px 5px;
+  font-size: 10px;
+}
+
+:host(.pill-today) {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+:host(.pill-planned) {
+  border-color: var(--line-stronger);
+  background: var(--surface-2);
+  color: var(--text-soft);
+}
+
+:host(.pill-program) {
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+
+// No fill: accent text on --surface-2 is under 4.5:1 in light
+:host(.pill-in-progress) {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+:host(.pill-missed) {
+  border-color: var(--line-stronger);
+  color: var(--text-2);
+}
+
+:host(.pill-done) {
+  background: var(--success-tint);
+  color: var(--success-text);
+}
+
+:host(.pill-pr) {
+  background: var(--pr-tint);
+  color: var(--pr-text);
+}
+
+:host(.pill-coach) {
+  background: var(--coach-tint);
+  color: var(--coach-text);
+}

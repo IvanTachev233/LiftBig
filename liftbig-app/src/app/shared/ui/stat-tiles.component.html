@@ -1,0 +1,11 @@
+@for (tile of tiles(); track tile.label) {
+  <div class="tile">
+    <span class="tile-label">{{ tile.label }}</span>
+    <span class="tile-figure">
+      <span class="tile-value num">{{ tile.value }}</span>
+      @if (tile.unit) {
+        <span class="tile-unit">{{ tile.unit }}</span>
+      }
+    </span>
+  </div>
+}

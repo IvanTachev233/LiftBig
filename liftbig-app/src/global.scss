@@ -1,3 +1,5 @@
+@use "sass:meta";
+
 /*
  * App Global CSS
  * ----------------------------------------------------------------------------
@@ -58,10 +60,6 @@ span {
    which is darker in light mode */
 ion-button:not([color]):is([fill="clear"], [fill="outline"]) {
   --color: var(--accent-text);
-}
-
-ion-segment-button {
-  --color-checked: var(--accent-text);
 }
 
 /* Canonical section heading (spec: 600 weight, -0.025em letter spacing) */
@@ -198,6 +196,9 @@ ion-alert {
     color: var(--ion-text-color) !important;
   }
 }
+
+/* Buttons, segments, chips, fields, cards, type scale (design handoff) */
+@include meta.load-css("theme/components");
 
 /* ---------------------------------------------------------------------------
  * Utility classes
