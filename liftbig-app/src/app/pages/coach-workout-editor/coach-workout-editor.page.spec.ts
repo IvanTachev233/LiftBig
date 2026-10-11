@@ -22,6 +22,7 @@ import {
 } from '../../shared/components/exercise-picker/exercise-picker.component';
 import { environment } from '../../../environments/environment';
 import { WeightUnitService } from '../../core/weight-unit.service';
+import { OverflowMenuService } from '../../shared/ui/overflow-menu.service';
 
 describe('CoachWorkoutEditorPage', () => {
   let component: CoachWorkoutEditorPage;
@@ -32,6 +33,7 @@ describe('CoachWorkoutEditorPage', () => {
   let alertCtrlSpy: jasmine.SpyObj<AlertController>;
   let toastControllerSpy: jasmine.SpyObj<ToastController>;
   let navigateSpy: jasmine.Spy;
+  let menuSpy: jasmine.SpyObj<OverflowMenuService>;
 
   const exercisesUrl = `${environment.apiUrl}/workouts/exercises`;
   const workoutUrl = `${environment.apiUrl}/coach/workouts/w1`;
@@ -53,6 +55,8 @@ describe('CoachWorkoutEditorPage', () => {
     modalCtrlSpy = jasmine.createSpyObj('ModalController', ['create']);
     modalCtrlSpy.create.and.resolveTo(modalSpy);
     alertCtrlSpy = jasmine.createSpyObj('AlertController', ['create']);
+    menuSpy = jasmine.createSpyObj('OverflowMenuService', ['open']);
+    menuSpy.open.and.resolveTo(null);
 
     const paramMap: Record<string, string> = {};
     if (params.id) paramMap['id'] = params.id;
@@ -70,6 +74,7 @@ describe('CoachWorkoutEditorPage', () => {
         },
         { provide: ToastController, useValue: toastControllerSpy },
         { provide: AlertController, useValue: alertCtrlSpy },
+        { provide: OverflowMenuService, useValue: menuSpy },
       ],
     });
     // IonicModule gives the standalone page its own ModalController, so a
@@ -143,6 +148,42 @@ describe('CoachWorkoutEditorPage', () => {
 
   function el(selector: string): HTMLElement {
     return fixture.nativeElement.querySelector(selector);
+  }
+
+  /** Buttons by accessible name; a hydrated ion-button moves its aria-label into its shadow button */
+  function buttonsLabelled(label: string, root: HTMLElement = fixture.nativeElement): HTMLElement[] {
+    return Array.from<HTMLElement>(root.querySelectorAll('ion-button')).filter(
+      (b) =>
+        (b.getAttribute('aria-label') ??
+          b.shadowRoot?.querySelector('button')?.getAttribute('aria-label')) === label,
+    );
+  }
+
+  /** Chooses the action in the `⋯` menu of the nth card with that exercise name */
+  async function chooseInMenu(name: string, action: string, nth = 0) {
+    menuSpy.open.and.resolveTo(action);
+    buttonsLabelled(`${name} options`)[nth].click();
+    await fixture.whenStable();
+  }
+
+  /** The actions offered by a card's `⋯` menu */
+  async function menuFor(name: string) {
+    menuSpy.open.and.resolveTo(null);
+    buttonsLabelled(`${name} options`)[0].click();
+    await fixture.whenStable();
+    const [actions, header] = menuSpy.open.calls.mostRecent().args;
+    expect(header).toBe(name);
+    return actions.map((a) => (a.destructive ? `${a.id}!` : a.id));
+  }
+
+  /** Drops the dragged block at index `to`, as ion-reorder-group reports it */
+  function drag(from: number, to: number) {
+    const complete = jasmine.createSpy('complete').and.resolveTo();
+    el('ion-reorder-group').dispatchEvent(
+      new CustomEvent('ionReorderEnd', { detail: { from, to, complete } }),
+    );
+    fixture.detectChanges();
+    return complete;
   }
 
   // Saves, answers the PUT with `respond(body)` and returns the request body
@@ -256,7 +297,7 @@ describe('CoachWorkoutEditorPage', () => {
 
     expect(fixture.nativeElement.querySelector('ion-select')).toBeNull();
     const button: HTMLElement = fixture.nativeElement.querySelector('.add-exercise-btn');
-    expect(button.textContent).toContain('Add Exercise');
+    expect(button.textContent).toContain('Add exercise');
     button.click();
     await fixture.whenStable();
 
@@ -311,7 +352,7 @@ describe('CoachWorkoutEditorPage', () => {
     expect(component.clientId).toBe('c1');
     expect(component.workoutDate).toBe(today);
     expect((el('ion-back-button') as any).defaultHref).toBe('/coach/clients/c1/workouts');
-    expect(el('ion-title').textContent).toContain('New Workout');
+    expect(el('ion-title').textContent).toContain('New workout');
   });
 
   it('a new workout POSTs to the client\'s workouts with nested cards in order, no ids, set order from 1 and supersetGroup null, then goes back to the list', () => {
@@ -399,8 +440,8 @@ describe('CoachWorkoutEditorPage', () => {
     expect(component.workoutDate).toBe('2026-10-05');
     expect(component.clientId).toBe('c1');
     expect((el('ion-back-button') as any).defaultHref).toBe('/coach/clients/c1/workouts');
-    expect(el('ion-title').textContent).toContain('Edit Workout');
-    expect(el('.save-btn').textContent).toContain('Update Workout');
+    expect(el('ion-title').textContent).toContain('Edit workout');
+    expect(el('.save-btn').textContent).toContain('Save');
 
     saveAndGetPut();
     expect(navigateSpy).toHaveBeenCalledWith(['/coach/clients', 'c1', 'workouts']);
@@ -556,7 +597,7 @@ describe('CoachWorkoutEditorPage', () => {
 
     const buttons = () =>
       Array.from(
-        fixture.nativeElement.querySelectorAll('.set-row ion-button[aria-label^="Remove set"]'),
+        fixture.nativeElement.querySelectorAll('ion-item-option[aria-label^="Remove set"]'),
       ) as any[];
     expect(buttons().map((b) => b.getAttribute('aria-label'))).toEqual([
       'Remove set 1',
@@ -766,7 +807,7 @@ describe('CoachWorkoutEditorPage', () => {
       loadLogged();
       const createSpy = stubAlert('cancel');
 
-      el('.set-row ion-button[aria-label="Remove set 1"]').click();
+      el('ion-item-option[aria-label="Remove set 1"]').click();
       await fixture.whenStable();
 
       expect(createSpy).toHaveBeenCalledWith(
@@ -803,8 +844,7 @@ describe('CoachWorkoutEditorPage', () => {
       loadLogged();
       const createSpy = stubAlert('cancel');
 
-      el('ion-button[aria-label="Remove Bench Press"]').click();
-      await fixture.whenStable();
+      await chooseInMenu('Bench Press', 'remove');
 
       expect(createSpy).toHaveBeenCalledWith(
         jasmine.objectContaining({ header: 'Delete logged exercise?' }),
@@ -905,46 +945,54 @@ describe('CoachWorkoutEditorPage', () => {
       expectNamedSuperset(groups[1], ['Curl', 'Dip']);
     });
 
-    it('the Delete superset button is full size; member Replace and delete buttons are small; only the header has arrows', () => {
+    it('the `⋯` menus: Replace, moves within the card\'s place, Delete superset on members, and Remove; one drag handle per card', async () => {
       loadSuperset();
 
-      const deleteSuperset = el('ion-button[aria-label="Delete superset"]');
-      expect(deleteSuperset).toBeTruthy();
-      expect(deleteSuperset.getAttribute('size')).not.toBe('small');
-      for (const name of ['Bench Press', 'Row']) {
-        expect(el(`ion-button[aria-label="Remove ${name}"]`).getAttribute('size')).toBe('small');
-        expect(el(`ion-button[aria-label="Replace ${name}"]`).getAttribute('size')).toBe('small');
-        expect(el(`ion-button[aria-label="Move ${name} up"]`)).toBeNull();
-      }
-      const supersetCard = el('.superset-card');
-      expect(supersetCard.querySelectorAll('ion-icon[name="arrow-up-outline"]').length).toBe(1);
-      expect(supersetCard.querySelectorAll('ion-icon[name="arrow-down-outline"]').length).toBe(1);
-      // Standalone cards keep their arrows and get the same small Replace button
-      expect(el('ion-button[aria-label="Replace Squat"]').getAttribute('size')).toBe('small');
-      expect(el('ion-button[aria-label="Move Squat down"]')).toBeTruthy();
+      expect(await menuFor('Squat')).toEqual(['replace', 'move-down', 'remove!']);
+      expect(await menuFor('Bench Press')).toEqual([
+        'replace',
+        'move-down',
+        'delete-superset!',
+        'remove!',
+      ]);
+      expect(await menuFor('Row')).toEqual(['replace', 'move-up', 'delete-superset!', 'remove!']);
+      const texts = menuSpy.open.calls.mostRecent().args[0].map((a) => a.text);
+      expect(texts).toEqual(['Replace', 'Move up in superset', 'Delete superset', 'Remove']);
+
+      // No inline arrows, Replace or delete buttons
+      expect(fixture.nativeElement.querySelector('[name="arrow-up-outline"]')).toBeNull();
+      expect(fixture.nativeElement.querySelector('[name="trash-outline"]')).toBeNull();
+      expect(buttonsLabelled('Replace Squat')).toEqual([]);
+      // The superset has one handle for the whole block
+      expect(el('ion-card.exercise-card').querySelectorAll('ion-reorder').length).toBe(1);
+      expect(el('.superset-card').querySelectorAll('ion-reorder').length).toBe(1);
     });
 
-    it('the superset header arrows move the whole superset past a standalone card and are disabled at the ends', () => {
+    it('Move up / Move down in the menu move the card as the arrows did', async () => {
       loadSuperset();
       const ids = () => component.exerciseGroups.map((g) => g.exerciseId);
-      const up = () => el('ion-button[aria-label="Move superset up"]');
-      const down = () => el('ion-button[aria-label="Move superset down"]');
 
-      expect((up() as any).disabled).toBeFalse();
-      expect((down() as any).disabled).toBeTrue();
+      await chooseInMenu('Row', 'move-up');
+      expect(ids()).toEqual(['ex3', 'ex2', 'ex1']);
 
-      up().click();
-      fixture.detectChanges();
+      await chooseInMenu('Squat', 'move-down');
+      expect(ids()).toEqual(['ex2', 'ex1', 'ex3']);
+      expect(component.exerciseGroups.slice(0, 2).every((g) => g.supersetGroup === sg)).toBeTrue();
+    });
+
+    it('dragging the superset moves it as one block past a standalone card, with the same order fields the arrows sent', () => {
+      loadSuperset();
+      const ids = () => component.exerciseGroups.map((g) => g.exerciseId);
+
+      const complete = drag(1, 0);
+      // The page re-renders the new order itself
+      expect(complete).toHaveBeenCalledOnceWith(false);
       expect(ids()).toEqual(['ex1', 'ex2', 'ex3']);
-      expect((up() as any).disabled).toBeTrue();
-      expect((down() as any).disabled).toBeFalse();
 
-      down().click();
-      fixture.detectChanges();
+      drag(0, 1);
       expect(ids()).toEqual(['ex3', 'ex1', 'ex2']);
 
-      up().click();
-      fixture.detectChanges();
+      drag(1, 0);
       const body = saveAndGetPut();
       expect(
         body.exercises.map((e: any) => [e.id, e.exerciseId, e.supersetGroup, e.order]),
@@ -959,6 +1007,36 @@ describe('CoachWorkoutEditorPage', () => {
       ]);
     });
 
+    it('dropping a block where it started changes nothing', () => {
+      loadSuperset();
+      const complete = drag(1, 1);
+      expect(complete).toHaveBeenCalledOnceWith(false);
+      expect(component.exerciseGroups.map((g) => g.exerciseId)).toEqual(['ex3', 'ex1', 'ex2']);
+    });
+
+    it('dragging a single card past a superset keeps the superset members together', () => {
+      const sg2 = '77777777-7777-4777-8777-777777777777';
+      setupWithWorkout([
+        card('card1', 'ex3', 'Squat', 1, null),
+        card('card2', 'ex1', 'Bench Press', 2, sg2),
+        card('card3', 'ex2', 'Row', 3, sg2),
+        card('card4', 'ex4', 'Curl', 4, null),
+      ]);
+
+      drag(0, 2);
+      expect(component.exerciseGroups.map((g) => g.id)).toEqual(['card2', 'card3', 'card4', 'card1']);
+      drag(2, 1);
+      expect(component.exerciseGroups.map((g) => g.id)).toEqual(['card2', 'card3', 'card1', 'card4']);
+
+      const body = saveAndGetPut();
+      expect(body.exercises.map((e: any) => [e.id, e.order, e.supersetGroup])).toEqual([
+        ['card2', 1, sg2],
+        ['card3', 2, sg2],
+        ['card1', 3, null],
+        ['card4', 4, null],
+      ]);
+    });
+
     it('confirming Delete superset removes both members, and the next PUT has neither', async () => {
       setupWithWorkout([
         card('card1', 'ex3', 'Squat', 1, null),
@@ -967,8 +1045,7 @@ describe('CoachWorkoutEditorPage', () => {
       ]);
       const createSpy = stubAlert('destructive');
 
-      el('ion-button[aria-label="Delete superset"]').click();
-      await fixture.whenStable();
+      await chooseInMenu('Bench Press', 'delete-superset');
 
       expect(createSpy).toHaveBeenCalledWith(
         jasmine.objectContaining({
@@ -1016,14 +1093,14 @@ describe('CoachWorkoutEditorPage', () => {
       expect(body.exercises.slice(1).every((e: any) => e.supersetGroup === sg)).toBeTrue();
     });
 
-    it('deleting one unlogged member (no confirm) leaves the other standalone, saved with supersetGroup null', () => {
+    it('deleting one unlogged member (no confirm) leaves the other standalone, saved with supersetGroup null', async () => {
       setupWithWorkout([
         card('card1', 'ex3', 'Squat', 1, null),
         card('card2', 'ex1', 'Bench Press', 2, sg),
         card('card3', 'ex2', 'Row', 3, sg),
       ]);
 
-      el('ion-button[aria-label="Remove Bench Press"]').click();
+      await chooseInMenu('Bench Press', 'remove');
       fixture.detectChanges();
 
       expect(alertCtrlSpy.create).not.toHaveBeenCalled();
@@ -1044,8 +1121,7 @@ describe('CoachWorkoutEditorPage', () => {
       loadSuperset();
       const createSpy = stubAlert('cancel');
 
-      el('ion-button[aria-label="Remove Row"]').click();
-      await fixture.whenStable();
+      await chooseInMenu('Row', 'remove');
 
       expect(createSpy).toHaveBeenCalledWith(
         jasmine.objectContaining({ header: 'Delete logged exercise?' }),
@@ -1061,8 +1137,7 @@ describe('CoachWorkoutEditorPage', () => {
       loadSuperset();
       pickerReturns({ exercises: [{ id: 'ex9', name: 'Incline Press' }], superset: false }, 'confirm');
 
-      el('ion-button[aria-label="Replace Bench Press"]').click();
-      await fixture.whenStable();
+      await chooseInMenu('Bench Press', 'replace');
 
       const props = modalCtrlSpy.create.calls.mostRecent().args[0]!.componentProps as any;
       expect(props.mode).toBe('replace');
@@ -1105,12 +1180,11 @@ describe('CoachWorkoutEditorPage', () => {
       ]);
     });
 
-    it('the standalone card delete button is labelled with the exercise name', () => {
+    it('the standalone card menu is labelled with the exercise name and offers Remove', async () => {
       loadSuperset();
 
-      const remove = el('ion-card.exercise-card ion-button[aria-label="Remove Squat"]');
-      expect(remove).toBeTruthy();
-      expect(remove.getAttribute('size')).toBe('small');
+      expect(buttonsLabelled('Squat options', el('ion-card.exercise-card')).length).toBe(1);
+      expect(await menuFor('Squat')).toContain('remove!');
     });
 
     it('Replace on a standalone card swaps the exercise in place, keeping its set and supersetGroup null', async () => {
@@ -1121,8 +1195,7 @@ describe('CoachWorkoutEditorPage', () => {
       ]);
       pickerReturns({ exercises: [{ id: 'ex9', name: 'Front Squat' }], superset: false }, 'confirm');
 
-      el('ion-card.exercise-card ion-button[aria-label="Replace Squat"]').click();
-      await fixture.whenStable();
+      await chooseInMenu('Squat', 'replace');
 
       expect(component.exerciseGroups.map((g) => g.exerciseId)).toEqual(['ex9', 'ex1', 'ex2']);
       expect(component.exerciseGroups[0].exerciseName).toBe('Front Squat');
@@ -1173,8 +1246,7 @@ describe('CoachWorkoutEditorPage', () => {
       loadSuperset();
       pickerReturns({ exercises: [{ id: 'ex3', name: 'Squat' }], superset: false }, 'confirm');
 
-      el('ion-button[aria-label="Replace Bench Press"]').click();
-      await fixture.whenStable();
+      await chooseInMenu('Bench Press', 'replace');
 
       expect(component.exerciseGroups.map((g) => [g.exerciseId, g.supersetGroup])).toEqual([
         ['ex3', null],
@@ -1249,6 +1321,190 @@ describe('CoachWorkoutEditorPage', () => {
       expect(component.resultText(component.exerciseGroups[0].sets[0])).toBe(
         'Made: 3 × 220.5 lb',
       );
+    });
+  });
+
+  describe('redesign', () => {
+    const text = (e: Element | null) => e!.textContent!.replace(/\s+/g, ' ').trim();
+
+    it('has Save in the header, disabled without a name, and no bottom save button', () => {
+      setup({ clientId: 'c1' });
+      const saves = fixture.nativeElement.querySelectorAll('.save-btn');
+      expect(saves.length).toBe(1);
+      expect(saves[0].closest('ion-header')).toBeTruthy();
+      expect(saves[0].disabled).toBeTrue();
+
+      component.workoutName = 'Week 2';
+      fixture.detectChanges();
+      expect(saves[0].disabled).toBeFalse();
+      expect(el('ion-input.workout-name-input').getAttribute('aria-label')).toBe('Workout name');
+    });
+
+    it('shows the athlete result per set as a chip: made, missed or not logged', () => {
+      setupWithWorkout([
+        card('card1', 'ex3', 'Squat', 1, null, [
+          set('s1', 1, { made: true, actualReps: 3, actualWeight: 105 }),
+          set('s2', 2, { made: false, actualReps: 2 }),
+          set('s3', 3, { made: false }),
+          set('s4', 4),
+        ]),
+      ]);
+
+      const chips = Array.from(fixture.nativeElement.querySelectorAll('.result-chip')) as HTMLElement[];
+      expect(chips.map((c) => [c.classList.contains('made'), c.classList.contains('missed')])).toEqual([
+        [true, false],
+        [false, true],
+        [false, true],
+        [false, false],
+      ]);
+      // Visible words; the "Made:" / "Missed:" prefix is for screen readers
+      expect(chips.map((c) => text(c.querySelector('.chip-value')))).toEqual([
+        '3 × 105 kg',
+        '2 × 100 kg',
+        'Missed',
+        'Not logged',
+      ]);
+      expect(text(chips[0])).toBe('Made: 3 × 105 kg');
+      expect(text(chips[1])).toBe('Missed: 2 × 100 kg');
+    });
+
+    it('shows a completion chip in edit mode only', () => {
+      setupWithWorkout([
+        card('card1', 'ex3', 'Squat', 1, null, [set('s1', 1, { made: true }), set('s2', 2), set('s3', 3)]),
+      ]);
+      expect(text(el('.completion-chip'))).toBe('In progress · 1/3 sets');
+
+      reopenWithStatus('COMPLETED', [card('card1', 'ex3', 'Squat', 1, null, [set('s1', 1, { made: true })])]);
+      expect(text(el('.completion-chip'))).toBe('Completed · 1/1 sets');
+      expect(el('.completion-chip').classList).toContain('done');
+
+      reopenWithStatus('PLANNED', [card('card1', 'ex3', 'Squat', 1, null)]);
+      expect(text(el('.completion-chip'))).toBe('Not started · 0/1 sets');
+    });
+
+    it('a new workout has no completion chip', () => {
+      setup({ clientId: 'c1' });
+      component.addExercises([{ id: 'ex1', name: 'Bench Press' }]);
+      fixture.detectChanges();
+      expect(el('.completion-chip')).toBeNull();
+    });
+
+    function reopenWithStatus(status: string, exercises: any[]) {
+      fixture = TestBed.createComponent(CoachWorkoutEditorPage);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+      httpTesting.expectOne(exercisesUrl).flush([]);
+      httpTesting.expectOne(workoutUrl).flush({ ...workoutResponse(exercises), status });
+      fixture.detectChanges();
+    }
+
+    it('the date chip shows the day and opens the date sheet; a picked day closes it', () => {
+      setupWithWorkout([card('card1', 'ex3', 'Squat', 1, null)]);
+      const chip = el('button.date-chip');
+      expect(text(chip)).toBe('Mon 5 Oct');
+
+      chip.click();
+      // Checked without presenting: a presented inline modal outlives the test
+      expect(component.pickingDate).toBeTrue();
+      component.dateChanged({ detail: { value: '2026-10-09T10:30:00' } });
+      expect(component.pickingDate).toBeFalse();
+      expect(component.workoutDate).toBe('2026-10-09');
+      expect(saveAndGetPut().date).toBe('2026-10-09');
+    });
+
+    describe('collapsed cards', () => {
+      const toggles = () =>
+        Array.from(fixture.nativeElement.querySelectorAll('.card-toggle[aria-expanded="false"]')) as HTMLElement[];
+      const sg = '88888888-8888-4888-8888-888888888888';
+
+      it('in edit mode, cards after the second start collapsed and open on tap', () => {
+        setupWithWorkout([
+          card('card1', 'ex3', 'Squat', 1, null),
+          card('card2', 'ex1', 'Bench Press', 2, sg),
+          card('card3', 'ex2', 'Row', 3, sg),
+          card('card4', 'ex4', 'Curl', 4, null, [set('s9', 1), set('s10', 2)]),
+          card('card5', 'ex5', 'Dip', 5, null),
+        ]);
+
+        // The superset counts as one card
+        expect(toggles().map((t) => text(t.querySelector('.exercise-title')))).toEqual(['Curl', 'Dip']);
+        expect(text(toggles()[0].querySelector('.plan-line'))).toBe('2 × 5 @ 100 kg');
+        expect(fixture.nativeElement.querySelectorAll('ion-reorder').length).toBe(4);
+
+        toggles()[0].click();
+        fixture.detectChanges();
+        expect(toggles().map((t) => text(t.querySelector('.exercise-title')))).toEqual(['Dip']);
+        expect(buttonsLabelled('Curl options').length).toBe(1);
+
+        buttonsLabelled('Collapse Curl')[0].click();
+        fixture.detectChanges();
+        expect(toggles().length).toBe(2);
+      });
+
+      it('a new workout starts with every card open', () => {
+        setup({ clientId: 'c1' });
+        component.addExercises([
+          { id: 'ex1', name: 'Bench Press' },
+          { id: 'ex2', name: 'Row' },
+          { id: 'ex3', name: 'Squat' },
+        ]);
+        fixture.detectChanges();
+        expect(toggles().length).toBe(0);
+      });
+    });
+
+    describe('per-set notes', () => {
+      const noteInputs = () =>
+        Array.from(fixture.nativeElement.querySelectorAll('ion-input.set-note-input')) as HTMLElement[];
+
+      it('a set with a note shows it; others open theirs with the row\'s note toggle', () => {
+        setupWithWorkout([
+          card('card1', 'ex3', 'Squat', 1, null, [set('s1', 1, { notes: 'belt' }), set('s2', 2)]),
+        ]);
+
+        expect(noteInputs().map((i) => i.getAttribute('aria-label'))).toEqual(['Note, set 1']);
+        const toggle = buttonsLabelled('Note for set 2')[0];
+        expect(toggle.getAttribute('aria-expanded')).toBe('false');
+        toggle.click();
+        fixture.detectChanges();
+        expect(noteInputs().map((i) => i.getAttribute('aria-label'))).toEqual([
+          'Note, set 1',
+          'Note, set 2',
+        ]);
+        expect(buttonsLabelled('Note for set 2')[0].getAttribute('aria-expanded')).toBe('true');
+
+        component.exerciseGroups[0].sets[1].notes = 'pause';
+        const body = saveAndGetPut();
+        expect(body.exercises[0].sets.map((x: any) => x.notes)).toEqual(['belt', 'pause']);
+      });
+
+      it('hiding a note keeps its text', () => {
+        setupWithWorkout([card('card1', 'ex3', 'Squat', 1, null, [set('s1', 1, { notes: 'belt' })])]);
+        buttonsLabelled('Note for set 1')[0].click();
+        fixture.detectChanges();
+        expect(noteInputs().length).toBe(0);
+        expect(saveAndGetPut().exercises[0].sets[0].notes).toBe('belt');
+      });
+    });
+
+    const columns = () =>
+      Array.from(el('.plan-head').children)
+        .map((c) => c.textContent!.trim())
+        .filter(Boolean)
+        .join(' ');
+
+    it('columns are Set, Reps, the unit and Athlete result (edit mode only)', () => {
+      setupWithWorkout([card('card1', 'ex3', 'Squat', 1, null)]);
+      expect(columns()).toBe('Set Reps kg Athlete result');
+      reopenWithStatus('PLANNED', [card('card1', 'ex3', 'Squat', 1, null)]);
+      expect(columns()).toBe('Set Reps kg Athlete result');
+    });
+
+    it('a new workout shows Set, Reps and the unit only', () => {
+      setup({ clientId: 'c1' });
+      component.addExercises([{ id: 'ex1', name: 'Bench Press' }]);
+      fixture.detectChanges();
+      expect(columns()).toBe('Set Reps kg');
     });
   });
 });

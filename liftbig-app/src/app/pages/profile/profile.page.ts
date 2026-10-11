@@ -10,6 +10,7 @@ import { ThemeService, ThemeSetting } from '../../core/theme.service';
 import { WeightUnit } from '../../core/weight-unit.service';
 import { BottomSheetService } from '../../shared/ui/bottom-sheet.service';
 import { ConnectCoachSheetComponent } from './connect-coach-sheet.component';
+import { initialsOf } from '../../shared/initials';
 import { LargeTitleComponent } from '../../shared/ui/large-title.component';
 import { TabHeaderComponent } from '../../shared/ui/tab-header.component';
 
@@ -44,12 +45,8 @@ export class ProfilePage implements ViewWillEnter {
     return this.user()?.role === 'CLIENT';
   }
 
-  /** "AR" for Alex Rivera; the email's first letter without a name */
   get initials(): string {
-    const words = (this.profile?.name ?? '').trim().split(/\s+/).filter(Boolean);
-    const letters = words.length > 1 ? [words[0], words[words.length - 1]] : words;
-    const initials = letters.map((w) => w[0]).join('');
-    return (initials || this.profile?.email?.[0] || '?').toUpperCase();
+    return initialsOf(this.profile?.name, this.profile?.email);
   }
 
   ionViewWillEnter() {

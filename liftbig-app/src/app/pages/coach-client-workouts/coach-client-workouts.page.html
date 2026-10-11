@@ -1,59 +1,100 @@
-<ion-header [translucent]="true">
+<ion-header class="screen-header ion-no-border">
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-back-button defaultHref="/coach/clients"></ion-back-button>
+      <ion-back-button defaultHref="/coach/clients" text="" aria-label="Back"></ion-back-button>
     </ion-buttons>
-    <ion-title>Client Workouts</ion-title>
+    <ion-buttons slot="end">
+      <ion-button fill="clear" class="client-menu-btn" aria-label="Client options" (click)="openClientMenu()">
+        <ion-icon slot="icon-only" name="ellipsis-horizontal" aria-hidden="true"></ion-icon>
+      </ion-button>
+    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
-<ion-content [fullscreen]="true" class="ion-padding">
-  <h2 class="section-title">Assigned workouts</h2>
+<ion-content class="screen-pushed">
+  <!-- Workout dates are calendar days stored at UTC midnight -->
+  <div class="client-header">
+    <span class="client-avatar num" aria-hidden="true">{{ client() ? initials() : '' }}</span>
+    <div class="client-text">
+      <h1 class="client-name">{{ client()?.name || client()?.email }}</h1>
+      @if (client()?.name) {
+        <span class="client-email">{{ client()?.email }}</span>
+      }
+      <span class="client-sub">
+        Client{{ lastWorkout() ? ' · last workout ' + (lastWorkout()!.date | date: 'EEE d MMM' : 'UTC') : '' }}
+      </span>
+    </div>
+  </div>
 
-  <ng-container *ngIf="workouts$ | async as workouts; else loading">
-    <ion-card
-      *ngFor="let workout of workouts"
-      class="client-workout"
-      [routerLink]="['/coach/workouts', workout.id]"
-    >
-      <ion-card-header>
-        <div class="row">
-          <ion-card-title class="title">{{ workout.name }}</ion-card-title>
-          <ion-button
-            color="danger"
-            fill="clear"
-            size="small"
-            aria-label="Delete workout"
-            (click)="deleteWorkout(workout, $event)"
+  <ion-button
+    class="btn-primary assign-btn"
+    expand="block"
+    [routerLink]="['/coach/clients', clientId, 'workouts', 'new']"
+  >
+    <ion-icon name="add" slot="start" aria-hidden="true"></ion-icon>
+    Assign workout
+  </ion-button>
+
+  <ion-segment
+    class="workout-filter"
+    aria-label="Filter workouts"
+    [value]="filter()"
+    (ionChange)="setFilter($any($event).detail.value)"
+  >
+    <ion-segment-button value="all"><ion-label>All</ion-label></ion-segment-button>
+    <ion-segment-button value="open"><ion-label>Open</ion-label></ion-segment-button>
+    <ion-segment-button value="completed"><ion-label>Completed</ion-label></ion-segment-button>
+  </ion-segment>
+
+  @if (workouts(); as workouts) {
+    <div class="workout-list">
+      @for (workout of shownWorkouts(); track workout.id) {
+        @let counts = setCounts(workout);
+        @let pill = status(workout);
+        <!-- Swipe left to delete -->
+        <ion-item-sliding class="workout-sliding">
+          <ion-item
+            lines="none"
+            class="workout-item"
+            [button]="true"
+            [detail]="false"
+            [routerLink]="['/coach/workouts', workout.id]"
           >
-            <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
-          </ion-button>
-        </div>
-        <ion-card-subtitle>{{ workout.date | date : 'mediumDate' }}</ion-card-subtitle>
-      </ion-card-header>
-      <ion-card-content class="row">
-        <ion-badge [color]="statusColor(workout.status)">{{ workout.status }}</ion-badge>
-        <span class="set-progress">{{ setProgress(workout) }}</span>
-      </ion-card-content>
-    </ion-card>
-
-    <div *ngIf="workouts.length === 0" class="text-center text-muted mt-10">
-      <p>No workouts assigned to this client yet.</p>
+            <div class="workout-card client-workout">
+              <div class="workout-top">
+                <span class="workout-heading">
+                  <span class="workout-title">{{ workout.name }}</span>
+                  <span class="workout-date">{{ workout.date | date: 'EEE d MMM y' : 'UTC' }}</span>
+                </span>
+                <app-status-pill [kind]="pill.kind" [label]="pill.text" />
+              </div>
+              <div class="workout-progress">
+                <app-progress-bar [value]="counts.logged" [max]="counts.total" label="Sets logged" />
+                <span class="set-progress"><span class="num">{{ counts.logged }}/{{ counts.total }}</span> sets</span>
+              </div>
+            </div>
+          </ion-item>
+          <ion-item-options side="end">
+            <ion-item-option
+              color="danger"
+              [attr.aria-label]="'Delete ' + workout.name"
+              (click)="deleteWorkout(workout)"
+            >
+              Delete
+            </ion-item-option>
+          </ion-item-options>
+        </ion-item-sliding>
+      } @empty {
+        <p class="empty-note">
+          @switch (filter()) {
+            @case ('open') { No open workouts. }
+            @case ('completed') { No completed workouts yet. }
+            @default { No workouts assigned to this client yet. }
+          }
+        </p>
+      }
     </div>
-  </ng-container>
-
-  <ng-template #loading>
-    <div class="flex justify-center mt-10">
-      <ion-spinner></ion-spinner>
-    </div>
-  </ng-template>
-
-  <ion-fab vertical="bottom" horizontal="end" slot="fixed">
-    <ion-fab-button
-      aria-label="New workout"
-      [routerLink]="['/coach/clients', clientId, 'workouts', 'new']"
-    >
-      <ion-icon name="add"></ion-icon>
-    </ion-fab-button>
-  </ion-fab>
+  } @else {
+    <ion-spinner class="block mx-auto mt-10"></ion-spinner>
+  }
 </ion-content>

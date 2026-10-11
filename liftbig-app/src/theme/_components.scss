@@ -281,6 +281,18 @@ ion-input.input-field {
   }
 }
 
+// Search: <ion-searchbar class="search-field">, a 44px filled field
+ion-searchbar.search-field {
+  --background: var(--surface-2);
+  --color: var(--text);
+  --placeholder-color: var(--placeholder);
+  --icon-color: var(--text-3);
+  --border-radius: 12px;
+  --box-shadow: none;
+  height: 44px;
+  padding: 0;
+}
+
 /* ---------------------------------------------------------------------------
  * Round checkbox: <ion-checkbox class="round-check">, accent fill when checked
  * ------------------------------------------------------------------------- */

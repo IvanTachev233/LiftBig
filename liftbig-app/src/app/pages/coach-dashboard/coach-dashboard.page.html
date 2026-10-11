@@ -1,78 +1,64 @@
 <app-tab-header title="Clients" />
 
 <ion-content [fullscreen]="true" class="screen-tab">
-  <app-large-title title="Clients" />
+  <app-large-title title="Clients">
+    <ion-button slot="end" color="primary" class="invite-btn" (click)="inviteClient()">
+      <ion-icon name="person-add-outline" slot="start" aria-hidden="true"></ion-icon>
+      Invite
+    </ion-button>
+  </app-large-title>
 
-  <!-- Clients Section -->
-  <h2 class="section-title">My Clients</h2>
+  @if (clients(); as clients) {
+    @if (clients.length) {
+      <ion-searchbar
+        class="search-field client-search"
+        placeholder="Search clients"
+        aria-label="Search clients"
+        showClearButton="focus"
+        [debounce]="0"
+        [value]="query()"
+        (ionInput)="onSearch($event)"
+      ></ion-searchbar>
 
-  <div *ngIf="(clients$ | async) === null" class="flex justify-center mt-10">
-    <ion-spinner></ion-spinner>
-  </div>
+      <section class="client-section" aria-labelledby="active-heading">
+        <h2 class="eyebrow" id="active-heading">Active</h2>
+        @for (client of shownClients(); track client.id) {
+          <a class="client-card" [routerLink]="['/coach/clients', client.id, 'workouts']">
+            <span class="client-avatar num" aria-hidden="true">{{ initials(client.name, client.email) }}</span>
+            <span class="client-text">
+              <span class="client-title">{{ client.name || client.email }}</span>
+              @if (client.name) {
+                <span class="client-sub">{{ client.email }}</span>
+              }
+            </span>
+            <ion-icon class="client-chevron" name="chevron-forward" aria-hidden="true"></ion-icon>
+          </a>
+        } @empty {
+          <p class="empty-note">No clients match “{{ query().trim() }}”.</p>
+        }
+      </section>
+    } @else {
+      <p class="empty-note">No clients yet. Invite your first client.</p>
+    }
+  } @else {
+    <ion-spinner class="block mx-auto mt-10"></ion-spinner>
+  }
 
-  <ion-list lines="none" class="bg-transparent">
-    <ion-card
-      *ngFor="let client of clients$ | async"
-      class="client-card"
-      [routerLink]="['/coach/clients', client.id, 'workouts']"
-    >
-      <ion-card-header>
-        <div class="client-header-row">
-          <div>
-            <ion-card-title class="client-title">{{
-              client.name || client.email
-            }}</ion-card-title>
-            <ion-card-subtitle *ngIf="client.name" class="client-subtitle">{{
-              client.email
-            }}</ion-card-subtitle>
-          </div>
-          <ion-button
-            color="danger"
-            fill="clear"
-            size="small"
-            (click)="removeClient(client.id); $event.stopPropagation()"
-          >
-            <ion-icon name="person-remove-outline"></ion-icon>
-          </ion-button>
-        </div>
-      </ion-card-header>
-      <ion-card-content>
-        <ion-icon name="chevron-forward-outline" color="medium"></ion-icon>
-        View Programs
-      </ion-card-content>
-    </ion-card>
-  </ion-list>
-
-  <div
-    *ngIf="(clients$ | async)?.length === 0"
-    class="text-center text-muted mt-10"
-  >
-    <p>No clients yet. Invite your first client!</p>
-  </div>
-
-  <!-- Pending Invites Section -->
-  <h2
-    class="section-title mt-8"
-    *ngIf="(pendingInvites$ | async)?.length"
-  >
-    Pending Invites
-  </h2>
-
-  <ion-list lines="none" class="bg-transparent">
-    <ion-item *ngFor="let invite of pendingInvites$ | async" (click)="showInviteToken(invite.token)" button>
-      <ion-icon name="mail-outline" slot="start" color="warning"></ion-icon>
-      <ion-label>
-        <h3>{{ invite.clientEmail }}</h3>
-        <p>Expires {{ invite.expiresAt | date : 'mediumDate' }}</p>
-        <p class="invite-token-hint">Tap to view invite code</p>
-      </ion-label>
-      <ion-badge slot="end" color="warning">Pending</ion-badge>
-    </ion-item>
-  </ion-list>
-
-  <ion-fab vertical="bottom" horizontal="end" slot="fixed">
-    <ion-fab-button (click)="inviteClient()">
-      <ion-icon name="person-add"></ion-icon>
-    </ion-fab-button>
-  </ion-fab>
+  @if (invites().length) {
+    <section class="client-section" aria-labelledby="pending-heading">
+      <h2 class="eyebrow" id="pending-heading">Pending invites</h2>
+      <div class="pending-list list-divided">
+        @for (invite of invites(); track invite.id) {
+          <button type="button" class="pending-invite row-button" (click)="showInvite(invite)">
+            <ion-icon class="pending-icon" name="mail-outline" aria-hidden="true"></ion-icon>
+            <span class="client-text">
+              <span class="pending-email">{{ invite.clientEmail }}</span>
+              <span class="client-sub">Expires {{ invite.expiresAt | date: 'EEE d MMM' }} · Tap to show the code</span>
+            </span>
+            <app-status-pill kind="planned" label="Pending" size="sm" />
+          </button>
+        }
+      </div>
+    </section>
+  }
 </ion-content>

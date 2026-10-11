@@ -3,8 +3,9 @@ import { IonicModule } from '@ionic/angular';
 
 /**
  * The 28px title at the top of a tab root's content, as an iOS collapsing
- * large title; projected [intro] content sits above it. Place it first in
- * ion-content, with TabHeaderComponent above the content.
+ * large title; projected [intro] content sits above it and a projected
+ * slot="end" element (e.g. the Clients Invite button) beside it. Place it
+ * first in ion-content, with TabHeaderComponent above the content.
  */
 @Component({
   selector: 'app-large-title',
@@ -13,6 +14,7 @@ import { IonicModule } from '@ionic/angular';
       <ng-content select="[intro]" />
       <ion-toolbar>
         <ion-title size="large" role="heading" aria-level="1">{{ title() }}</ion-title>
+        <ng-content select="[slot=end]" />
       </ion-toolbar>
     </ion-header>
   `,

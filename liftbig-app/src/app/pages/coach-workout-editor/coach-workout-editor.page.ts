@@ -4,6 +4,7 @@ import {
   AlertController,
   IonicModule,
   ModalController,
+  ReorderEndCustomEvent,
   ToastController,
 } from '@ionic/angular';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
@@ -19,6 +20,20 @@ import {
   WorkoutService,
 } from '../../core/workout.service';
 import { Observable } from 'rxjs';
+import { addIcons } from 'ionicons';
+import {
+  add,
+  calendarOutline,
+  chatboxEllipses,
+  chatboxEllipsesOutline,
+  checkmarkCircle,
+  chevronDown,
+  chevronUp,
+  closeCircle,
+  ellipsisHorizontal,
+  removeCircleOutline,
+} from 'ionicons/icons';
+import { OverflowAction, OverflowMenuService } from '../../shared/ui/overflow-menu.service';
 import { WeightUnitService } from '../../core/weight-unit.service';
 import {
   ExercisePickerComponent,
@@ -85,6 +100,7 @@ export class CoachWorkoutEditorPage implements OnInit {
   private toastController = inject(ToastController);
   private modalCtrl = inject(ModalController);
   private alertCtrl = inject(AlertController);
+  private overflowMenu = inject(OverflowMenuService);
   readonly units = inject(WeightUnitService);
 
   exercises$: Observable<any[]> | undefined;
@@ -97,11 +113,33 @@ export class CoachWorkoutEditorPage implements OnInit {
   // YYYY-MM-DD; the picker may add a time, which save() drops
   workoutDate = today();
   exerciseGroups: ExerciseGroup[] = [];
+  // Status of the loaded workout, for the completion chip; null when new
+  status: Workout['status'] | null = null;
+  pickingDate = false;
+
+  // Collapsed cards (every member of a collapsed superset) and open set notes
+  private collapsed = new Set<ExerciseGroup>();
+  private notesOpen = new Set<SetRow>();
 
   readonly idPrefix = `coach-workout-editor-${nextPageId++}`;
 
   // Prevents a double tap from opening two pickers
   private pickerOpen = false;
+
+  constructor() {
+    addIcons({
+      add,
+      calendarOutline,
+      chatboxEllipses,
+      chatboxEllipsesOutline,
+      checkmarkCircle,
+      chevronDown,
+      chevronUp,
+      closeCircle,
+      ellipsisHorizontal,
+      removeCircleOutline,
+    });
+  }
 
   ngOnInit() {
     this.exercises$ = this.workoutService.getExercises();
@@ -128,7 +166,15 @@ export class CoachWorkoutEditorPage implements OnInit {
     this.workoutName = workout.name;
     this.workoutDate = dayOf(workout.date);
     this.clientId = workout.userId || '';
+    this.status = workout.status;
     this.buildGroups(workout.exercises || []);
+    // Cards after the second start collapsed; a superset counts as one card
+    for (const block of this.groupBlocks().slice(2)) {
+      for (const group of block.groups) this.collapsed.add(group);
+    }
+    for (const group of this.exerciseGroups) {
+      for (const set of group.sets) if (set.notes) this.notesOpen.add(set);
+    }
   }
 
   private buildGroups(cards: WorkoutCard[]) {
@@ -333,9 +379,9 @@ export class CoachWorkoutEditorPage implements OnInit {
     return role === 'destructive';
   }
 
-  // Inside a superset the arrows reorder its members; otherwise the whole
-  // block (single card or superset) moves past the neighbouring block, so
-  // superset members always stay next to each other.
+  // Move up / Move down (the `⋯` menu): inside a superset they reorder its
+  // members; otherwise the whole block (single card or superset) moves past
+  // the neighbouring block, so superset members always stay together.
   moveUp(index: number) {
     if (index <= 0) return;
     const groups = this.exerciseGroups;
@@ -362,6 +408,121 @@ export class CoachWorkoutEditorPage implements OnInit {
     const [nextStart, nextEnd] = blockRange(groups, end + 1);
     const next = groups.splice(nextStart, nextEnd - nextStart + 1);
     groups.splice(start, 0, ...next);
+  }
+
+  /**
+   * Drop of a dragged block (a card or a whole superset): the blocks are
+   * reordered here and re-rendered, so the reorder group puts nothing back
+   */
+  onReorder(event: ReorderEndCustomEvent) {
+    const { from, to } = event.detail;
+    event.detail.complete(false);
+    if (from === to) return;
+    const blocks = this.groupBlocks();
+    const [moved] = blocks.splice(from, 1);
+    if (!moved) return;
+    blocks.splice(to, 0, moved);
+    this.exerciseGroups = ([] as ExerciseGroup[]).concat(...blocks.map((b) => b.groups));
+  }
+
+  /** The card's `⋯` menu; inside a superset, Move stays within it */
+  async openCardMenu(group: ExerciseGroup) {
+    const i = this.exerciseGroups.indexOf(group);
+    const sg = group.supersetGroup;
+    const before = this.exerciseGroups[i - 1];
+    const after = this.exerciseGroups[i + 1];
+    const canUp = sg ? before?.supersetGroup === sg : i > 0;
+    const canDown = sg ? after?.supersetGroup === sg : !!after;
+    const suffix = sg ? ' in superset' : '';
+    const actions: OverflowAction[] = [
+      { id: 'replace', text: 'Replace' },
+      ...(canUp ? [{ id: 'move-up', text: 'Move up' + suffix }] : []),
+      ...(canDown ? [{ id: 'move-down', text: 'Move down' + suffix }] : []),
+      ...(sg ? [{ id: 'delete-superset', text: 'Delete superset', destructive: true }] : []),
+      { id: 'remove', text: 'Remove', destructive: true },
+    ];
+    switch (await this.overflowMenu.open(actions, group.exerciseName)) {
+      case 'replace':
+        await this.replaceExercise(group);
+        break;
+      case 'move-up':
+        this.moveUp(this.exerciseGroups.indexOf(group));
+        break;
+      case 'move-down':
+        this.moveDown(this.exerciseGroups.indexOf(group));
+        break;
+      case 'delete-superset':
+        await this.removeSuperset(sg);
+        break;
+      case 'remove':
+        await this.removeExercise(this.exerciseGroups.indexOf(group));
+        break;
+    }
+  }
+
+  isCollapsed(groups: ExerciseGroup[]): boolean {
+    return groups.some((g) => this.collapsed.has(g));
+  }
+
+  toggleCollapsed(groups: ExerciseGroup[]) {
+    const collapse = !this.isCollapsed(groups);
+    for (const g of groups) {
+      if (collapse) this.collapsed.add(g);
+      else this.collapsed.delete(g);
+    }
+  }
+
+  isNoteOpen(set: SetRow): boolean {
+    return this.notesOpen.has(set);
+  }
+
+  /** Shows or hides a set's note; a hidden note keeps its text */
+  toggleNote(set: SetRow) {
+    if (!this.notesOpen.delete(set)) this.notesOpen.add(set);
+  }
+
+  /** e.g. "3 × 5 @ 100 kg" when every set is the same, else "3 sets" */
+  planLine(group: ExerciseGroup): string {
+    const [first] = group.sets;
+    if (!first) return 'No sets yet';
+    const same = group.sets.every((s) => s.reps === first.reps && s.weight === first.weight);
+    if (!same) return `${group.sets.length} sets`;
+    const weight = first.weight == null ? '' : ` @ ${first.weight} ${this.units.unit()}`;
+    return `${group.sets.length} × ${first.reps}${weight}`;
+  }
+
+  /** "In progress · 3/8 sets": the status word a coach sees and logged/all sets */
+  completionText(): string {
+    const sets = ([] as SetRow[]).concat(...this.exerciseGroups.map((g) => g.sets));
+    const logged = sets.filter((s) => s.made !== null).length;
+    const word =
+      this.status === 'COMPLETED'
+        ? 'Completed'
+        : this.status === 'IN_PROGRESS'
+          ? 'In progress'
+          : 'Not started';
+    return `${word} · ${logged}/${sets.length} sets`;
+  }
+
+  /** Visible chip text of a set's result, e.g. "3 × 105 kg" or "Missed" */
+  resultValue(set: SetRow): string {
+    if (set.made === null) return 'Not logged';
+    const full = this.resultText(set);
+    const i = full.indexOf(': ');
+    return i < 0 ? full : full.slice(i + 2);
+  }
+
+  /** "Made: " / "Missed: " before a chip value, read by screen readers only */
+  resultPrefix(set: SetRow): string {
+    const full = this.resultText(set);
+    const i = full.indexOf(': ');
+    return i < 0 ? '' : full.slice(0, i + 2);
+  }
+
+  dateChanged(event: { detail: { value?: string | string[] | null } }) {
+    const value = event.detail.value;
+    if (typeof value === 'string') this.workoutDate = dayOf(value);
+    this.pickingDate = false;
   }
 
   save() {

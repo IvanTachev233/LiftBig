@@ -325,3 +325,163 @@ ion-button.tick {
   border: 1px dashed var(--line-control);
   border-radius: var(--radius-md);
 }
+
+/* ---------------------------------------------------------------------------
+ * Coach workout editor: drag handle, set · reps · weight · result · note
+ * ------------------------------------------------------------------------- */
+
+ion-reorder.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 40px;
+  color: var(--icon-muted);
+  font-size: 20px;
+  cursor: grab;
+}
+
+.superset-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 0 8px;
+
+  .superset-label {
+    flex: 1;
+    padding: 0;
+  }
+}
+
+// The handle stays beside the expand button of a collapsed card
+.collapsed-row {
+  display: flex;
+  align-items: center;
+  padding-inline-start: 8px;
+
+  .card-toggle {
+    padding-inline-start: 4px;
+  }
+}
+
+.superset-card .card-toggle {
+  padding-top: 4px;
+}
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) minmax(0, 1fr) 40px;
+  gap: 8px;
+  align-items: center;
+  padding: 4px;
+
+  &.with-result {
+    grid-template-columns: 30px 56px 68px minmax(0, 1fr) 40px;
+  }
+}
+
+.plan-head {
+  padding-bottom: 2px;
+
+  span {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  .center {
+    text-align: center;
+  }
+
+  .head-wide {
+    grid-column: span 2;
+  }
+}
+
+.plan-set {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.plan-grid ion-input.set-input {
+  --background: var(--surface-input);
+  --color: var(--text);
+  --placeholder-color: var(--icon-muted);
+  --placeholder-opacity: 1;
+  --padding-start: 2px;
+  --padding-end: 2px;
+  --padding-top: 0;
+  --padding-bottom: 0;
+  min-height: 40px;
+  height: 40px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  font-size: 19px;
+  font-weight: 600;
+  text-align: center;
+}
+
+// The athlete's result: "✓ 5 × 100 kg", missed in the danger colour
+.result-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-self: start;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 4px 7px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+
+  ion-icon {
+    flex-shrink: 0;
+    font-size: 15px;
+  }
+
+  &.made {
+    background: var(--success-row);
+    color: var(--success-text);
+  }
+
+  &.missed {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--danger-text);
+    color: var(--danger-text);
+  }
+}
+
+ion-button.note-toggle.has-note[fill] {
+  --color: var(--accent-text);
+}
+
+ion-input.set-note-input {
+  --background: var(--surface-input);
+  --color: var(--text);
+  --placeholder-color: var(--placeholder);
+  --placeholder-opacity: 1;
+  --padding-start: 12px;
+  --padding-end: 12px;
+  min-height: 40px;
+  width: auto;
+  margin: 2px 4px 6px 42px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.card-footer {
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.editor-content .add-exercise-btn {
+  margin-top: 4px;
+}

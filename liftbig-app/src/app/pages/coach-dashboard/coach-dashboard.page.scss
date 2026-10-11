@@ -1,18 +1,112 @@
-.client-card {
-  margin-bottom: 8px;
-  cursor: pointer;
+// Accent fill beside the large title (color="primary": a toolbar paints
+// colourless buttons with its own colours); 44px touch target
+ion-button.invite-btn {
+  --border-radius: 12px;
+  --padding-start: 12px;
+  --padding-end: 14px;
+  --box-shadow: none;
+  height: 44px;
+  margin: 0;
+  font: 600 14px var(--font-ui);
+  text-transform: none;
+
+  ion-icon {
+    margin-inline-end: 6px;
+    font-size: 18px;
+  }
 }
 
-.client-header-row {
+.client-search {
+  margin-bottom: 20px;
+}
+
+.client-section {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+
+  h2 {
+    margin: 0;
+    font-size: 12px;
+  }
+}
+
+.client-card {
+  display: flex;
   align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+  color: var(--text);
+  text-decoration: none;
 }
 
-.client-title {
-  font-size: 1.1rem;
+.client-avatar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  font-size: 19px;
+  font-weight: 600;
 }
 
-.client-subtitle {
-  margin-top: 2px;
+.client-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.client-title,
+.pending-email {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.client-sub {
+  font-size: 12px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.client-chevron {
+  flex-shrink: 0;
+  font-size: 18px;
+  color: var(--icon-muted);
+}
+
+.pending-list {
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.pending-invite {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 10px 14px;
+}
+
+.pending-icon {
+  flex-shrink: 0;
+  font-size: 20px;
+  color: var(--text-2);
+}
+
+.empty-note {
+  margin: 16px 0;
+  text-align: center;
+  color: var(--text-2);
 }

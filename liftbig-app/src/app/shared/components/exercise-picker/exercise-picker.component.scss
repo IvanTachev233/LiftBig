@@ -24,15 +24,8 @@ ion-toolbar {
   --padding-bottom: 6px;
 }
 
+// Field style: ion-searchbar.search-field in theme/_components.scss
 ion-searchbar {
-  --background: var(--surface-2);
-  --color: var(--text);
-  --placeholder-color: var(--placeholder);
-  --icon-color: var(--text-3);
-  --border-radius: 12px;
-  --box-shadow: none;
-  height: 44px;
-  padding: 0;
   margin-bottom: 8px;
 }
 
