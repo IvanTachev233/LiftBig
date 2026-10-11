@@ -1,13 +1,120 @@
 // Screen layout shared by the tab roots and pushed screens (design handoff):
 // content padding, the pushed-screen toolbar, button resets and focus rings.
 
-// Tab roots: title at the top of the content
+// Tab roots: large title at the top of the content, under app-tab-header
 ion-content.screen-tab,
 ion-content.screen-pushed {
+  // Named so sticky children can read it (ion-item-divider has its own --padding-top)
+  --screen-padding-top: 8px;
   --padding-start: var(--gutter);
   --padding-end: var(--gutter);
-  --padding-top: 36px;
+  --padding-top: var(--screen-padding-top);
   --padding-bottom: 24px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Collapsing tab header (TabHeaderComponent, LargeTitleComponent)
+ * ------------------------------------------------------------------------- */
+
+// The compact bar and the pinned filters: --bg at 94%, which iOS fades in
+// with the scroll (--opacity-scale) and md shows from the start
+ion-header.tab-header ion-toolbar {
+  --background: var(--bg);
+  --opacity: 0.94;
+  --border-color: var(--line);
+  --padding-start: var(--gutter);
+  --padding-end: var(--gutter);
+}
+
+// Outranks Ionic's iOS hairline; the line shows only while scrolled
+ion-header.tab-header ion-toolbar:last-of-type {
+  --border-width: 0;
+}
+
+ion-header.tab-header.is-scrolled ion-toolbar:last-of-type {
+  --border-width: 0 0 1px;
+}
+
+ion-header.tab-header .tab-header-bar {
+  --min-height: 44px;
+  --padding-top: 4px;
+  --padding-bottom: 0;
+
+  ion-title {
+    padding-inline: 0;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+  }
+}
+
+ion-header.tab-header .tab-header-filters {
+  --min-height: 0;
+  --padding-top: 4px;
+  --padding-bottom: 12px;
+
+  // iOS sizes a toolbar segment to its buttons; the filter spans the bar
+  ion-segment {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+ion-header.large-title {
+  margin-bottom: 18px;
+
+  ion-toolbar {
+    --background: var(--bg);
+    --min-height: 0;
+    --padding-start: 0;
+    --padding-end: 0;
+    --padding-top: 0;
+    --padding-bottom: 0;
+  }
+
+  ion-title {
+    padding: 0;
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    text-align: start;
+    color: var(--text);
+  }
+}
+
+// Ionic collapses large titles only on iOS; md shows the large title and
+// fades the compact one in once it has scrolled under the bar
+ion-header.large-title.header-md {
+  display: block;
+}
+
+ion-header.tab-header.header-md .tab-header-bar ion-title {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+ion-header.tab-header.header-md.is-collapsed .tab-header-bar ion-title {
+  opacity: 1;
+}
+
+// History month headings stick under the header until the next one
+ion-item-divider.month-heading {
+  --background: var(--bg);
+  --color: var(--text-2);
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  // Sticky offsets start at the content's padding edge, which already sits
+  // below the header; this cancels the content's own top padding
+  top: calc(-1 * var(--screen-padding-top, 0px));
+  min-height: 0;
+  padding: 10px 0 6px;
+  border-bottom: 1px solid var(--divider);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  z-index: 2;
 }
 
 // Pushed screens: below a toolbar with a back button

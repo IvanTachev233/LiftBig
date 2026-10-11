@@ -9,6 +9,8 @@ import { ProfileService } from '../../core/profile.service';
 import { WeightUnitService } from '../../core/weight-unit.service';
 import { DateBlockRowComponent } from '../../shared/ui/date-block-row.component';
 import { WeekStripComponent } from '../../shared/ui/week-strip.component';
+import { LargeTitleComponent } from '../../shared/ui/large-title.component';
+import { TabHeaderComponent } from '../../shared/ui/tab-header.component';
 import { StripDay, greeting, recentPr, todayWorkout, upNext, weekStrip } from './today';
 
 // Today: week strip, today's session, up next and a recent PR
@@ -17,7 +19,15 @@ import { StripDay, greeting, recentPr, todayWorkout, upNext, weekStrip } from '.
   templateUrl: './dashboard.page.html',
   styleUrls: ['./dashboard.page.scss'],
   standalone: true,
-  imports: [CommonModule, IonicModule, RouterModule, DateBlockRowComponent, WeekStripComponent],
+  imports: [
+    CommonModule,
+    IonicModule,
+    RouterModule,
+    DateBlockRowComponent,
+    WeekStripComponent,
+    TabHeaderComponent,
+    LargeTitleComponent,
+  ],
 })
 export class DashboardPage implements ViewWillEnter {
   private workoutService = inject(WorkoutService);

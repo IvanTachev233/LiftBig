@@ -7,6 +7,8 @@ import { BestLift, LiftService } from '../../core/lift.service';
 import { WeightUnitService } from '../../core/weight-unit.service';
 import { WorkoutListItemComponent } from '../../shared/components/workout-list-item/workout-list-item.component';
 import { StatTile, StatTilesComponent } from '../../shared/ui/stat-tiles.component';
+import { LargeTitleComponent } from '../../shared/ui/large-title.component';
+import { TabHeaderComponent } from '../../shared/ui/tab-header.component';
 import { MonthGroup, historyWorkouts, monthGroups, weekTotals } from './history';
 
 // History: past workouts by month (Workouts) and best lifts (Lifts)
@@ -15,7 +17,15 @@ import { MonthGroup, historyWorkouts, monthGroups, weekTotals } from './history'
   templateUrl: './stats.page.html',
   styleUrls: ['./stats.page.scss'],
   standalone: true,
-  imports: [CommonModule, IonicModule, RouterModule, WorkoutListItemComponent, StatTilesComponent],
+  imports: [
+    CommonModule,
+    IonicModule,
+    RouterModule,
+    WorkoutListItemComponent,
+    StatTilesComponent,
+    TabHeaderComponent,
+    LargeTitleComponent,
+  ],
 })
 export class StatsPage implements ViewWillEnter {
   workoutService = inject(WorkoutService);

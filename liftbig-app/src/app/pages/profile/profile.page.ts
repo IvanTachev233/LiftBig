@@ -10,6 +10,8 @@ import { ThemeService, ThemeSetting } from '../../core/theme.service';
 import { WeightUnit } from '../../core/weight-unit.service';
 import { BottomSheetService } from '../../shared/ui/bottom-sheet.service';
 import { ConnectCoachSheetComponent } from './connect-coach-sheet.component';
+import { LargeTitleComponent } from '../../shared/ui/large-title.component';
+import { TabHeaderComponent } from '../../shared/ui/tab-header.component';
 
 // Profile for both roles: who you are, coach connection (clients), weight
 // unit, theme, My 1RMs (clients) and log out
@@ -18,7 +20,7 @@ import { ConnectCoachSheetComponent } from './connect-coach-sheet.component';
   templateUrl: './profile.page.html',
   styleUrls: ['./profile.page.scss'],
   standalone: true,
-  imports: [CommonModule, FormsModule, IonicModule],
+  imports: [CommonModule, FormsModule, IonicModule, TabHeaderComponent, LargeTitleComponent],
 })
 export class ProfilePage implements ViewWillEnter {
   private profileService = inject(ProfileService);

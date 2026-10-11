@@ -1,5 +1,7 @@
-<ion-content class="screen-tab">
-  <h1 class="title-screen">Profile</h1>
+<app-tab-header title="Profile" />
+
+<ion-content class="screen-tab" [fullscreen]="true">
+  <app-large-title title="Profile" />
 
   @if (profile; as p) {
     <div class="identity">

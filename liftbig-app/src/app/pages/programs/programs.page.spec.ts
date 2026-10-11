@@ -79,6 +79,8 @@ describe('ProgramsPage', () => {
   it('shows one tab per sport', () => {
     enter([weightlifting, powerlifting]);
     expect(tabs()).toEqual(['Olympic Weightlifting', 'Powerlifting']);
+    // The sport chips are pinned with the compact bar
+    expect(fixture.nativeElement.querySelector('app-tab-header .sport-chips')).toBeTruthy();
   });
 
   it('shows a third sport from the API as a third tab', () => {

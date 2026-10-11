@@ -1,19 +1,16 @@
-h1 {
-  margin-bottom: 18px;
-}
-
-ion-segment,
 app-stat-tiles {
   margin-bottom: 18px;
 }
 
-.month + .month {
-  margin-top: 18px;
+// The divider styles the heading; a later month gets space above it
+.month-heading h2 {
+  margin: 0;
+  font: inherit;
+  color: inherit;
 }
 
-.month-heading {
-  margin: 0 0 4px;
-  font-size: 12px;
+app-workout-list-item + .month-heading {
+  margin-top: 18px;
 }
 
 .history-list {

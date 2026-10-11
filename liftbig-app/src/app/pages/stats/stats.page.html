@@ -1,6 +1,4 @@
-<ion-content class="screen-tab">
-  <h1 class="title-screen">History</h1>
-
+<app-tab-header title="History" [filters]="true">
   <ion-segment
     aria-label="View"
     [value]="view"
@@ -9,6 +7,10 @@
     <ion-segment-button value="workouts"><ion-label>Workouts</ion-label></ion-segment-button>
     <ion-segment-button value="lifts"><ion-label>Lifts</ion-label></ion-segment-button>
   </ion-segment>
+</app-tab-header>
+
+<ion-content class="screen-tab" [fullscreen]="true">
+  <app-large-title title="History" />
 
   @if (view === 'workouts') {
     @if (workouts === null) {
@@ -16,20 +18,21 @@
     } @else {
       <app-stat-tiles [tiles]="tiles" />
 
-      @for (group of groups; track group.key) {
-        <section class="month" [attr.aria-label]="group.label">
-          <h2 class="month-heading eyebrow">{{ group.label }}</h2>
-          <ion-list lines="none" class="history-list">
-            @for (workout of group.workouts; track workout.id) {
-              <app-workout-list-item
-                [workout]="workout"
-                [today]="today"
-                (deleted)="onWorkoutDeleted($event)"
-              ></app-workout-list-item>
-            }
-          </ion-list>
-        </section>
-      } @empty {
+      <ion-list lines="none" class="history-list">
+        @for (group of groups; track group.key) {
+          <ion-item-divider class="month-heading" [sticky]="true">
+            <h2>{{ group.label }}</h2>
+          </ion-item-divider>
+          @for (workout of group.workouts; track workout.id) {
+            <app-workout-list-item
+              [workout]="workout"
+              [today]="today"
+              (deleted)="onWorkoutDeleted($event)"
+            ></app-workout-list-item>
+          }
+        }
+      </ion-list>
+      @if (!groups.length) {
         <p class="empty-state">No workouts yet. Finished and started sessions show up here.</p>
       }
     }

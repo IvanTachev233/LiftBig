@@ -163,12 +163,13 @@ describe('DashboardPage (Today)', () => {
     it('shows the date and greets by first name', () => {
       enter();
       expect(text('.today-date')).toBe('Saturday, 10 October');
-      expect(text('h1')).toBe('Evening, Alex');
+      expect(text('app-tab-header ion-title')).toBe('Today');
+      expect(text('app-large-title ion-title')).toBe('Evening, Alex');
     });
 
     it('greets without a name when the profile has none or fails to load', () => {
       enter({ name: null });
-      expect(text('h1')).toBe('Good evening');
+      expect(text('app-large-title ion-title')).toBe('Good evening');
 
       component.ionViewWillEnter();
       httpMock.expectOne(`${api}/workouts`).flush([]);
@@ -176,7 +177,7 @@ describe('DashboardPage (Today)', () => {
       httpMock.expectOne(`${api}/lifts/best`).flush([]);
       httpMock.expectOne(`${api}/users/me`).flush('down', { status: 500, statusText: 'Error' });
       fixture.detectChanges();
-      expect(text('h1')).toBe('Good evening');
+      expect(text('app-large-title ion-title')).toBe('Good evening');
     });
   });
 

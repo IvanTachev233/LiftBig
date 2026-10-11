@@ -1,5 +1,15 @@
-<ion-content class="screen-tab">
-  <h1 class="title-screen">Programs</h1>
+<app-tab-header title="Programs" [filters]="!!sports?.length">
+  <app-chip-group
+    class="sport-chips"
+    label="Sport"
+    [options]="sportChips"
+    [value]="selectedSportId"
+    (valueChange)="selectSport($event)"
+  />
+</app-tab-header>
+
+<ion-content class="screen-tab" [fullscreen]="true">
+  <app-large-title title="Programs" />
 
   @if (active; as enrollment) {
     <a class="active-card my-program-btn surface-card" routerLink="/programs/active">
@@ -25,15 +35,6 @@
 
   <section class="browse" aria-labelledby="browse-title">
     <h2 class="heading-section" id="browse-title">Browse</h2>
-    @if (sports?.length) {
-      <app-chip-group
-        class="sport-chips"
-        label="Sport"
-        [options]="sportChips"
-        [value]="selectedSportId"
-        (valueChange)="selectSport($event)"
-      />
-    }
 
     @if (failed) {
       <div class="programs-error">

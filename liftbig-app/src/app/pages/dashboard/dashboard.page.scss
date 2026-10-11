@@ -1,11 +1,6 @@
-.today-header {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 18px;
-}
-
 .today-date {
+  display: block;
+  margin-bottom: 4px;
   font-size: 13px;
   color: var(--text-2);
 }

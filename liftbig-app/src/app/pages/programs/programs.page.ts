@@ -11,6 +11,8 @@ import {
 import { localDay } from '../../core/local-date';
 import { ChipGroupComponent, ChipOption } from '../../shared/ui/chip-group.component';
 import { ProgressBarComponent } from '../../shared/ui/progress-bar.component';
+import { LargeTitleComponent } from '../../shared/ui/large-title.component';
+import { TabHeaderComponent } from '../../shared/ui/tab-header.component';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -20,7 +22,15 @@ const DAY_MS = 24 * 60 * 60 * 1000;
   templateUrl: './programs.page.html',
   styleUrls: ['./programs.page.scss'],
   standalone: true,
-  imports: [CommonModule, IonicModule, RouterModule, ChipGroupComponent, ProgressBarComponent],
+  imports: [
+    CommonModule,
+    IonicModule,
+    RouterModule,
+    ChipGroupComponent,
+    ProgressBarComponent,
+    TabHeaderComponent,
+    LargeTitleComponent,
+  ],
 })
 export class ProgramsPage implements ViewWillEnter {
   private programService = inject(ProgramService);

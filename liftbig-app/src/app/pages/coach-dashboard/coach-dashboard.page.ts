@@ -11,13 +11,15 @@ import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/auth.service';
 import { ClientService, Client, Invite } from '../../core/client.service';
 import { Observable, Subject, shareReplay, switchMap } from 'rxjs';
+import { LargeTitleComponent } from '../../shared/ui/large-title.component';
+import { TabHeaderComponent } from '../../shared/ui/tab-header.component';
 
 @Component({
   selector: 'app-coach-dashboard',
   templateUrl: './coach-dashboard.page.html',
   styleUrls: ['./coach-dashboard.page.scss'],
   standalone: true,
-  imports: [CommonModule, IonicModule, RouterModule, FormsModule],
+  imports: [CommonModule, IonicModule, RouterModule, FormsModule, TabHeaderComponent, LargeTitleComponent],
 })
 export class CoachDashboardPage implements OnInit, ViewWillEnter {
   public authService = inject(AuthService);

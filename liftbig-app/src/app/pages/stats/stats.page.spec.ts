@@ -249,9 +249,13 @@ describe('StatsPage', () => {
       );
     }
 
-    it('is the History tab root: a title and the Workouts/Lifts control, no back button', () => {
+    it('is the History tab root: compact and large title, the Workouts/Lifts control pinned, no back button', () => {
       enter([]);
-      expect(fixture.nativeElement.querySelector('h1').textContent.trim()).toBe('History');
+      const title = (sel: string) => fixture.nativeElement.querySelector(sel).textContent.trim();
+      expect(title('app-tab-header ion-title')).toBe('History');
+      expect(title('app-large-title ion-title')).toBe('History');
+      // The Workouts/Lifts control is pinned with the compact bar
+      expect(fixture.nativeElement.querySelector('app-tab-header ion-segment')).toBeTruthy();
       expect(fixture.nativeElement.querySelector('ion-back-button')).toBeNull();
       const segment = fixture.nativeElement.querySelector('ion-segment');
       expect(segment.value).toBe('workouts');
@@ -285,6 +289,8 @@ describe('StatsPage', () => {
         (h) => h.textContent!.trim(),
       );
       expect(headings).toEqual(['October', 'September', 'March 2025']);
+      const dividers = Array.from<any>(fixture.nativeElement.querySelectorAll('ion-item-divider.month-heading'));
+      expect(dividers.map((d) => d.sticky)).toEqual([true, true, true]);
       expect(names()).toEqual(['Workout d', 'Workout c', 'Workout a', 'Workout b']);
     });
 
