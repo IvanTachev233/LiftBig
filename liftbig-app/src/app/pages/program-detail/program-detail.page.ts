@@ -4,7 +4,6 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import {
-  AlertController,
   IonicModule,
   ToastController,
   ViewWillEnter,
@@ -21,6 +20,7 @@ import { WeightUnitService } from '../../core/weight-unit.service';
 
 // Start program: the program's facts, the 1RMs and first day it starts
 // with, and its schedule in a sheet
+import { ConfirmSheetService } from '../../shared/ui/confirm-sheet.component';
 @Component({
   selector: 'app-program-detail',
   templateUrl: './program-detail.page.html',
@@ -33,7 +33,7 @@ export class ProgramDetailPage implements ViewWillEnter {
   private router = inject(Router);
   private programService = inject(ProgramService);
   private liftService = inject(LiftService);
-  private alertCtrl = inject(AlertController);
+  private confirmSheet = inject(ConfirmSheetService);
   private toastController = inject(ToastController);
   readonly units = inject(WeightUnitService);
 
@@ -134,18 +134,13 @@ export class ProgramDetailPage implements ViewWillEnter {
   }
 
   private async confirmAbandon() {
-    const alert = await this.alertCtrl.create({
-      header: 'Abandon current program?',
-      message:
-        'You already have an active program. Its planned workouts will be deleted.',
-      buttons: [
-        { text: 'Cancel', role: 'cancel' },
-        { text: 'Abandon and start', role: 'destructive' },
-      ],
+    const confirmed = await this.confirmSheet.confirm({
+      title: 'Abandon current program?',
+      message: 'You already have an active program. Its planned workouts will be deleted.',
+      confirmLabel: 'Abandon and start',
+      icon: 'flag-outline',
     });
-    await alert.present();
-    const { role } = await alert.onDidDismiss();
-    if (role === 'destructive') this.start(true);
+    if (confirmed) this.start(true);
   }
 
   private async presentToast(message: string) {

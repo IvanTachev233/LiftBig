@@ -69,6 +69,14 @@
       </button>
     </div>
 
+    <!-- The program, as the Abandon sheet's summary -->
+    <ng-template #programSummary let-e>
+      <div class="abandon-summary">
+        <span class="abandon-name">{{ e.program.name }}</span>
+        <span class="abandon-sub">{{ completedCount }} of {{ e.workouts.length }} sessions complete</span>
+      </div>
+    </ng-template>
+
   } @else if (loaded) {
     <div class="no-program">
       <h1 class="title-detail">No active program</h1>

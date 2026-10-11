@@ -38,6 +38,10 @@ $dark: (
   coach-tint: #1c2233,
   coach-text: #9db4ff,
   danger-text: #ff7a70,
+  danger: #f2555a,
+  on-danger: #1a0606,
+  danger-tint: #3b1716,
+  toast-bg: #2a2e33,
   // Rest timer and resume bar; the text stays light in both themes
   live-bar-bg: #1e2125,
   live-bar-text: #f3f3f1,
@@ -75,6 +79,10 @@ $light: map.merge(
     coach-tint: #e8edfb,
     coach-text: #3550b8,
     danger-text: #c8372d,
+    danger: #e5484d,
+    on-danger: #1a0606,
+    danger-tint: #fde8e7,
+    toast-bg: #141518,
     live-bar-bg: #141518,
     tabbar-bg: #ffffff,
   )

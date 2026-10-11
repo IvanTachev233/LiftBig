@@ -1,12 +1,7 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, TemplateRef, ViewChild, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
-import {
-  IonicModule,
-  AlertController,
-  ToastController,
-  ViewWillEnter,
-} from '@ionic/angular';
+import { CommonModule, formatDate } from '@angular/common';
+import { IonicModule, ToastController, ViewWillEnter } from '@ionic/angular';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { EMPTY, Subject, catchError, switchMap } from 'rxjs';
 import { addIcons } from 'ionicons';
@@ -14,10 +9,13 @@ import { add, ellipsisHorizontal } from 'ionicons/icons';
 import { CoachWorkoutService } from '../../core/coach-workout.service';
 import { Client, ClientService } from '../../core/client.service';
 import { Workout } from '../../core/workout.service';
+import { ConfirmSheetService } from '../../shared/ui/confirm-sheet.component';
 import { OverflowMenuService } from '../../shared/ui/overflow-menu.service';
 import { ProgressBarComponent } from '../../shared/ui/progress-bar.component';
 import { StatusPillComponent } from '../../shared/ui/status-pill.component';
-import { StatusLabel, workoutStatusLabel } from '../../shared/ui/workout-status';
+import { SwipeDeleteRowComponent } from '../../shared/ui/swipe-delete-row.component';
+import { UndoToastService } from '../../shared/ui/undo-toast.service';
+import { StatusLabel, needsDeleteConfirm, workoutStatusLabel } from '../../shared/ui/workout-status';
 import { initialsOf } from '../../shared/initials';
 
 export type WorkoutFilter = 'all' | 'open' | 'completed';
@@ -29,7 +27,14 @@ export type WorkoutFilter = 'all' | 'open' | 'completed';
   templateUrl: './coach-client-workouts.page.html',
   styleUrls: ['./coach-client-workouts.page.scss'],
   standalone: true,
-  imports: [CommonModule, IonicModule, RouterModule, ProgressBarComponent, StatusPillComponent],
+  imports: [
+    CommonModule,
+    IonicModule,
+    RouterModule,
+    ProgressBarComponent,
+    StatusPillComponent,
+    SwipeDeleteRowComponent,
+  ],
 })
 export class CoachClientWorkoutsPage implements OnInit, ViewWillEnter {
   private route = inject(ActivatedRoute);
@@ -37,7 +42,8 @@ export class CoachClientWorkoutsPage implements OnInit, ViewWillEnter {
   private coachWorkoutService = inject(CoachWorkoutService);
   private clientService = inject(ClientService);
   private overflowMenu = inject(OverflowMenuService);
-  private alertController = inject(AlertController);
+  private confirmSheet = inject(ConfirmSheetService);
+  private undoToast = inject(UndoToastService);
   private toastController = inject(ToastController);
 
   clientId = '';
@@ -47,9 +53,16 @@ export class CoachClientWorkoutsPage implements OnInit, ViewWillEnter {
   /** null until the first load */
   readonly workouts = signal<Workout[] | null>(null);
   readonly filter = signal<WorkoutFilter>('all');
+  // Deleted behind the undo toast
+  private readonly hidden = signal<ReadonlySet<string>>(new Set());
+
+  @ViewChild('workoutCard') workoutCard!: TemplateRef<unknown>;
+  @ViewChild('clientRow') clientRow!: TemplateRef<unknown>;
+  // Ignores Delete while the sheet is open
+  private confirming = false;
 
   readonly shownWorkouts = computed(() => {
-    const workouts = this.workouts() ?? [];
+    const workouts = this.visible();
     switch (this.filter()) {
       case 'open':
         return workouts.filter((w) => w.status !== 'COMPLETED');
@@ -60,9 +73,13 @@ export class CoachClientWorkoutsPage implements OnInit, ViewWillEnter {
     }
   });
 
+  private readonly visible = computed(() =>
+    (this.workouts() ?? []).filter((w) => !this.hidden().has(w.id)),
+  );
+
   /** Newest workout the client has logged in (in progress or completed) */
   readonly lastWorkout = computed(() =>
-    (this.workouts() ?? [])
+    this.visible()
       .filter((w) => w.status !== 'PLANNED')
       .reduce<Workout | null>((latest, w) => (!latest || w.date > latest.date ? w : latest), null),
   );
@@ -120,26 +137,46 @@ export class CoachClientWorkoutsPage implements OnInit, ViewWillEnter {
     return { logged, total };
   }
 
-  async deleteWorkout(workout: Workout, event?: Event) {
-    event?.stopPropagation();
-    const alert = await this.alertController.create({
-      header: 'Delete workout?',
-      message: `Delete "${workout.name}" and the client's results?`,
-      buttons: [
-        { text: 'Cancel', role: 'cancel' },
-        { text: 'Delete', role: 'destructive' },
-      ],
-    });
-    await alert.present();
-    const { role } = await alert.onDidDismiss();
-    if (role !== 'destructive') return;
-
-    this.coachWorkoutService.deleteWorkout(workout.id).subscribe({
-      next: () => {
-        this.presentToast('Workout deleted', 'success');
-        this.refreshTrigger.next();
+  /**
+   * Deletes behind the undo toast; a completed workout or one with logged
+   * sets is confirmed first
+   */
+  async requestDelete(workout: Workout) {
+    if (this.confirming) return;
+    if (needsDeleteConfirm(workout)) {
+      this.confirming = true;
+      const confirmed = await this.confirmSheet
+        .confirm({
+          title: 'Delete this workout?',
+          message: "The client's logged results are deleted with it.",
+          confirmLabel: 'Delete workout',
+          summary: this.workoutCard,
+          summaryContext: workout,
+        })
+        .finally(() => (this.confirming = false));
+      if (!confirmed) return;
+    }
+    const day = formatDate(workout.date, 'EEE d MMM', 'en-US', 'UTC');
+    await this.undoToast.softDelete({
+      title: 'Workout deleted',
+      sub: `${workout.name} · ${day}`,
+      hide: () => this.setHidden(workout.id, true),
+      restore: () => this.setHidden(workout.id, false),
+      commit: () => this.coachWorkoutService.deleteWorkout(workout.id),
+      done: () => {
+        this.workouts.update((list) => list?.filter((w) => w.id !== workout.id) ?? null);
+        this.setHidden(workout.id, false);
       },
-      error: () => this.presentToast('Failed to delete', 'danger'),
+      failed: "Couldn't delete the workout",
+    });
+  }
+
+  private setHidden(id: string, hidden: boolean) {
+    this.hidden.update((set) => {
+      const next = new Set(set);
+      if (hidden) next.add(id);
+      else next.delete(id);
+      return next;
     });
   }
 
@@ -152,17 +189,14 @@ export class CoachClientWorkoutsPage implements OnInit, ViewWillEnter {
   }
 
   private async removeClient() {
-    const alert = await this.alertController.create({
-      header: 'Remove client?',
+    const confirmed = await this.confirmSheet.confirm({
+      title: 'Remove this client?',
       message: "They keep their workouts, but you won't see them any more. They can rejoin with a new invite.",
-      buttons: [
-        { text: 'Cancel', role: 'cancel' },
-        { text: 'Remove', role: 'destructive' },
-      ],
+      confirmLabel: 'Remove client',
+      icon: 'person-remove-outline',
+      summary: this.clientRow,
     });
-    await alert.present();
-    const { role } = await alert.onDidDismiss();
-    if (role !== 'destructive') return;
+    if (!confirmed) return;
 
     this.clientService.removeClient(this.clientId).subscribe({
       next: () => {

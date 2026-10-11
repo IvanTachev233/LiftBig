@@ -4,7 +4,9 @@ import {
   HttpTestingController,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
-import { AlertController, ToastController } from '@ionic/angular';
+import { ToastController } from '@ionic/angular';
+import { ConfirmSheetService } from '../../ui/confirm-sheet.component';
+import { SoftDelete, UndoToastService } from '../../ui/undo-toast.service';
 import { environment } from '../../../../environments/environment';
 import { LiftHistory, RepMaxEntry } from '../../../core/lift.service';
 import { WeightUnitService } from '../../../core/weight-unit.service';
@@ -19,8 +21,8 @@ describe('ExerciseHistoryComponent', () => {
   let component: ExerciseHistoryComponent;
   let sheetSpy: jasmine.SpyObj<BottomSheetService>;
   let http: HttpTestingController;
-  let alertSpy: jasmine.SpyObj<HTMLIonAlertElement>;
-  let alertCtrlSpy: jasmine.SpyObj<AlertController>;
+  let confirmSpy: jasmine.SpyObj<ConfirmSheetService>;
+  let undoSpy: jasmine.SpyObj<UndoToastService>;
   let toastCtrlSpy: jasmine.SpyObj<ToastController>;
   const historyUrl = `${environment.apiUrl}/lifts/squat/history`;
 
@@ -56,10 +58,10 @@ describe('ExerciseHistoryComponent', () => {
     entries: RepMaxEntry[],
     { unit = 'kg' as 'kg' | 'lb', best = null as LiftHistory['best'] } = {},
   ) {
-    alertSpy = jasmine.createSpyObj('HTMLIonAlertElement', ['present', 'onDidDismiss']);
-    alertSpy.present.and.resolveTo();
-    alertCtrlSpy = jasmine.createSpyObj('AlertController', ['create']);
-    alertCtrlSpy.create.and.resolveTo(alertSpy);
+    confirmSpy = jasmine.createSpyObj('ConfirmSheetService', ['confirm']);
+    confirmSpy.confirm.and.resolveTo(true);
+    undoSpy = jasmine.createSpyObj('UndoToastService', ['softDelete']);
+    undoSpy.softDelete.and.resolveTo('undone');
     const toast = jasmine.createSpyObj('HTMLIonToastElement', ['present']);
     toast.present.and.resolveTo();
     toastCtrlSpy = jasmine.createSpyObj('ToastController', ['create']);
@@ -70,7 +72,8 @@ describe('ExerciseHistoryComponent', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: AlertController, useValue: alertCtrlSpy },
+        { provide: ConfirmSheetService, useValue: confirmSpy },
+        { provide: UndoToastService, useValue: undoSpy },
         { provide: ToastController, useValue: toastCtrlSpy },
         { provide: BottomSheetService, useValue: sheetSpy },
       ],
@@ -96,7 +99,7 @@ describe('ExerciseHistoryComponent', () => {
         .join(' '),
     );
 
-  /** Waits for the confirm alert and the request after it */
+  /** Waits for the confirm sheet and what follows it */
   const settle = () => new Promise((resolve) => setTimeout(resolve));
 
   it('plots one e1RM point per entry, oldest first, 1RM as is and 3 x 100 kg as 110', () => {
@@ -164,7 +167,7 @@ describe('ExerciseHistoryComponent', () => {
     ];
 
     const removeFirst = () =>
-      (fixture.nativeElement.querySelector('.remove-entry-btn') as HTMLElement).click();
+      (fixture.nativeElement.querySelector('ion-item-option.swipe-delete') as HTMLElement).click();
 
     it("lists entries newest first with reps, weight in the user's unit, date and source", () => {
       open(entries(), { unit: 'lb' });
@@ -193,33 +196,68 @@ describe('ExerciseHistoryComponent', () => {
 
     it('the remove button names the entry', () => {
       open(entries(), { unit: 'lb' });
-      const button = fixture.nativeElement.querySelector('.remove-entry-btn') as HTMLElement;
+      const button = fixture.nativeElement.querySelector('ion-item-option.swipe-delete') as HTMLElement;
       expect(button.getAttribute('aria-label')).toBe('Remove 3 × 220.5 lb, Oct 5, 2026');
     });
 
-    it('asks to confirm and sends nothing when cancelled', async () => {
+    const job = () => undoSpy.softDelete.calls.mostRecent().args[0] as SoftDelete;
+
+    it('an entry from a logged set asks first, showing its row; cancelling removes nothing', async () => {
       open(entries());
-      alertSpy.onDidDismiss.and.resolveTo({ role: 'cancel' } as any);
+      confirmSpy.confirm.and.resolveTo(false);
       removeFirst();
       await settle();
 
-      expect(alertCtrlSpy.create).toHaveBeenCalled();
+      expect(confirmSpy.confirm).toHaveBeenCalledOnceWith(
+        jasmine.objectContaining({
+          title: 'Remove this entry?',
+          message: 'It will no longer count toward your personal bests.',
+          confirmLabel: 'Remove entry',
+          summary: component.entryLine,
+          summaryContext: jasmine.objectContaining({ id: 'e2' }),
+          warning: undefined,
+        }),
+      );
+      expect(undoSpy.softDelete).not.toHaveBeenCalled();
       http.expectNone((r) => r.method === 'DELETE');
       expect(entryRows().length).toBe(3);
     });
 
-    it('confirmed: sends the DELETE, then reloads the chart, latest tiles and list', async () => {
-      open(entries());
-      expect(component.chartData.datasets[0].data.length).toBe(3);
-      alertSpy.onDidDismiss.and.resolveTo({ role: 'destructive' } as any);
+    it('warns when the entry is the current best', async () => {
+      open([entry('e2', 1, 120, '2026-10-05', 'set-2')], {
+        best: { exerciseId: 'squat', weightKg: 120, achievedOn: '2026-10-05' } as any,
+      });
+      removeFirst();
+      await settle();
+      expect(confirmSpy.confirm.calls.mostRecent().args[0].warning).toBe('Your current 1RM best · 120 kg');
+    });
 
-      // The newest entry (e2) is listed first
+    it('a manual or program setup entry skips the sheet and goes to the undo toast', async () => {
+      open([entry('e1', 1, 100, '2026-09-01')]);
+      removeFirst();
+      await settle();
+      expect(confirmSpy.confirm).not.toHaveBeenCalled();
+      expect(job()).toEqual(
+        jasmine.objectContaining({ title: 'Entry removed', sub: '1 × 100 kg · Sep 1, 2026' }),
+      );
+    });
+
+    it('hides the entry from the list and chart at once, sends the DELETE when the toast runs out, then reloads', async () => {
+      open(entries());
       removeFirst();
       await settle();
 
+      job().hide();
+      fixture.detectChanges();
+      expect(entryRows().length).toBe(2);
+      expect(component.chartData.datasets[0].data.length).toBe(2);
+      http.expectNone((r) => r.method === 'DELETE');
+
+      job().commit().subscribe();
       const req = http.expectOne(`${environment.apiUrl}/lifts/rep-maxes/e2`);
       expect(req.request.method).toBe('DELETE');
       req.flush({});
+      job().done!();
       http.expectOne(historyUrl).flush(history(entries().filter((e) => e.id !== 'e2')));
       fixture.detectChanges();
 
@@ -228,22 +266,26 @@ describe('ExerciseHistoryComponent', () => {
       expect((fixture.nativeElement.querySelector('.latest-3') as HTMLElement).textContent).toContain('—');
     });
 
-    it('a failed DELETE shows a toast and keeps the entry', async () => {
+    it('Undo (or a failed DELETE) puts the entry back in the list and chart', async () => {
       open(entries());
-      alertSpy.onDidDismiss.and.resolveTo({ role: 'destructive' } as any);
       removeFirst();
       await settle();
-
-      http
-        .expectOne(`${environment.apiUrl}/lifts/rep-maxes/e2`)
-        .flush('failed', { status: 500, statusText: 'Server Error' });
-      await settle();
+      job().hide();
+      job().restore();
       fixture.detectChanges();
-
-      expect(toastCtrlSpy.create).toHaveBeenCalled();
-      http.expectNone(historyUrl);
       expect(entryRows().length).toBe(3);
       expect(component.chartData.datasets[0].data.length).toBe(3);
+    });
+
+    it('an entry still waiting for its toast stays hidden when the history reloads', async () => {
+      open(entries());
+      removeFirst();
+      await settle();
+      job().hide();
+      (component as any).load();
+      http.expectOne(historyUrl).flush(history(entries()));
+      fixture.detectChanges();
+      expect(entryRows().length).toBe(2);
     });
   });
 

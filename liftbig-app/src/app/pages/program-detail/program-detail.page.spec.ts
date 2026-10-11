@@ -10,7 +10,8 @@ import {
   provideRouter,
   Router,
 } from '@angular/router';
-import { AlertController, ToastController } from '@ionic/angular';
+import { ToastController } from '@ionic/angular';
+import { ConfirmSheetService } from '../../shared/ui/confirm-sheet.component';
 import { environment } from '../../../environments/environment';
 import { ProgramDetail } from '../../core/program.service';
 import { WeightUnitService } from '../../core/weight-unit.service';
@@ -20,7 +21,7 @@ describe('ProgramDetailPage', () => {
   let fixture: ComponentFixture<ProgramDetailPage>;
   let component: ProgramDetailPage;
   let http: HttpTestingController;
-  let alertCtrl: jasmine.SpyObj<AlertController>;
+  let confirmSpy: jasmine.SpyObj<ConfirmSheetService>;
   let navigate: jasmine.Spy;
   const api = environment.apiUrl;
 
@@ -85,7 +86,7 @@ describe('ProgramDetailPage', () => {
   };
 
   function setup(unit: 'kg' | 'lb' = 'kg', bests: object[] = []) {
-    alertCtrl = jasmine.createSpyObj('AlertController', ['create']);
+    confirmSpy = jasmine.createSpyObj('ConfirmSheetService', ['confirm']);
     const toastCtrl = jasmine.createSpyObj('ToastController', ['create']);
     toastCtrl.create.and.resolveTo({ present: () => Promise.resolve() });
     TestBed.configureTestingModule({
@@ -98,7 +99,7 @@ describe('ProgramDetailPage', () => {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: convertToParamMap({ id: 'p1' }) } },
         },
-        { provide: AlertController, useValue: alertCtrl },
+        { provide: ConfirmSheetService, useValue: confirmSpy },
         { provide: ToastController, useValue: toastCtrl },
       ],
     });
@@ -126,11 +127,10 @@ describe('ProgramDetailPage', () => {
       (e) => e.textContent!.replace(/\s+/g, ' ').trim(),
     );
 
-  function stubAlert(role: string) {
-    const alert = jasmine.createSpyObj('HTMLIonAlertElement', ['present', 'onDidDismiss']);
-    alert.present.and.resolveTo();
-    alert.onDidDismiss.and.resolveTo({ role });
-    alertCtrl.create.and.resolveTo(alert);
+  function stubConfirm(role: string) {
+    // The confirm sheet: 'destructive' confirms, anything else cancels
+    confirmSpy.confirm.and.resolveTo(role === 'destructive');
+    return confirmSpy.confirm;
   }
 
   function fillMaxes(squat: number | null, bench: number | null) {
@@ -242,15 +242,15 @@ describe('ProgramDetailPage', () => {
     it('asks before abandoning an active program and retries with abandonCurrent', async () => {
       setup();
       fillMaxes(140, 100);
-      stubAlert('destructive');
+      stubConfirm('destructive');
       component.start();
       http
         .expectOne(`${api}/program-enrollments`)
         .flush({ message: 'active' }, { status: 409, statusText: 'Conflict' });
       await fixture.whenStable();
 
-      expect(alertCtrl.create).toHaveBeenCalledWith(
-        jasmine.objectContaining({ header: 'Abandon current program?' }),
+      expect(confirmSpy.confirm).toHaveBeenCalledWith(
+        jasmine.objectContaining({ title: 'Abandon current program?', confirmLabel: 'Abandon and start' }),
       );
       const retry = http.expectOne(`${api}/program-enrollments`);
       expect(retry.request.body.abandonCurrent).toBeTrue();
@@ -262,7 +262,7 @@ describe('ProgramDetailPage', () => {
     it('keeps the current program when the abandon confirm is cancelled', async () => {
       setup();
       fillMaxes(140, 100);
-      stubAlert('cancel');
+      stubConfirm('cancel');
       component.start();
       http
         .expectOne(`${api}/program-enrollments`)

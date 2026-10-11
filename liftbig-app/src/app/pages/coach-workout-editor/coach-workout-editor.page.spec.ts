@@ -10,11 +10,8 @@ import {
   provideRouter,
   Router,
 } from '@angular/router';
-import {
-  AlertController,
-  ModalController,
-  ToastController,
-} from '@ionic/angular';
+import { ModalController, ToastController } from '@ionic/angular';
+import { ConfirmSheetService } from '../../shared/ui/confirm-sheet.component';
 import { CoachWorkoutEditorPage } from './coach-workout-editor.page';
 import {
   ExercisePickerComponent,
@@ -30,7 +27,7 @@ describe('CoachWorkoutEditorPage', () => {
   let httpTesting: HttpTestingController;
   let modalCtrlSpy: jasmine.SpyObj<ModalController>;
   let modalSpy: jasmine.SpyObj<HTMLIonModalElement>;
-  let alertCtrlSpy: jasmine.SpyObj<AlertController>;
+  let confirmSpy: jasmine.SpyObj<ConfirmSheetService>;
   let toastControllerSpy: jasmine.SpyObj<ToastController>;
   let navigateSpy: jasmine.Spy;
   let menuSpy: jasmine.SpyObj<OverflowMenuService>;
@@ -54,7 +51,7 @@ describe('CoachWorkoutEditorPage', () => {
     modalSpy.present.and.resolveTo();
     modalCtrlSpy = jasmine.createSpyObj('ModalController', ['create']);
     modalCtrlSpy.create.and.resolveTo(modalSpy);
-    alertCtrlSpy = jasmine.createSpyObj('AlertController', ['create']);
+    confirmSpy = jasmine.createSpyObj('ConfirmSheetService', ['confirm']);
     menuSpy = jasmine.createSpyObj('OverflowMenuService', ['open']);
     menuSpy.open.and.resolveTo(null);
 
@@ -73,7 +70,7 @@ describe('CoachWorkoutEditorPage', () => {
           useValue: { snapshot: { paramMap: convertToParamMap(paramMap) } },
         },
         { provide: ToastController, useValue: toastControllerSpy },
-        { provide: AlertController, useValue: alertCtrlSpy },
+        { provide: ConfirmSheetService, useValue: confirmSpy },
         { provide: OverflowMenuService, useValue: menuSpy },
       ],
     });
@@ -135,15 +132,10 @@ describe('CoachWorkoutEditorPage', () => {
     modalSpy.onWillDismiss.and.resolveTo({ data, role } as any);
   }
 
-  function stubAlert(role: string) {
-    const alert = jasmine.createSpyObj<HTMLIonAlertElement>(
-      'HTMLIonAlertElement',
-      ['present', 'onDidDismiss'],
-    );
-    alert.present.and.resolveTo();
-    alert.onDidDismiss.and.resolveTo({ role } as any);
-    alertCtrlSpy.create.and.resolveTo(alert);
-    return alertCtrlSpy.create;
+  function stubConfirm(role: string) {
+    // The confirm sheet: 'destructive' confirms, anything else cancels
+    confirmSpy.confirm.and.resolveTo(role === 'destructive');
+    return confirmSpy.confirm;
   }
 
   function el(selector: string): HTMLElement {
@@ -609,7 +601,7 @@ describe('CoachWorkoutEditorPage', () => {
     fixture.detectChanges();
     expect(buttons().length).toBe(1);
     expect(buttons()[0].disabled).toBeTrue();
-    expect(alertCtrlSpy.create).not.toHaveBeenCalled();
+    expect(confirmSpy.confirm).not.toHaveBeenCalled();
 
     const body = saveAndGetPut();
     expect(body.exercises[0].sets).toEqual([
@@ -805,13 +797,13 @@ describe('CoachWorkoutEditorPage', () => {
 
     it('deleting a logged set asks first, and cancel keeps it', async () => {
       loadLogged();
-      const createSpy = stubAlert('cancel');
+      const createSpy = stubConfirm('cancel');
 
       el('ion-item-option[aria-label="Remove set 1"]').click();
       await fixture.whenStable();
 
       expect(createSpy).toHaveBeenCalledWith(
-        jasmine.objectContaining({ header: 'Delete logged set?' }),
+        jasmine.objectContaining({ title: 'Delete logged set?' }),
       );
       expect(component.exerciseGroups[0].sets.map((s) => s.id)).toEqual(['s1', 's2']);
       const body = saveAndGetPut();
@@ -820,7 +812,7 @@ describe('CoachWorkoutEditorPage', () => {
 
     it('confirming the delete of a logged set removes it, and the PUT leaves it out', async () => {
       loadLogged();
-      stubAlert('destructive');
+      stubConfirm('destructive');
 
       await component.removeSet(component.exerciseGroups[0], 0);
 
@@ -836,25 +828,25 @@ describe('CoachWorkoutEditorPage', () => {
 
       await component.removeSet(component.exerciseGroups[0], 1);
 
-      expect(alertCtrlSpy.create).not.toHaveBeenCalled();
+      expect(confirmSpy.confirm).not.toHaveBeenCalled();
       expect(component.exerciseGroups[0].sets.map((s) => s.id)).toEqual(['s1']);
     });
 
     it('removing a card with a logged set asks first, and cancel keeps it', async () => {
       loadLogged();
-      const createSpy = stubAlert('cancel');
+      const createSpy = stubConfirm('cancel');
 
       await chooseInMenu('Bench Press', 'remove');
 
       expect(createSpy).toHaveBeenCalledWith(
-        jasmine.objectContaining({ header: 'Delete logged exercise?' }),
+        jasmine.objectContaining({ title: 'Delete logged exercise?' }),
       );
       expect(component.exerciseGroups.map((g) => g.id)).toEqual(['card1', 'card2', 'card4']);
     });
 
     it('confirming removes the logged card, and the PUT leaves it out', async () => {
       loadLogged();
-      stubAlert('destructive');
+      stubConfirm('destructive');
 
       await component.removeExercise(0);
 
@@ -871,7 +863,7 @@ describe('CoachWorkoutEditorPage', () => {
 
       await component.removeExercise(2);
 
-      expect(alertCtrlSpy.create).not.toHaveBeenCalled();
+      expect(confirmSpy.confirm).not.toHaveBeenCalled();
       expect(component.exerciseGroups.map((g) => g.id)).toEqual(['card1', 'card2']);
     });
   });
@@ -1043,13 +1035,13 @@ describe('CoachWorkoutEditorPage', () => {
         card('card2', 'ex1', 'Bench Press', 2, sg),
         card('card3', 'ex2', 'Row', 3, sg),
       ]);
-      const createSpy = stubAlert('destructive');
+      const createSpy = stubConfirm('destructive');
 
       await chooseInMenu('Bench Press', 'delete-superset');
 
       expect(createSpy).toHaveBeenCalledWith(
         jasmine.objectContaining({
-          header: 'Delete superset?',
+          title: 'Delete superset?',
           message: 'Removes 2 exercises and their sets',
         }),
       );
@@ -1064,13 +1056,13 @@ describe('CoachWorkoutEditorPage', () => {
 
     it('Delete superset with logged results says the results go too', async () => {
       loadSuperset();
-      const createSpy = stubAlert('destructive');
+      const createSpy = stubConfirm('destructive');
 
       await component.removeSuperset(sg);
 
       expect(createSpy).toHaveBeenCalledOnceWith(
         jasmine.objectContaining({
-          header: 'Delete superset?',
+          title: 'Delete superset?',
           message: 'Removes 2 exercises and their sets, including logged results',
         }),
       );
@@ -1079,7 +1071,7 @@ describe('CoachWorkoutEditorPage', () => {
 
     it('cancelling Delete superset changes nothing', async () => {
       loadSuperset();
-      stubAlert('cancel');
+      stubConfirm('cancel');
 
       await component.removeSuperset(sg);
 
@@ -1103,7 +1095,7 @@ describe('CoachWorkoutEditorPage', () => {
       await chooseInMenu('Bench Press', 'remove');
       fixture.detectChanges();
 
-      expect(alertCtrlSpy.create).not.toHaveBeenCalled();
+      expect(confirmSpy.confirm).not.toHaveBeenCalled();
       expect(fixture.nativeElement.querySelectorAll('.superset-card').length).toBe(0);
       const titles = Array.from(
         fixture.nativeElement.querySelectorAll('ion-card.exercise-card .exercise-title'),
@@ -1119,12 +1111,12 @@ describe('CoachWorkoutEditorPage', () => {
 
     it('deleting a logged superset member asks first; cancel keeps the superset', async () => {
       loadSuperset();
-      const createSpy = stubAlert('cancel');
+      const createSpy = stubConfirm('cancel');
 
       await chooseInMenu('Row', 'remove');
 
       expect(createSpy).toHaveBeenCalledWith(
-        jasmine.objectContaining({ header: 'Delete logged exercise?' }),
+        jasmine.objectContaining({ title: 'Delete logged exercise?' }),
       );
       expect(component.exerciseGroups.map((g) => [g.id, g.supersetGroup])).toEqual([
         ['card1', null],

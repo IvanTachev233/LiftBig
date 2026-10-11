@@ -1,7 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
-  AlertController,
   IonicModule,
   ModalController,
   ReorderEndCustomEvent,
@@ -85,6 +84,7 @@ interface ExerciseGroup {
   supersetGroup: string | null;
 }
 
+import { ConfirmSheetService } from '../../shared/ui/confirm-sheet.component';
 @Component({
   selector: 'app-coach-workout-editor',
   templateUrl: './coach-workout-editor.page.html',
@@ -99,7 +99,7 @@ export class CoachWorkoutEditorPage implements OnInit {
   private workoutService = inject(WorkoutService);
   private toastController = inject(ToastController);
   private modalCtrl = inject(ModalController);
-  private alertCtrl = inject(AlertController);
+  private confirmSheet = inject(ConfirmSheetService);
   private overflowMenu = inject(OverflowMenuService);
   readonly units = inject(WeightUnitService);
 
@@ -287,6 +287,7 @@ export class CoachWorkoutEditorPage implements OnInit {
       'Delete superset?',
       `Removes ${members.length} exercises and their sets` +
         (logged ? ', including logged results' : ''),
+      'Delete superset',
     );
     if (!confirmed) return;
 
@@ -311,6 +312,7 @@ export class CoachWorkoutEditorPage implements OnInit {
       !(await this.confirmDelete(
         'Delete logged set?',
         'This set has a logged result, which is deleted with it',
+        'Delete set',
       ))
     ) {
       return;
@@ -328,6 +330,7 @@ export class CoachWorkoutEditorPage implements OnInit {
       !(await this.confirmDelete(
         'Delete logged exercise?',
         `${group.exerciseName} has logged results, which are deleted with it`,
+        'Delete exercise',
       ))
     ) {
       return;
@@ -365,19 +368,10 @@ export class CoachWorkoutEditorPage implements OnInit {
     };
   }
 
-  private async confirmDelete(header: string, message: string) {
-    const alert = await this.alertCtrl.create({
-      header,
-      message,
-      buttons: [
-        { text: 'Cancel', role: 'cancel' },
-        { text: 'Delete', role: 'destructive' },
-      ],
-    });
-    await alert.present();
-    const { role } = await alert.onDidDismiss();
-    return role === 'destructive';
+  private confirmDelete(title: string, message: string, confirmLabel: string) {
+    return this.confirmSheet.confirm({ title, message, confirmLabel });
   }
+
 
   // Move up / Move down (the `⋯` menu): inside a superset they reorder its
   // members; otherwise the whole block (single card or superset) moves past

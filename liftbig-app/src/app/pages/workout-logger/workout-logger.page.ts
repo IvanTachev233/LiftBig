@@ -1,7 +1,6 @@
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
-  AlertController,
   IonicModule,
   ModalController,
   ToastController,
@@ -139,6 +138,7 @@ const MADE_STATES = {
 
 type QueuedRequest = () => Observable<unknown>;
 
+import { ConfirmSheetService } from '../../shared/ui/confirm-sheet.component';
 @Component({
   selector: 'app-workout-logger',
   templateUrl: './workout-logger.page.html',
@@ -159,7 +159,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
   private workoutService = inject(WorkoutService);
   private toastController = inject(ToastController);
   private modalCtrl = inject(ModalController);
-  private alertCtrl = inject(AlertController);
+  private confirmSheet = inject(ConfirmSheetService);
   private authService = inject(AuthService);
   private activeWorkout = inject(ActiveWorkoutService);
   private programService = inject(ProgramService);
@@ -462,17 +462,12 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     );
     if (!members.length) return;
 
-    const alert = await this.alertCtrl.create({
-      header: 'Delete superset?',
+    const confirmed = await this.confirmSheet.confirm({
+      title: 'Delete superset?',
       message: `Removes ${members.length} exercises and their sets`,
-      buttons: [
-        { text: 'Cancel', role: 'cancel' },
-        { text: 'Delete', role: 'destructive' },
-      ],
+      confirmLabel: 'Delete superset',
     });
-    await alert.present();
-    const { role } = await alert.onDidDismiss();
-    if (role !== 'destructive') return;
+    if (!confirmed) return;
 
     const currentWorkout = this.workoutSubject.value;
     if (!currentWorkout) return;

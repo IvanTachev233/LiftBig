@@ -1,11 +1,6 @@
-import { Component, Input, LOCALE_ID, OnInit, inject } from '@angular/core';
+import { Component, Input, LOCALE_ID, OnInit, TemplateRef, ViewChild, inject } from '@angular/core';
 import { CommonModule, formatDate } from '@angular/common';
-import {
-  AlertController,
-  IonicModule,
-  IonItemSliding,
-  ToastController,
-} from '@ionic/angular';
+import { IonicModule, ToastController } from '@ionic/angular';
 import {
   ChartConfiguration,
   ChartData,
@@ -27,7 +22,10 @@ import { WeightUnitService } from '../../../core/weight-unit.service';
 import { WeightPipe } from '../../pipes/weight.pipe';
 import { e1rmPoints } from '../../e1rm';
 import { BottomSheetService } from '../../ui/bottom-sheet.service';
+import { ConfirmSheetService } from '../../ui/confirm-sheet.component';
 import { StatusPillComponent } from '../../ui/status-pill.component';
+import { SwipeDeleteRowComponent } from '../../ui/swipe-delete-row.component';
+import { UndoToastService } from '../../ui/undo-toast.service';
 import { ManualEntry, ManualEntrySheetComponent } from './manual-entry-sheet.component';
 
 const SOURCE_LABELS: Record<LiftRecordSource, string> = {
@@ -63,7 +61,14 @@ const dayLabel = (time: number) =>
   templateUrl: './exercise-history.component.html',
   styleUrls: ['./exercise-history.component.scss'],
   standalone: true,
-  imports: [CommonModule, IonicModule, BaseChartDirective, WeightPipe, StatusPillComponent],
+  imports: [
+    CommonModule,
+    IonicModule,
+    BaseChartDirective,
+    WeightPipe,
+    StatusPillComponent,
+    SwipeDeleteRowComponent,
+  ],
   providers: [
     provideCharts({
       registerables: [LineController, LineElement, PointElement, LinearScale, Tooltip],
@@ -73,7 +78,8 @@ const dayLabel = (time: number) =>
 export class ExerciseHistoryComponent implements OnInit {
   private liftService = inject(LiftService);
   private toastController = inject(ToastController);
-  private alertCtrl = inject(AlertController);
+  private confirmSheet = inject(ConfirmSheetService);
+  private undoToast = inject(UndoToastService);
   private bottomSheet = inject(BottomSheetService);
   private locale = inject(LOCALE_ID);
   readonly units = inject(WeightUnitService);
@@ -94,8 +100,12 @@ export class ExerciseHistoryComponent implements OnInit {
   // Highest e1RM of the range, and its change since the range's first point (kg)
   hero: number | null = null;
   delta: { kg: number; since: string } | null = null;
-  // Ignores remove taps while one is being confirmed or sent
+  // Ignores remove taps while the sheet is open
   private removing = false;
+  // Removed behind the undo toast: left out of the list, chart and hero
+  private hidden = new Set<string>();
+
+  @ViewChild('entryLine') entryLine!: TemplateRef<unknown>;
 
   chartData: ChartData<'line', { x: number; y: number }[]> = { datasets: [] };
   chartOptions: ChartConfiguration<'line'>['options'] = {};
@@ -111,10 +121,9 @@ export class ExerciseHistoryComponent implements OnInit {
     this.liftService.getHistory(this.exerciseId).subscribe({
       next: (history) => {
         this.history = history;
-        this.entries = [...history.entries].sort(
-          (a, b) =>
-            b.achievedOn.localeCompare(a.achievedOn) || b.createdAt.localeCompare(a.createdAt),
-        );
+        // Entries still waiting for their undo toast stay hidden
+        this.hidden = new Set([...this.hidden].filter((id) => history.entries.some((e) => e.id === id)));
+        this.sortEntries();
         this.bestEntryId = this.findBestEntry(history);
         // Opens on a range that has points
         if (first && this.inRange('6M').length === 0) this.range = 'All';
@@ -133,10 +142,11 @@ export class ExerciseHistoryComponent implements OnInit {
   /** The range's entries; All keeps every one */
   private inRange(range: HistoryRange): RepMaxEntry[] {
     const months = RANGE_MONTHS[range];
-    if (months === null) return this.history?.entries ?? [];
+    const entries = (this.history?.entries ?? []).filter((e) => !this.hidden.has(e.id));
+    if (months === null) return entries;
     const now = this.now();
     const cutoff = localDay(new Date(now.getFullYear(), now.getMonth() - months, now.getDate()));
-    return (this.history?.entries ?? []).filter((e) => e.achievedOn >= cutoff);
+    return entries.filter((e) => e.achievedOn >= cutoff);
   }
 
   private refresh() {
@@ -238,44 +248,53 @@ export class ExerciseHistoryComponent implements OnInit {
     return SOURCE_LABELS[entry.source] ?? entry.source;
   }
 
-  /** Asks to confirm, then removes the entry and reloads the history */
-  async confirmRemove(entry: RepMaxEntry, slider?: IonItemSliding) {
+  /**
+   * Removes an entry behind the undo toast; one recorded from a logged set
+   * is confirmed first, and the current best gets the PR warning
+   */
+  async requestRemove(entry: RepMaxEntry) {
     if (this.removing) return;
-    this.removing = true;
-    const alert = await this.alertCtrl.create({
-      header: 'Remove entry?',
-      message: `${this.entryLabel(entry)} on ${this.entryDate(entry)} will no longer count as a personal best.`,
-      buttons: [
-        { text: 'Cancel', role: 'cancel' },
-        { text: 'Remove', role: 'destructive' },
-      ],
-    });
-    await alert.present();
-    const { role } = await alert.onDidDismiss();
-    if (role !== 'destructive') {
-      this.removing = false;
-      await this.close(slider);
-      return;
+    if (entry.source === 'LOGGED_SET') {
+      this.removing = true;
+      const confirmed = await this.confirmSheet
+        .confirm({
+          title: 'Remove this entry?',
+          message: 'It will no longer count toward your personal bests.',
+          confirmLabel: 'Remove entry',
+          summary: this.entryLine,
+          summaryContext: entry,
+          warning:
+            entry.id === this.bestEntryId
+              ? `Your current ${entry.reps}RM best · ${this.units.format(entry.weightKg)}`
+              : undefined,
+        })
+        .finally(() => (this.removing = false));
+      if (!confirmed) return;
     }
-    this.liftService.removeRepMax(entry.id).subscribe({
-      next: () => {
-        this.removing = false;
-        this.load();
-      },
-      error: () => {
-        this.removing = false;
-        this.close(slider);
-        this.presentToast("Couldn't remove the entry");
-      },
+    await this.undoToast.softDelete({
+      title: 'Entry removed',
+      sub: `${this.entryLabel(entry)} · ${this.entryDate(entry)}`,
+      hide: () => this.setHidden(entry.id, true),
+      restore: () => this.setHidden(entry.id, false),
+      commit: () => this.liftService.removeRepMax(entry.id),
+      // The best and the latest 1/2/3RM come from the server
+      done: () => this.load(),
+      failed: "Couldn't remove the entry",
     });
   }
 
-  private async close(slider?: IonItemSliding) {
-    try {
-      await slider?.close();
-    } catch {
-      // Already closed
-    }
+  private setHidden(id: string, hidden: boolean) {
+    if (hidden) this.hidden.add(id);
+    else this.hidden.delete(id);
+    this.sortEntries();
+    this.refresh();
+  }
+
+  /** Newest first, without hidden entries */
+  private sortEntries() {
+    this.entries = (this.history?.entries ?? [])
+      .filter((e) => !this.hidden.has(e.id))
+      .sort((a, b) => b.achievedOn.localeCompare(a.achievedOn) || b.createdAt.localeCompare(a.createdAt));
   }
 
   get canAdd(): boolean {

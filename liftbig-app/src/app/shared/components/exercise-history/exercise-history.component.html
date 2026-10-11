@@ -55,33 +55,34 @@
       </div>
       <ion-list lines="none" class="entries-list">
         @for (entry of entries; track entry.id) {
-          <ion-item-sliding #slider>
+          <app-swipe-delete-row
+            text="Remove"
+            [label]="'Remove ' + entryLabel(entry) + ', ' + entryDate(entry)"
+            (delete)="requestRemove(entry)"
+          >
             <ion-item class="entry-row" lines="none">
-              <span class="entry-figure">
-                <span class="entry-kg num">{{ units.toDisplay(entry.weightKg) }}</span>
-                <span class="entry-unit">{{ units.unit() }} × {{ entry.reps }}</span>
-              </span>
-              <span class="entry-date">{{ entryDate(entry) }}</span>
-              @if (entry.id === bestEntryId) {
-                <app-status-pill class="entry-pr" kind="pr" />
-              }
-              <span class="entry-source">{{ sourceLabel(entry) }}</span>
+              <ng-container *ngTemplateOutlet="entryLine; context: { $implicit: entry }" />
             </ion-item>
-            <ion-item-options side="end">
-              <ion-item-option
-                color="danger"
-                class="remove-entry-btn"
-                [attr.aria-label]="'Remove ' + entryLabel(entry) + ', ' + entryDate(entry)"
-                (click)="confirmRemove(entry, slider)"
-              >
-                Remove
-              </ion-item-option>
-            </ion-item-options>
-          </ion-item-sliding>
+          </app-swipe-delete-row>
         }
       </ion-list>
     </section>
   }
+
+  <!-- An entry's row; the remove sheet shows the same row as its summary -->
+  <ng-template #entryLine let-entry>
+    <span class="entry-line">
+      <span class="entry-figure">
+        <span class="entry-kg num">{{ units.toDisplay(entry.weightKg) }}</span>
+        <span class="entry-unit">{{ units.unit() }} × {{ entry.reps }}</span>
+      </span>
+      <span class="entry-date">{{ entryDate(entry) }}</span>
+      @if (entry.id === bestEntryId) {
+        <app-status-pill class="entry-pr" kind="pr" />
+      }
+      <span class="entry-source">{{ sourceLabel(entry) }}</span>
+    </span>
+  </ng-template>
 } @else {
   <ion-spinner class="block mx-auto mt-10"></ion-spinner>
 }

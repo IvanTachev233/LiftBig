@@ -383,3 +383,186 @@ ion-action-sheet.overflow-menu {
     border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Destructive actions: swipe Delete (SwipeDeleteRowComponent), confirm sheet
+ * (ConfirmSheetService) and undo toast (UndoToastService)
+ * ------------------------------------------------------------------------- */
+
+// The row slides 92px over an inset tinted button; the area around it shows
+// what is behind the row
+ion-item-options:has(.swipe-delete) {
+  border-width: 0;
+  background: transparent;
+}
+
+ion-item-option.swipe-delete {
+  --background: transparent;
+  --color: var(--danger-text);
+  min-width: 92px;
+  padding: 8px 0 8px 8px;
+
+  &::part(native) {
+    border-radius: 14px;
+    background: var(--danger-tint);
+    color: var(--danger-text);
+  }
+}
+
+.swipe-delete-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--danger-text);
+  font: 600 12px var(--font-ui);
+  text-transform: none;
+
+  ion-icon {
+    font-size: 20px;
+  }
+}
+
+.confirm-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 33px 20px calc(24px + var(--ion-safe-area-bottom, 0px));
+}
+
+.confirm-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.danger-circle {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--danger-tint);
+  color: var(--danger-text);
+  font-size: 22px;
+}
+
+.confirm-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.confirm-message {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.confirm-summary {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
+}
+
+.confirm-summary-row {
+  padding: 0 14px;
+}
+
+.confirm-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--pr-text);
+
+  ion-icon {
+    flex-shrink: 0;
+    font-size: 16px;
+  }
+}
+
+.confirm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  button {
+    width: 100%;
+    border: 0;
+    border-radius: 14px;
+    cursor: pointer;
+  }
+}
+
+.confirm-btn {
+  height: 52px;
+  background: var(--danger);
+  color: var(--on-danger);
+  font: 600 16px var(--font-ui);
+}
+
+.cancel-btn {
+  height: 48px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: 500 15px var(--font-ui);
+}
+
+// Dark in both themes like the resume bar, so its text keeps the live-bar
+// colours and Undo the accent (light --accent-text is under 4.5:1 on it)
+ion-toast.undo-toast {
+  --background: var(--toast-bg);
+  --color: var(--live-bar-text);
+  --border-radius: 14px;
+  --box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --start: 12px;
+  --end: 12px;
+
+  // The 3px countdown along the bottom, emptying over UNDO_MS (5 s)
+  // Rounded too, so the bar is clipped by the corners
+  &::part(container) {
+    padding: 0 4px 3px;
+    border-radius: 14px;
+    background:
+      linear-gradient(var(--accent), var(--accent)) left bottom / 100% 3px no-repeat,
+      linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08)) left bottom / 100% 3px no-repeat;
+    animation: undo-countdown 5s linear forwards;
+  }
+
+  &::part(icon) {
+    margin-inline-start: 12px;
+    margin-inline-end: 0;
+    font-size: 18px;
+    color: var(--live-bar-text-2);
+  }
+
+  &::part(header) {
+    font: 600 14px var(--font-ui);
+    color: var(--live-bar-text);
+  }
+
+  &::part(message) {
+    font-size: 12px;
+    color: var(--live-bar-text-2);
+  }
+
+  &::part(button) {
+    min-height: 44px;
+    color: var(--accent);
+    font: 600 15px var(--font-ui);
+    text-transform: none;
+  }
+}
+
+@keyframes undo-countdown {
+  to {
+    background-size: 0 3px, 100% 3px;
+  }
+}

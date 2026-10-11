@@ -1,19 +1,15 @@
-import { Component, inject } from '@angular/core';
+import { Component, TemplateRef, ViewChild, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import {
-  AlertController,
-  IonicModule,
-  ToastController,
-  ViewWillEnter,
-} from '@ionic/angular';
+import { IonicModule, ToastController, ViewWillEnter } from '@ionic/angular';
 import { LiftService } from '../../core/lift.service';
 import { Enrollment, ProgramService } from '../../core/program.service';
 import { Workout } from '../../core/workout.service';
 import { WeightUnitService } from '../../core/weight-unit.service';
 import { localDay } from '../../core/local-date';
 import { BottomSheetService } from '../../shared/ui/bottom-sheet.service';
+import { ConfirmSheetService } from '../../shared/ui/confirm-sheet.component';
 import { RecalculateSheetComponent } from './recalculate-sheet.component';
 import { DateBlockRowComponent } from '../../shared/ui/date-block-row.component';
 import { ProgressBarComponent } from '../../shared/ui/progress-bar.component';
@@ -42,7 +38,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export class ActiveProgramPage implements ViewWillEnter {
   private programService = inject(ProgramService);
   private liftService = inject(LiftService);
-  private alertCtrl = inject(AlertController);
+  private confirmSheet = inject(ConfirmSheetService);
+
+  @ViewChild('programSummary') programSummary!: TemplateRef<unknown>;
   private toastController = inject(ToastController);
   private router = inject(Router);
   private bottomSheet = inject(BottomSheetService);
@@ -249,17 +247,15 @@ export class ActiveProgramPage implements ViewWillEnter {
   async abandon() {
     const active = this.active;
     if (!active) return;
-    const alert = await this.alertCtrl.create({
-      header: 'Abandon program?',
+    const confirmed = await this.confirmSheet.confirm({
+      title: 'Abandon this program?',
       message: 'Planned sessions are deleted. Started and completed ones stay.',
-      buttons: [
-        { text: 'Cancel', role: 'cancel' },
-        { text: 'Abandon', role: 'destructive' },
-      ],
+      confirmLabel: 'Abandon program',
+      icon: 'flag-outline',
+      summary: this.programSummary,
+      summaryContext: active,
     });
-    await alert.present();
-    const { role } = await alert.onDidDismiss();
-    if (role !== 'destructive') return;
+    if (!confirmed) return;
     this.programService.abandon(active.id).subscribe({
       next: (enrollment) => this.show(enrollment),
       error: () => this.presentToast("Couldn't abandon the program"),

@@ -6,11 +6,8 @@ import {
 } from '@angular/common/http/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
-import {
-  AlertController,
-  ModalController,
-  ToastController,
-} from '@ionic/angular';
+import { ModalController, ToastController } from '@ionic/angular';
+import { ConfirmSheetService } from '../../shared/ui/confirm-sheet.component';
 import { WorkoutLoggerPage } from './workout-logger.page';
 import {
   ExercisePickerComponent,
@@ -34,7 +31,7 @@ describe('WorkoutLoggerPage', () => {
   let toastControllerSpy: jasmine.SpyObj<ToastController>;
   let toastSpy: jasmine.SpyObj<HTMLIonToastElement>;
   let modalCtrlSpy: jasmine.SpyObj<ModalController>;
-  let alertCtrlSpy: jasmine.SpyObj<AlertController>;
+  let confirmSpy: jasmine.SpyObj<ConfirmSheetService>;
   let menuSpy: jasmine.SpyObj<OverflowMenuService>;
 
   const workoutsUrl = `${environment.apiUrl}/workouts`;
@@ -48,7 +45,7 @@ describe('WorkoutLoggerPage', () => {
     toastControllerSpy = jasmine.createSpyObj('ToastController', ['create']);
     toastControllerSpy.create.and.resolveTo(toastSpy);
     modalCtrlSpy = jasmine.createSpyObj('ModalController', ['create']);
-    alertCtrlSpy = jasmine.createSpyObj('AlertController', ['create']);
+    confirmSpy = jasmine.createSpyObj('ConfirmSheetService', ['confirm']);
     menuSpy = jasmine.createSpyObj('OverflowMenuService', ['open']);
     menuSpy.open.and.resolveTo(null);
 
@@ -63,7 +60,7 @@ describe('WorkoutLoggerPage', () => {
           useValue: { queryParams: queryParamsSubject.asObservable() },
         },
         { provide: ToastController, useValue: toastControllerSpy },
-        { provide: AlertController, useValue: alertCtrlSpy },
+        { provide: ConfirmSheetService, useValue: confirmSpy },
         { provide: OverflowMenuService, useValue: menuSpy },
       ],
     });
@@ -251,15 +248,10 @@ describe('WorkoutLoggerPage', () => {
     return modalCtrlSpy.create;
   }
 
-  function stubAlert(role: string) {
-    const alert = jasmine.createSpyObj<HTMLIonAlertElement>(
-      'HTMLIonAlertElement',
-      ['present', 'onDidDismiss'],
-    );
-    alert.present.and.resolveTo();
-    alert.onDidDismiss.and.resolveTo({ role } as any);
-    alertCtrlSpy.create.and.resolveTo(alert);
-    return alertCtrlSpy.create;
+  function stubConfirm(role: string) {
+    // The confirm sheet: 'destructive' confirms, anything else cancels
+    confirmSpy.confirm.and.resolveTo(role === 'destructive');
+    return confirmSpy.confirm;
   }
 
   it('should create', () => {
@@ -1453,14 +1445,15 @@ describe('WorkoutLoggerPage', () => {
       it('confirming Delete superset removes both members, and the PATCH has neither card', async () => {
         createComponentWithNoId();
         loadSuperset('w22');
-        const createSpy = stubAlert('destructive');
+        const createSpy = stubConfirm('destructive');
 
         await chooseInMenu('Bench Press', 'delete-superset');
 
         expect(createSpy).toHaveBeenCalledWith(
           jasmine.objectContaining({
-            header: 'Delete superset?',
+            title: 'Delete superset?',
             message: 'Removes 2 exercises and their sets',
+            confirmLabel: 'Delete superset',
           }),
         );
         expect(component.cards.map((c) => c.exerciseId)).toEqual(['ex3']);
@@ -1474,7 +1467,7 @@ describe('WorkoutLoggerPage', () => {
       it('cancelling Delete superset changes nothing and sends no request', async () => {
         createComponentWithNoId();
         loadSuperset('w23');
-        stubAlert('cancel');
+        stubConfirm('cancel');
 
         await component.removeSuperset(sg);
 
@@ -1492,7 +1485,7 @@ describe('WorkoutLoggerPage', () => {
 
         await chooseInMenu('Bench Press', 'remove');
 
-        expect(alertCtrlSpy.create).not.toHaveBeenCalled();
+        expect(confirmSpy.confirm).not.toHaveBeenCalled();
         const body = patchBody('w24');
         expect(cardSummary(body)).toEqual([
           ['ex3', 1, null, [10]],
@@ -1823,7 +1816,7 @@ describe('WorkoutLoggerPage', () => {
           card('c2', 'ex1', 'Bench Press', [3], sg),
           card('c3', 'ex2', 'Row', [8], sg),
         ]);
-        const createSpy = stubAlert('destructive');
+        const createSpy = stubConfirm('destructive');
 
         // The second Bench Press card is the superset member
         await chooseInMenu('Bench Press', 'delete-superset', 1);

@@ -49,10 +49,7 @@
   @if (workouts(); as workouts) {
     <div class="workout-list">
       @for (workout of shownWorkouts(); track workout.id) {
-        @let counts = setCounts(workout);
-        @let pill = status(workout);
-        <!-- Swipe left to delete -->
-        <ion-item-sliding class="workout-sliding">
+        <app-swipe-delete-row [label]="'Delete ' + workout.name" (delete)="requestDelete(workout)">
           <ion-item
             lines="none"
             class="workout-item"
@@ -60,30 +57,9 @@
             [detail]="false"
             [routerLink]="['/coach/workouts', workout.id]"
           >
-            <div class="workout-card client-workout">
-              <div class="workout-top">
-                <span class="workout-heading">
-                  <span class="workout-title">{{ workout.name }}</span>
-                  <span class="workout-date">{{ workout.date | date: 'EEE d MMM y' : 'UTC' }}</span>
-                </span>
-                <app-status-pill [kind]="pill.kind" [label]="pill.text" />
-              </div>
-              <div class="workout-progress">
-                <app-progress-bar [value]="counts.logged" [max]="counts.total" label="Sets logged" />
-                <span class="set-progress"><span class="num">{{ counts.logged }}/{{ counts.total }}</span> sets</span>
-              </div>
-            </div>
+            <ng-container *ngTemplateOutlet="workoutCard; context: { $implicit: workout }" />
           </ion-item>
-          <ion-item-options side="end">
-            <ion-item-option
-              color="danger"
-              [attr.aria-label]="'Delete ' + workout.name"
-              (click)="deleteWorkout(workout)"
-            >
-              Delete
-            </ion-item-option>
-          </ion-item-options>
-        </ion-item-sliding>
+        </app-swipe-delete-row>
       } @empty {
         <p class="empty-note">
           @switch (filter()) {
@@ -97,4 +73,36 @@
   } @else {
     <ion-spinner class="block mx-auto mt-10"></ion-spinner>
   }
+
+  <!-- A workout card; the delete sheet shows the same card as its summary -->
+  <ng-template #workoutCard let-workout>
+    @let counts = setCounts(workout);
+    @let pill = status(workout);
+    <div class="workout-card client-workout">
+      <div class="workout-top">
+        <span class="workout-heading">
+          <span class="workout-title">{{ workout.name }}</span>
+          <span class="workout-date">{{ workout.date | date: 'EEE d MMM y' : 'UTC' }}</span>
+        </span>
+        <app-status-pill [kind]="pill.kind" [label]="pill.text" />
+      </div>
+      <div class="workout-progress">
+        <app-progress-bar [value]="counts.logged" [max]="counts.total" label="Sets logged" />
+        <span class="set-progress"><span class="num">{{ counts.logged }}/{{ counts.total }}</span> sets</span>
+      </div>
+    </div>
+  </ng-template>
+
+  <!-- The client, as the Remove client sheet's summary -->
+  <ng-template #clientRow>
+    <div class="client-summary">
+      <span class="client-avatar small num" aria-hidden="true">{{ initials() }}</span>
+      <span class="client-text">
+        <span class="client-summary-name">{{ client()?.name || client()?.email }}</span>
+        @if (client()?.name) {
+          <span class="client-email">{{ client()?.email }}</span>
+        }
+      </span>
+    </div>
+  </ng-template>
 </ion-content>

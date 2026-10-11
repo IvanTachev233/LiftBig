@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, formatDate } from '@angular/common';
 import { IonicModule, ViewWillEnter } from '@ionic/angular';
 import { Router, RouterModule } from '@angular/router';
 import { WorkoutService, Workout } from '../../core/workout.service';
@@ -9,6 +9,7 @@ import { WorkoutListItemComponent } from '../../shared/components/workout-list-i
 import { StatTile, StatTilesComponent } from '../../shared/ui/stat-tiles.component';
 import { LargeTitleComponent } from '../../shared/ui/large-title.component';
 import { TabHeaderComponent } from '../../shared/ui/tab-header.component';
+import { UndoToastService } from '../../shared/ui/undo-toast.service';
 import { MonthGroup, historyWorkouts, monthGroups, weekTotals } from './history';
 
 // History: past workouts by month (Workouts) and best lifts (Lifts)
@@ -31,6 +32,7 @@ export class StatsPage implements ViewWillEnter {
   workoutService = inject(WorkoutService);
   private liftService = inject(LiftService);
   private router = inject(Router);
+  private undoToast = inject(UndoToastService);
   readonly units = inject(WeightUnitService);
 
   /** The device clock; specs replace it */
@@ -40,6 +42,8 @@ export class StatsPage implements ViewWillEnter {
   today = this.now();
   workouts: Workout[] | null = null;
   groups: MonthGroup[] = [];
+  // Deleted behind the undo toast: hidden from the list and the tiles
+  private hidden = new Set<string>();
   // Best 1RM per exercise, by exercise name; null until loaded
   lifts: { best: BestLift; name: string }[] | null = null;
   private exerciseNames: Map<string, string> | null = null;
@@ -53,13 +57,13 @@ export class StatsPage implements ViewWillEnter {
     this.workoutService.getAllWorkouts().subscribe((workouts) => {
       this.today = this.now();
       this.workouts = historyWorkouts(workouts, this.today);
-      this.groups = monthGroups(this.workouts, this.today);
+      this.regroup();
     });
     if (this.view === 'lifts') this.loadLifts();
   }
 
   get tiles(): StatTile[] {
-    const { sessions, volumeKg } = weekTotals(this.workouts ?? [], this.today);
+    const { sessions, volumeKg } = weekTotals(this.shown(), this.today);
     return [
       { label: 'This week', value: sessions, unit: sessions === 1 ? 'session' : 'sessions' },
       {
@@ -105,8 +109,34 @@ export class StatsPage implements ViewWillEnter {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  onWorkoutDeleted(id: string) {
-    this.workouts = this.workouts?.filter((workout) => workout.id !== id) ?? null;
-    this.groups = monthGroups(this.workouts ?? [], this.today);
+  /** Hides the workout at once and deletes it when the undo toast runs out */
+  deleteWorkout(workout: Workout) {
+    const day = formatDate(workout.date, 'EEE d MMM', 'en-US', 'UTC');
+    return this.undoToast.softDelete({
+      title: 'Workout deleted',
+      sub: `${workout.name} · ${day}`,
+      hide: () => this.setHidden(workout.id, true),
+      restore: () => this.setHidden(workout.id, false),
+      commit: () => this.workoutService.deleteWorkout(workout.id),
+      done: () => {
+        this.workouts = this.workouts?.filter((w) => w.id !== workout.id) ?? null;
+        this.setHidden(workout.id, false);
+      },
+      failed: "Couldn't delete the workout",
+    });
+  }
+
+  private setHidden(id: string, hidden: boolean) {
+    if (hidden) this.hidden.add(id);
+    else this.hidden.delete(id);
+    this.regroup();
+  }
+
+  private shown(): Workout[] {
+    return (this.workouts ?? []).filter((w) => !this.hidden.has(w.id));
+  }
+
+  private regroup() {
+    this.groups = monthGroups(this.shown(), this.today);
   }
 }

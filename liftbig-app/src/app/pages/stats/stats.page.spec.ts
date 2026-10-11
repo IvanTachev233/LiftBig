@@ -5,7 +5,7 @@ import {
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { Router, provideRouter } from '@angular/router';
-import { AlertController, ToastController } from '@ionic/angular';
+import { ToastController } from '@ionic/angular';
 import { StatsPage } from './stats.page';
 import { WorkoutListItemComponent } from '../../shared/components/workout-list-item/workout-list-item.component';
 import { environment } from '../../../environments/environment';
@@ -37,10 +37,9 @@ describe('StatsPage', () => {
   let component: StatsPage;
   let fixture: ComponentFixture<StatsPage>;
   let httpMock: HttpTestingController;
-  let alertControllerSpy: jasmine.SpyObj<AlertController>;
   let toastControllerSpy: jasmine.SpyObj<ToastController>;
-  let alertSpy: jasmine.SpyObj<HTMLIonAlertElement>;
   let toastSpy: jasmine.SpyObj<HTMLIonToastElement>;
+  let endToast: (role: 'timeout' | 'cancel') => void;
 
   // Polls until the condition holds; slider close() timing varies
   function flushMicrotasks(
@@ -65,18 +64,10 @@ describe('StatsPage', () => {
   }
 
   beforeEach(() => {
-    alertSpy = jasmine.createSpyObj('HTMLIonAlertElement', [
-      'present',
-      'onDidDismiss',
-    ]);
-    alertSpy.present.and.resolveTo();
-    alertSpy.onDidDismiss.and.resolveTo({ role: 'destructive' } as any);
-
-    toastSpy = jasmine.createSpyObj('HTMLIonToastElement', ['present']);
+    toastSpy = jasmine.createSpyObj('HTMLIonToastElement', ['present', 'onDidDismiss', 'dismiss']);
     toastSpy.present.and.resolveTo();
-
-    alertControllerSpy = jasmine.createSpyObj('AlertController', ['create']);
-    alertControllerSpy.create.and.resolveTo(alertSpy);
+    // Each test ends the undo toast itself
+    toastSpy.onDidDismiss.and.returnValue(new Promise((r) => (endToast = (role) => r({ role }))));
 
     toastControllerSpy = jasmine.createSpyObj('ToastController', ['create']);
     toastControllerSpy.create.and.resolveTo(toastSpy);
@@ -87,7 +78,6 @@ describe('StatsPage', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
-        { provide: AlertController, useValue: alertControllerSpy },
         { provide: ToastController, useValue: toastControllerSpy },
       ],
     });
@@ -144,43 +134,6 @@ describe('StatsPage', () => {
     expect(item('Coach Squats').querySelector('ion-item-option')).toBeNull();
     expect(item('Leg Day').querySelector('.coach-badge')).toBeNull();
     expect(item('Leg Day').querySelector('ion-item-option')).toBeTruthy();
-  });
-
-  it('confirming delete on a workout card removes it from the rendered list', async () => {
-    component.ionViewWillEnter();
-    httpMock.expectOne(`${environment.apiUrl}/workouts`).flush([
-      {
-        id: 'workout-1',
-        name: 'Leg Day',
-        date: '2026-09-28',
-        status: 'COMPLETED',
-        totalWeightLifted: 500,
-        assignedById: null,
-        assignedBy: null,
-        exercises: [],
-      },
-    ]);
-    fixture.detectChanges();
-
-    expect(
-      fixture.nativeElement.querySelectorAll('app-workout-list-item').length,
-    ).toBe(1);
-
-    const listItem = fixture.debugElement.query(
-      (de) => de.componentInstance instanceof WorkoutListItemComponent,
-    ).componentInstance as WorkoutListItemComponent;
-
-    await listItem.confirmDelete();
-
-    httpMock
-      .expectOne(`${environment.apiUrl}/workouts/workout-1`)
-      .flush(null);
-    await flushMicrotasks(() => component.workouts?.length === 0);
-    fixture.detectChanges();
-
-    expect(
-      fixture.nativeElement.querySelectorAll('app-workout-list-item').length,
-    ).toBe(0);
   });
 
   describe('page visits', () => {
@@ -319,6 +272,101 @@ describe('StatsPage', () => {
       expect(fixture.nativeElement.querySelector('.empty-state').textContent.trim()).toBe(
         'No workouts yet. Finished and started sessions show up here.',
       );
+    });
+  });
+
+  describe('delete with undo', () => {
+    const url = `${environment.apiUrl}/workouts`;
+    const thisWeek = [workout('a', '2026-10-09', 'COMPLETED', 300), workout('b', '2026-10-06', 'COMPLETED', 200)];
+    const rows = () =>
+      Array.from<HTMLElement>(fixture.nativeElement.querySelectorAll('.row-title')).map((t) => t.textContent!.trim());
+    const tileValues = () =>
+      Array.from<HTMLElement>(fixture.nativeElement.querySelectorAll('app-stat-tiles .tile-value')).map((t) =>
+        t.textContent!.trim(),
+      );
+
+    function enterAndDelete() {
+      component.ionViewWillEnter();
+      httpMock.expectOne(url).flush(thisWeek);
+      fixture.detectChanges();
+      const deleting = component.deleteWorkout(component.workouts![0]);
+      fixture.detectChanges();
+      return deleting;
+    }
+
+    it('hides the row and updates the tiles at once, with an undo toast, and sends nothing yet', async () => {
+      const deleting = enterAndDelete();
+      expect(rows()).toEqual(['Workout b']);
+      expect(tileValues()).toEqual(['1', '200']);
+      httpMock.expectNone(`${url}/a`);
+
+      await flushMicrotasks(() => toastControllerSpy.create.calls.count() > 0);
+      expect(toastControllerSpy.create).toHaveBeenCalledWith(
+        jasmine.objectContaining({
+          header: 'Workout deleted',
+          message: 'Workout a · Fri 9 Oct',
+          duration: 5000,
+          position: 'bottom',
+          cssClass: 'undo-toast',
+          buttons: [{ text: 'Undo', role: 'cancel' }],
+        }),
+      );
+      endToast('cancel');
+      await deleting;
+    });
+
+    it('sends the DELETE when the toast runs out, and the row stays gone', async () => {
+      const deleting = enterAndDelete();
+      await flushMicrotasks(() => toastSpy.present.calls.count() > 0);
+      endToast('timeout');
+      await flushMicrotasks(() => {
+        const reqs = httpMock.match({ method: 'DELETE', url: `${url}/a` });
+        reqs.forEach((r) => r.flush(null));
+        return reqs.length > 0;
+      });
+      expect(await deleting).toBe('deleted');
+      fixture.detectChanges();
+      expect(rows()).toEqual(['Workout b']);
+      expect(component.workouts!.map((w) => w.id)).toEqual(['b']);
+    });
+
+    it('Undo puts the row and the totals back and sends nothing', async () => {
+      const deleting = enterAndDelete();
+      await flushMicrotasks(() => toastSpy.present.calls.count() > 0);
+      endToast('cancel');
+      expect(await deleting).toBe('undone');
+      fixture.detectChanges();
+      expect(rows()).toEqual(['Workout a', 'Workout b']);
+      expect(tileValues()).toEqual(['2', '500']);
+      httpMock.expectNone(`${url}/a`);
+    });
+
+    it('a failed DELETE puts the row back and says so', async () => {
+      const deleting = enterAndDelete();
+      await flushMicrotasks(() => toastSpy.present.calls.count() > 0);
+      endToast('timeout');
+      await flushMicrotasks(() => {
+        const reqs = httpMock.match({ method: 'DELETE', url: `${url}/a` });
+        reqs.forEach((r) => r.flush('nope', { status: 500, statusText: 'Error' }));
+        return reqs.length > 0;
+      });
+      expect(await deleting).toBe('failed');
+      fixture.detectChanges();
+      expect(rows()).toEqual(['Workout a', 'Workout b']);
+      expect(toastControllerSpy.create).toHaveBeenCalledWith(
+        jasmine.objectContaining({ message: "Couldn't delete the workout", color: 'danger' }),
+      );
+    });
+
+    it('a reload while the toast is up keeps the row hidden', async () => {
+      const deleting = enterAndDelete();
+      component.ionViewWillEnter();
+      httpMock.expectOne(url).flush(thisWeek);
+      fixture.detectChanges();
+      expect(rows()).toEqual(['Workout b']);
+      await flushMicrotasks(() => toastSpy.present.calls.count() > 0);
+      endToast('cancel');
+      await deleting;
     });
   });
 

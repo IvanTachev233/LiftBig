@@ -27,7 +27,7 @@
             <app-workout-list-item
               [workout]="workout"
               [today]="today"
-              (deleted)="onWorkoutDeleted($event)"
+              (deleteRequested)="deleteWorkout($event)"
             ></app-workout-list-item>
           }
         }

@@ -5,7 +5,8 @@ import {
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
-import { AlertController, ToastController } from '@ionic/angular';
+import { ToastController } from '@ionic/angular';
+import { ConfirmSheetService } from '../../shared/ui/confirm-sheet.component';
 import { BottomSheetService } from '../../shared/ui/bottom-sheet.service';
 import { environment } from '../../../environments/environment';
 import { Enrollment } from '../../core/program.service';
@@ -17,7 +18,7 @@ describe('ActiveProgramPage', () => {
   let fixture: ComponentFixture<ActiveProgramPage>;
   let component: ActiveProgramPage;
   let http: HttpTestingController;
-  let alertCtrl: jasmine.SpyObj<AlertController>;
+  let confirmSheet: jasmine.SpyObj<ConfirmSheetService>;
   const api = environment.apiUrl;
 
   const workout = (
@@ -99,7 +100,7 @@ describe('ActiveProgramPage', () => {
   let now = new Date(2026, 9, 12, 9, 0);
 
   function setup(response: Enrollment | null = active) {
-    alertCtrl = jasmine.createSpyObj('AlertController', ['create']);
+    confirmSheet = jasmine.createSpyObj('ConfirmSheetService', ['confirm']);
     const toastCtrl = jasmine.createSpyObj('ToastController', ['create']);
     toastCtrl.create.and.resolveTo({ present: () => Promise.resolve() });
     TestBed.configureTestingModule({
@@ -108,7 +109,7 @@ describe('ActiveProgramPage', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
-        { provide: AlertController, useValue: alertCtrl },
+        { provide: ConfirmSheetService, useValue: confirmSheet },
         { provide: ToastController, useValue: toastCtrl },
         { provide: BottomSheetService, useValue: sheet },
       ],
@@ -160,11 +161,8 @@ describe('ActiveProgramPage', () => {
   const maxLabels = () =>
     (sheet.open.calls.mostRecent().args[1].props!['lifts'] as { label: string }[]).map((l) => l.label);
 
-  function stubAlert(role: string) {
-    const alert = jasmine.createSpyObj('HTMLIonAlertElement', ['present', 'onDidDismiss']);
-    alert.present.and.resolveTo();
-    alert.onDidDismiss.and.resolveTo({ role });
-    alertCtrl.create.and.resolveTo(alert);
+  function answerSheet(confirmed: boolean) {
+    confirmSheet.confirm.and.resolveTo(confirmed);
   }
 
   it('shows the program name, start date and sessions by week', () => {
@@ -230,14 +228,14 @@ describe('ActiveProgramPage', () => {
       ...active,
       maxesSnapshot: { bench: 100, squat: 140 },
     };
-    alertCtrl = jasmine.createSpyObj('AlertController', ['create']);
+    confirmSheet = jasmine.createSpyObj('ConfirmSheetService', ['confirm']);
     TestBed.configureTestingModule({
       imports: [ActiveProgramPage],
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
-        { provide: AlertController, useValue: alertCtrl },
+        { provide: ConfirmSheetService, useValue: confirmSheet },
         { provide: BottomSheetService, useValue: sheet },
       ],
     });
@@ -293,8 +291,17 @@ describe('ActiveProgramPage', () => {
 
   it('abandons after confirming and then shows no active program', async () => {
     setup();
-    stubAlert('destructive');
+    answerSheet(true);
     await component.abandon();
+    expect(confirmSheet.confirm).toHaveBeenCalledOnceWith(
+      jasmine.objectContaining({
+        title: 'Abandon this program?',
+        message: 'Planned sessions are deleted. Started and completed ones stay.',
+        confirmLabel: 'Abandon program',
+        summary: component.programSummary,
+        summaryContext: component.active,
+      }),
+    );
     const req = http.expectOne(`${api}/program-enrollments/en1/abandon`);
     req.flush({ ...active, status: 'ABANDONED', workouts: [] });
     fixture.detectChanges();
@@ -304,7 +311,7 @@ describe('ActiveProgramPage', () => {
 
   it('keeps the program when the abandon confirm is cancelled', async () => {
     setup();
-    stubAlert('cancel');
+    answerSheet(false);
     await component.abandon();
     http.expectNone(`${api}/program-enrollments/en1/abandon`);
     expect(component.active).not.toBeNull();
