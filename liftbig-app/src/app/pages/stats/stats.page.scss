@@ -1,1 +1,82 @@
-/* Page-specific styles only — shared card styles are in WorkoutCardComponent and global.scss */
+h1 {
+  margin-bottom: 18px;
+}
+
+ion-segment,
+app-stat-tiles {
+  margin-bottom: 18px;
+}
+
+.month + .month {
+  margin-top: 18px;
+}
+
+.month-heading {
+  margin: 0 0 4px;
+  font-size: 12px;
+}
+
+.history-list {
+  padding: 0;
+  background: transparent;
+}
+
+.lift-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    border-bottom: 1px solid var(--divider);
+  }
+}
+
+.lift-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+
+  ion-icon {
+    font-size: 18px;
+    color: var(--icon-muted);
+  }
+}
+
+.lift-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+}
+
+.lift-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.lift-date,
+.lift-unit {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.lift-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.lift-weight {
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.empty-state,
+.lift-list .lifts-empty {
+  border: 0;
+  margin: 32px 0;
+  text-align: center;
+  color: var(--text-2);
+}

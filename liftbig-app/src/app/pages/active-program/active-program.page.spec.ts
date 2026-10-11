@@ -6,6 +6,7 @@ import {
 } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { AlertController, ToastController } from '@ionic/angular';
+import { BottomSheetService } from '../../shared/ui/bottom-sheet.service';
 import { environment } from '../../../environments/environment';
 import { Enrollment } from '../../core/program.service';
 import { Workout, WorkoutStatus } from '../../core/workout.service';
@@ -94,6 +95,9 @@ describe('ActiveProgramPage', () => {
     },
   ];
 
+  // Monday 12 Oct 2026, two days before the program starts
+  let now = new Date(2026, 9, 12, 9, 0);
+
   function setup(response: Enrollment | null = active) {
     alertCtrl = jasmine.createSpyObj('AlertController', ['create']);
     const toastCtrl = jasmine.createSpyObj('ToastController', ['create']);
@@ -106,16 +110,31 @@ describe('ActiveProgramPage', () => {
         provideRouter([]),
         { provide: AlertController, useValue: alertCtrl },
         { provide: ToastController, useValue: toastCtrl },
+        { provide: BottomSheetService, useValue: sheet },
       ],
     });
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(ActiveProgramPage);
     component = fixture.componentInstance;
+    component.now = () => now;
     fixture.detectChanges();
     component.ionViewWillEnter();
     http.expectOne(`${api}/program-enrollments/active`).flush({ active: response });
     if (response) http.expectOne(`${api}/sports`).flush(sports);
     fixture.detectChanges();
+  }
+
+  afterEach(() => (now = new Date(2026, 9, 12, 9, 0)));
+
+  /** The texts of a selector across every week of the Week control */
+  function acrossWeeks(selector: string): string[] {
+    const texts: string[] = [];
+    for (const { week } of component.weeks) {
+      component.selectWeek(week);
+      fixture.detectChanges();
+      texts.push(...page.all(selector));
+    }
+    return texts;
   }
 
   afterEach(() => http.verify());
@@ -130,10 +149,16 @@ describe('ActiveProgramPage', () => {
       fixture.nativeElement.querySelectorAll(selector).length as number,
   };
 
+  // The update sheet stays open (stub) until a test closes it
+  let sheet: jasmine.SpyObj<BottomSheetService>;
+  beforeEach(() => {
+    sheet = jasmine.createSpyObj('BottomSheetService', ['open']);
+    sheet.open.and.returnValue(new Promise(() => {}));
+  });
+
+  /** The lift labels of the update sheet, in its order */
   const maxLabels = () =>
-    Array.from<HTMLIonInputElement>(
-      fixture.nativeElement.querySelectorAll('ion-input.max-input'),
-    ).map((input) => input.label);
+    (sheet.open.calls.mostRecent().args[1].props!['lifts'] as { label: string }[]).map((l) => l.label);
 
   function stubAlert(role: string) {
     const alert = jasmine.createSpyObj('HTMLIonAlertElement', ['present', 'onDidDismiss']);
@@ -145,24 +170,31 @@ describe('ActiveProgramPage', () => {
   it('shows the program name, start date and sessions by week', () => {
     setup();
     expect(page.text('.program-title')).toBe('Sample Powerlifting Program');
-    expect(page.text('.program-start')).toContain('Oct 14, 2026');
+    expect(page.text('.program-start')).toBe('Started 14 Oct · ends 23 Oct');
     expect(page.all('.week-title')).toEqual(['Week 1', 'Week 2']);
-    expect(page.all('.session-date')).toEqual([
-      'Oct 14, 2026',
-      'Oct 16, 2026',
-      'Oct 21, 2026',
-      'Oct 23, 2026',
-    ]);
+    expect(acrossWeeks('.session-row time').length).toBe(4);
+    const dates = () =>
+      Array.from<HTMLElement>(fixture.nativeElement.querySelectorAll('.session-row time')).map((t) =>
+        t.getAttribute('datetime'),
+      );
+    component.selectWeek(1);
+    fixture.detectChanges();
+    expect(dates()).toEqual(['2026-10-14', '2026-10-16']);
+    component.selectWeek(2);
+    fixture.detectChanges();
+    expect(dates()).toEqual(['2026-10-21', '2026-10-23']);
   });
 
   it('shows COMPLETED sessions as done and the others by status', () => {
     setup();
-    expect(page.all('.session-status')).toEqual([
+    expect(acrossWeeks('.session-status')).toEqual([
       'Done',
       'In progress',
       'Planned',
       'Planned',
     ]);
+    component.selectWeek(1);
+    fixture.detectChanges();
     expect(page.count('.session-done')).toBe(1);
   });
 
@@ -206,6 +238,7 @@ describe('ActiveProgramPage', () => {
         provideHttpClientTesting(),
         provideRouter([]),
         { provide: AlertController, useValue: alertCtrl },
+        { provide: BottomSheetService, useValue: sheet },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -241,6 +274,23 @@ describe('ActiveProgramPage', () => {
     req.flush(active);
   });
 
+  it('confirming the update sheet recalculates with the maxes it returns; closing it does nothing', async () => {
+    setup();
+    sheet.open.and.resolveTo({ data: { squat: 150 }, role: 'confirm' });
+    await component.openRecalculate();
+    http.expectOne((r) => r.url === `${api}/lifts/best`).flush([]);
+    const req = http.expectOne(`${api}/program-enrollments/en1/recalculate`);
+    expect(req.request.body).toEqual({ maxes: [{ exerciseId: 'squat', weightKg: 150 }] });
+    req.flush(active);
+    expect(component.recalculating).toBeFalse();
+
+    sheet.open.and.resolveTo({ role: 'cancel' });
+    await component.openRecalculate();
+    http.expectOne((r) => r.url === `${api}/lifts/best`).flush([]);
+    http.expectNone(`${api}/program-enrollments/en1/recalculate`);
+    expect(component.recalculating).toBeFalse();
+  });
+
   it('abandons after confirming and then shows no active program', async () => {
     setup();
     stubAlert('destructive');
@@ -263,5 +313,50 @@ describe('ActiveProgramPage', () => {
   it('shows an empty state without an active program', () => {
     setup(null);
     expect(page.count('.no-program')).toBe(1);
+  });
+
+  describe('layout', () => {
+    it('preselects the current week of the program, from the device clock', () => {
+      now = new Date(2026, 9, 22, 23, 59);
+      setup();
+      expect(component.selectedWeek).toBe(2);
+      expect(fixture.nativeElement.querySelector('ion-segment').value).toBe(2);
+    });
+
+    it('opens on week 1 before the program starts', () => {
+      setup();
+      expect(component.selectedWeek).toBe(1);
+    });
+
+    it('shows a past planned session as Missed', () => {
+      now = new Date(2026, 9, 22, 9, 0);
+      setup();
+      // Week 2: the 21st is past and still planned, the 23rd is to come
+      expect(page.all('.session-status')).toEqual(['Missed', 'Planned']);
+    });
+
+    it('sums up the sessions completed, one progress segment per session', () => {
+      setup();
+      expect([page.text('.done-count'), page.text('.total-count')]).toEqual(['1', '/ 4']);
+      const segments = Array.from(fixture.nativeElement.querySelectorAll('.progress-summary .segment'));
+      expect(segments.length).toBe(4);
+      expect(segments.filter((s: any) => s.classList.contains('filled')).length).toBe(1);
+    });
+
+    it('opens the update sheet from "Update 1RMs & recalculate" and abandons from the red text action', () => {
+      setup();
+      const actions = fixture.nativeElement.querySelector('.program-actions') as HTMLElement;
+      const buttons = Array.from<HTMLElement>(actions.querySelectorAll('button'));
+      expect(buttons.map((b) => b.textContent!.trim())).toEqual(['Update 1RMs & recalculate', 'Abandon program']);
+      expect(buttons[1].classList).toContain('danger');
+
+      buttons[0].click();
+      http.expectOne((r) => r.url === `${api}/lifts/best`).flush([]);
+      expect(component.recalculating).toBeTrue();
+
+      const abandon = spyOn(component, 'abandon').and.resolveTo();
+      buttons[1].click();
+      expect(abandon).toHaveBeenCalled();
+    });
   });
 });

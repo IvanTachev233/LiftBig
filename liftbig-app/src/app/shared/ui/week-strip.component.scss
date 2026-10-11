@@ -1,0 +1,66 @@
+:host {
+  display: block;
+}
+
+ol {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.week-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  border-radius: 12px;
+
+  span {
+    color: var(--text);
+  }
+
+  .week-letter {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-3);
+  }
+
+  .week-num {
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .week-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+  }
+
+  &[data-dot='done'] .week-dot {
+    background: var(--success);
+  }
+
+  &[data-dot='open'] .week-dot {
+    background: var(--pr-text);
+  }
+
+  &[data-dot='planned'] .week-dot {
+    background: var(--icon-muted);
+  }
+
+  &.today {
+    background: var(--accent);
+
+    span {
+      color: var(--on-accent);
+    }
+
+    &[data-dot] .week-dot {
+      background: var(--on-accent);
+    }
+  }
+}

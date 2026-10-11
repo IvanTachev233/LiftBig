@@ -1,0 +1,17 @@
+<ion-header class="screen-header ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/history" text="" aria-label="Back"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ name }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button fill="clear" class="add-entry-btn" aria-label="Add entry" (click)="addEntry()">
+        <ion-icon slot="icon-only" name="add" aria-hidden="true"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="screen-pushed">
+  <app-exercise-history [exerciseId]="exerciseId" />
+</ion-content>

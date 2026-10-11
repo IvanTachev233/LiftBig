@@ -3,15 +3,29 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 50vh;
+  gap: 12px;
+  min-height: 70vh;
+  padding: 0 24px;
+  text-align: center;
 }
 
 .status-icon {
   font-size: 64px;
-  margin-bottom: 16px;
+
+  &.success {
+    color: var(--success);
+  }
+
+  &.error {
+    color: var(--danger-text);
+  }
 }
 
-.mt-20 {
-  margin-top: 80px;
-  text-align: center;
+.invite-message {
+  margin: 0 0 12px;
+  color: var(--text-2);
+}
+
+ion-button {
+  align-self: stretch;
 }

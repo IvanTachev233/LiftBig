@@ -39,6 +39,10 @@
 @import "@ionic/angular/css/palettes/dark.class.css";
 /* @import "@ionic/angular/css/palettes/dark.system.css"; */
 
+/* Geist and Barlow Condensed, shipped in assets/fonts (after the imports,
+   which must come first) */
+@include meta.load-css("theme/fonts");
+
 /* Global Typography Fixes */
 /* This ensures that raw HTML elements correctly switch to white on dark mode and black on light mode */
 h1,
@@ -87,12 +91,6 @@ ion-input.set-input {
   text-align: center;
 }
 
-// Logger set rows are narrow; keep room for a value like 102.5
-app-workout-logger .set-row ion-input.set-input {
-  --padding-start: 4px;
-  --padding-end: 4px;
-}
-
 // Spin buttons would take the text room of a narrow number input
 ion-input.set-input input {
   appearance: textfield;
@@ -104,48 +102,98 @@ ion-input.set-input input {
   }
 }
 
-/* Shared auth form styles (login + register) */
+/* Log in, Sign up and Accept invite */
+.auth-content {
+  --padding-start: 24px;
+  --padding-end: 24px;
+}
+
+.auth-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 96px 0 40px;
+
+  &.register-page {
+    padding-top: 8px;
+  }
+}
+
+.auth-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wordmark {
+  font-size: 64px;
+  font-weight: 700;
+  line-height: 0.9;
+  text-transform: uppercase;
+  color: var(--text);
+
+  .wordmark-dot {
+    color: var(--accent-text);
+  }
+}
+
+.auth-tagline {
+  margin: 0;
+  font-size: 17px;
+  color: var(--text-2);
+}
+
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  max-width: 28rem;
-  margin: 0 auto;
-  width: 100%;
-}
+  gap: 18px;
+  margin-top: 56px;
 
-.auth-header {
-  text-align: center;
-  margin-bottom: 1rem;
-
-  h1 {
-    font-size: 1.875rem;
-    font-weight: 600;
-    letter-spacing: -0.025em;
-    color: var(--accent-text);
-    margin: 0;
+  .register-page & {
+    margin-top: 32px;
   }
 
-  p {
-    color: var(--text-muted);
-    margin: 0.25rem 0 0;
+  ion-button.btn-primary {
+    margin-top: 10px;
   }
 }
 
-.auth-item {
-  --background: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  border-radius: 0.5rem;
-  --highlight-height: 0;
+// 44px target inside the password field
+.password-toggle {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-inline-end: -12px;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 20px;
+  cursor: pointer;
+
+  &[aria-pressed='true'] {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    border-radius: 10px;
+  }
 }
 
 .auth-footer {
+  margin: auto 0 0;
+  padding-top: 32px;
   text-align: center;
-  color: var(--text-muted);
-  margin-top: 1.5rem;
+  font-size: 15px;
+  color: var(--text-2);
 
   a {
-    color: var(--accent-text);
+    padding-bottom: 1px;
+    border-bottom: 1.5px solid var(--accent);
+    color: var(--text);
     font-weight: 600;
     text-decoration: none;
   }
@@ -199,6 +247,12 @@ ion-alert {
 
 /* Buttons, segments, chips, fields, cards, type scale (design handoff) */
 @include meta.load-css("theme/components");
+
+/* Exercise cards and the set table of the logger */
+@include meta.load-css("theme/workout");
+
+/* Screen padding, pushed-screen toolbars, row buttons, focus rings */
+@include meta.load-css("theme/screens");
 
 /* ---------------------------------------------------------------------------
  * Utility classes

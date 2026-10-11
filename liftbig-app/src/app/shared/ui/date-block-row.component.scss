@@ -59,6 +59,19 @@
 .row-sub {
   font-size: 12px;
   color: var(--text-2);
+
+  &.tone-accent {
+    color: var(--accent-text);
+  }
+
+  &.tone-muted {
+    color: var(--text-3);
+  }
+}
+
+// Light --text-3 on the page is 4.4:1
+:host-context([data-theme='light']) .row-sub.tone-muted {
+  color: var(--text-2);
 }
 
 .row-trailing {

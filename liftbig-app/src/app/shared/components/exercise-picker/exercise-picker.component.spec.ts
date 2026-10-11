@@ -24,11 +24,11 @@ describe('ExercisePickerComponent', () => {
   const client: User = { id: 'client-1', email: 'k@example.test', role: 'CLIENT', coachId: 'coach-1' };
 
   const exercises: Exercise[] = [
-    { id: 'e1', name: 'Back Squat', imageUrl: 'https://cdn.example.com/squat.png' },
-    { id: 'e2', name: 'Bench Press' },
-    { id: 'e3', name: 'Deadlift' },
-    { id: 'e4', name: 'Front Squat' },
-    { id: 'e5', name: 'Overhead Press' },
+    { id: 'e1', name: 'Back Squat', bodyPart: 'LG', imageUrl: 'https://cdn.example.com/squat.png' },
+    { id: 'e2', name: 'Bench Press', bodyPart: 'CH' },
+    { id: 'e3', name: 'Deadlift', bodyPart: 'BK' },
+    { id: 'e4', name: 'Front Squat', bodyPart: 'LG' },
+    { id: 'e5', name: 'Overhead Press', bodyPart: null },
   ];
 
   function setup(options: { user?: User | null; exercises?: Exercise[] | undefined } = {}) {
@@ -161,13 +161,16 @@ describe('ExercisePickerComponent', () => {
   describe('rows', () => {
     beforeEach(() => setup());
 
-    it('shows the 40px thumbnail when imageUrl is set and a placeholder otherwise', () => {
+    it('shows a thumbnail only when imageUrl is set', () => {
       const img = row('Back Squat').querySelector('img') as HTMLImageElement;
       expect(img.getAttribute('src')).toBe('https://cdn.example.com/squat.png');
-      expect(row('Back Squat').querySelector('.thumb-placeholder')).toBeNull();
-
       expect(row('Bench Press').querySelector('img')).toBeNull();
-      expect(row('Bench Press').querySelector('.thumb-placeholder')).toBeTruthy();
+    });
+
+    it('shows the body part under the name, and nothing without one', () => {
+      expect(row('Bench Press').querySelector('.exercise-row-sub')?.textContent?.trim()).toBe('Chest');
+      expect(row('Back Squat').querySelector('.exercise-row-sub')?.textContent?.trim()).toBe('Legs');
+      expect(row('Overhead Press').querySelector('.exercise-row-sub')).toBeNull();
     });
 
     it('labels the info button and the checkbox for screen readers', () => {
@@ -214,6 +217,46 @@ describe('ExercisePickerComponent', () => {
       search('');
       expect(checkbox('Deadlift').checked).toBeTrue();
       expect(checkbox('Front Squat').checked).toBeTrue();
+    });
+  });
+
+  describe('body part chips', () => {
+    beforeEach(() => setup());
+
+    function chips(): HTMLElement[] {
+      return Array.from(el().querySelectorAll<HTMLElement>('.filter-chips .chip'));
+    }
+
+    function pick(label: string) {
+      chips()
+        .find((c) => c.textContent?.trim() === label)!
+        .click();
+      fixture.detectChanges();
+    }
+
+    it('offers All plus only the body parts present, in a fixed order, with All selected', () => {
+      expect(chips().map((c) => c.textContent?.trim())).toEqual(['All', 'Chest', 'Back', 'Legs']);
+      expect(chips()[0].getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('a chip filters the list, combined with the search', () => {
+      pick('Legs');
+      expect(rowNames()).toEqual(['Back Squat', 'Front Squat']);
+
+      search('front');
+      expect(rowNames()).toEqual(['Front Squat']);
+
+      pick('All');
+      expect(rowNames()).toEqual(['Front Squat']);
+      search('');
+      expect(rowNames()).toEqual(exercises.map((e) => e.name));
+    });
+
+    it('keeps selections hidden by a chip', () => {
+      clickRow('Deadlift');
+      pick('Legs');
+      clickRow('Back Squat');
+      expect(addButton().textContent?.trim()).toBe('Add 2 exercises');
     });
   });
 
@@ -289,6 +332,20 @@ describe('ExercisePickerComponent', () => {
       expect(modalCtrlSpy.dismiss).not.toHaveBeenCalled();
     });
 
+    it('the add button reads "Add exercise", "Add 1 exercise", then "Add N exercises"', () => {
+      expect(addButton().textContent?.trim()).toBe('Add exercise');
+      clickRow('Deadlift');
+      expect(addButton().textContent?.trim()).toBe('Add 1 exercise');
+      clickRow('Bench Press');
+      clickRow('Front Squat');
+      expect(addButton().textContent?.trim()).toBe('Add 3 exercises');
+    });
+
+    it('Cancel sits at the top left beside the centred title', () => {
+      expect(el().querySelector('.back-button')?.textContent?.trim()).toBe('Cancel');
+      expect(el().querySelector('.picker-title')?.textContent?.trim()).toBe('Add exercise');
+    });
+
     it('back dismisses with nothing and the cancel role', () => {
       clickRow('Deadlift');
       (el().querySelector('.back-button') as HTMLElement).click();
@@ -326,7 +383,7 @@ describe('ExercisePickerComponent', () => {
   describe('Create New Exercise card', () => {
     it('renders for a COACH', () => {
       setup({ user: coach });
-      expect(el().querySelector('.create-card')?.textContent).toContain('Create New Exercise');
+      expect(el().querySelector('.create-card')?.textContent).toContain('Create new exercise');
     });
 
     it('does not render for a CLIENT', () => {
@@ -472,12 +529,12 @@ describe('ExercisePickerComponent', () => {
 
     it('still shows the Create New Exercise card for coaches', () => {
       setupReplace({ user: coach });
-      expect(el().querySelector('.create-card')?.textContent).toContain('Create New Exercise');
+      expect(el().querySelector('.create-card')?.textContent).toContain('Create new exercise');
     });
 
-    it('keeps the header title as "Exercises"', () => {
+    it('titles the picker "Replace exercise"', () => {
       setupReplace();
-      expect(el().querySelector('.picker-title')?.textContent).toContain('Exercises');
+      expect(el().querySelector('.picker-title')?.textContent?.trim()).toBe('Replace exercise');
     });
 
     it('a created exercise is selected and replaces the previous selection', async () => {

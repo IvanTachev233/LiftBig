@@ -1,86 +1,122 @@
-<ion-header [translucent]="true">
+<ion-header class="screen-header ion-no-border">
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-back-button defaultHref="/programs"></ion-back-button>
+      <ion-back-button defaultHref="/programs" text="" aria-label="Back"></ion-back-button>
     </ion-buttons>
-    <ion-title>{{ program?.name || 'Program' }}</ion-title>
   </ion-toolbar>
 </ion-header>
 
-<ion-content [fullscreen]="true" class="ion-padding">
+<ion-content class="screen-pushed">
   @if (program; as p) {
-    <h1 class="workout-title">{{ p.name }}</h1>
-    <p class="text-muted">
-      {{ p.sport.name }} · {{ p.authorName }} · {{ p.durationWeeks }} weeks ·
-      {{ p.sessionsPerWeek }} sessions/week
-    </p>
+    <div class="detail-heading">
+      <span class="eyebrow accent detail-eyebrow">{{ p.sport.name }} · {{ p.authorName }}</span>
+      <h1 class="title-detail">{{ p.name }}</h1>
+    </div>
+
+    <div class="stats-row">
+      <span class="stat"><span class="num">{{ p.durationWeeks }}</span> weeks</span>
+      <span class="stat"><span class="num">{{ p.sessionsPerWeek }}</span> per week</span>
+      <span class="stat"><span class="num">{{ p.durationWeeks * p.sessionsPerWeek }}</span> sessions</span>
+    </div>
+
     @if (p.description) {
-      <p>{{ p.description }}</p>
+      <p class="detail-description">{{ p.description }}</p>
     }
 
-    <h2 class="section-title mt-6">Start this program</h2>
     @if (p.referenceLifts.length) {
-      <p class="text-muted">Your current 1RM ({{ units.unit() }})</p>
-      <ion-list lines="none" class="bg-transparent">
-        @for (lift of p.referenceLifts; track lift.exerciseId) {
-          <ion-item>
+      <section class="maxes" aria-labelledby="maxes-title">
+        <div class="maxes-heading">
+          <h2 class="heading-section" id="maxes-title">Your 1RMs</h2>
+          <p class="text-secondary">Every working weight is calculated from these. You can update them any time.</p>
+        </div>
+        <div class="maxes-grid">
+          @for (lift of p.referenceLifts; track lift.exerciseId) {
             <ion-input
               type="number"
               inputmode="decimal"
-              class="max-input"
-              labelPlacement="start"
+              class="input-field max-input num"
+              labelPlacement="stacked"
+              placeholder="—"
               [label]="lift.label"
               [(ngModel)]="maxes[lift.exerciseId]"
-              [placeholder]="units.unit()"
-            ></ion-input>
-          </ion-item>
-        }
-      </ion-list>
+            >
+              <span slot="end" class="unit-suffix">{{ units.unit() }}</span>
+            </ion-input>
+          }
+        </div>
+      </section>
     }
-    <ion-item lines="none">
-      <ion-icon name="calendar-outline" slot="start" color="medium"></ion-icon>
-      <ion-label>First session</ion-label>
-      <ion-datetime-button datetime="programStart"></ion-datetime-button>
-      <ion-modal [keepContentsMounted]="true">
-        <ng-template>
+
+    <button type="button" class="row-button first-session" (click)="pickingDate = true">
+      <ion-icon name="calendar-outline" aria-hidden="true"></ion-icon>
+      <span class="first-session-label">First session</span>
+      <span class="first-session-date">{{ startDate | date: 'EEE, d MMM' }}</span>
+      <ion-icon class="chevron" name="chevron-forward" aria-hidden="true"></ion-icon>
+    </button>
+
+    <!-- First session day -->
+    <ion-modal
+      class="bottom-sheet"
+      aria-label="First session"
+      [isOpen]="pickingDate"
+      [breakpoints]="[0, 1]"
+      [initialBreakpoint]="1"
+      [handle]="true"
+      (didDismiss)="pickingDate = false"
+    >
+      <ng-template>
+        <div class="sheet-body">
+          <h2 class="title-card">First session</h2>
           <ion-datetime
-            id="programStart"
             presentation="date"
             [min]="minDate"
             [value]="startDate"
             (ionChange)="dateChanged($any($event))"
           ></ion-datetime>
-        </ng-template>
-      </ion-modal>
-    </ion-item>
-    <ion-button
-      expand="block"
-      class="start-btn mt-4"
-      [disabled]="!canStart"
-      (click)="start()"
-    >
-      Start
-    </ion-button>
+        </div>
+      </ng-template>
+    </ion-modal>
 
-    <h2 class="section-title mt-8">Schedule</h2>
-    @for (week of weeks; track week.week) {
-      <h3 class="week-title">Week {{ week.week }}</h3>
-      @for (session of week.sessions; track session.id) {
-        <ion-card class="session-card">
-          <ion-card-header>
-            <ion-card-subtitle class="session-title"
-              >Day {{ session.dayOffset + 1 }} · {{ session.title }}</ion-card-subtitle
-            >
-          </ion-card-header>
-          <ion-card-content>
-            @for (exercise of session.exercises; track exercise.id) {
-              <div class="session-exercise">{{ exerciseLine(exercise) }}</div>
+    <!-- Full schedule -->
+    <ion-modal
+      class="schedule-sheet"
+      aria-label="Full schedule"
+      [isOpen]="showingSchedule"
+      [keepContentsMounted]="true"
+      [breakpoints]="[0, 0.9]"
+      [initialBreakpoint]="0.9"
+      [handle]="true"
+      (didDismiss)="showingSchedule = false"
+    >
+      <ng-template>
+        <ion-content class="schedule-content">
+          <h2 class="title-card">Schedule</h2>
+          @for (week of weeks; track week.week) {
+            <h3 class="week-title eyebrow">Week {{ week.week }}</h3>
+            @for (session of week.sessions; track session.id) {
+              <div class="session-card surface-card">
+                <span class="session-title">Day {{ session.dayOffset + 1 }} · {{ session.title }}</span>
+                @for (exercise of session.exercises; track exercise.id) {
+                  <div class="session-exercise">{{ exerciseLine(exercise) }}</div>
+                }
+              </div>
             }
-          </ion-card-content>
-        </ion-card>
-      }
-    }
+          }
+        </ion-content>
+      </ng-template>
+    </ion-modal>
   } @else {
     <ion-spinner class="block mx-auto mt-10"></ion-spinner>
   }
 </ion-content>
+
+@if (program) {
+  <ion-footer class="action-bar stacked ion-no-border">
+    <ion-button class="btn-primary start-btn" expand="block" [disabled]="!canStart" (click)="start()">
+      Start program
+    </ion-button>
+    <ion-button class="btn-text muted preview-btn" expand="block" (click)="showingSchedule = true">
+      Preview full schedule
+    </ion-button>
+  </ion-footer>
+}

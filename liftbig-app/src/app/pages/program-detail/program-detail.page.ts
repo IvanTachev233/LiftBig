@@ -19,7 +19,8 @@ import {
 } from '../../core/program.service';
 import { WeightUnitService } from '../../core/weight-unit.service';
 
-// Preview of a published program and the form that starts it
+// Start program: the program's facts, the 1RMs and first day it starts
+// with, and its schedule in a sheet
 @Component({
   selector: 'app-program-detail',
   templateUrl: './program-detail.page.html',
@@ -44,6 +45,9 @@ export class ProgramDetailPage implements ViewWillEnter {
   minDate = localDay();
   startDate = this.minDate;
   starting = false;
+  // The date picker and schedule sheets
+  pickingDate = false;
+  showingSchedule = false;
 
   ionViewWillEnter() {
     const id = this.route.snapshot.paramMap.get('id')!;
@@ -97,6 +101,7 @@ export class ProgramDetailPage implements ViewWillEnter {
   dateChanged(event: { detail: { value?: string | string[] | null } }) {
     const value = event.detail.value;
     if (typeof value === 'string') this.startDate = value.slice(0, 10);
+    this.pickingDate = false;
   }
 
   start(abandonCurrent = false) {

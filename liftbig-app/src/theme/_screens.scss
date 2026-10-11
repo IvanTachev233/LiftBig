@@ -1,0 +1,65 @@
+// Screen layout shared by the tab roots and pushed screens (design handoff):
+// content padding, the pushed-screen toolbar, button resets and focus rings.
+
+// Tab roots: title at the top of the content
+ion-content.screen-tab,
+ion-content.screen-pushed {
+  --padding-start: var(--gutter);
+  --padding-end: var(--gutter);
+  --padding-top: 36px;
+  --padding-bottom: 24px;
+}
+
+// Pushed screens: below a toolbar with a back button
+ion-content.screen-pushed {
+  --padding-top: 8px;
+}
+
+ion-header.screen-header ion-toolbar {
+  --background: var(--bg);
+  --padding-top: 16px;
+}
+
+ion-header.screen-header ion-title {
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+}
+
+// [fill] outranks the global clear-button accent colour
+ion-header.screen-header :is(ion-back-button, ion-button[fill]) {
+  --color: var(--text-soft);
+}
+
+// A plain <button> laid out by its content: rows, cards, banners
+.row-button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+// Bottom action bar of a screen or picker: one or two buttons side by side
+ion-footer.action-bar {
+  display: flex;
+  gap: 10px;
+  padding: 12px var(--gutter) calc(12px + var(--ion-safe-area-bottom, 0px));
+  border-top: 1px solid var(--surface-2);
+  background: var(--bg);
+
+  &.stacked {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+// Keyboard focus on the app's own buttons and links
+:where(button, a):focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}

@@ -1,6 +1,34 @@
 <ion-item-sliding #slidingItem [disabled]="isLocked">
-  <ion-item lines="none" class="workout-list-item">
-    <app-workout-card [workout]="workout"></app-workout-card>
+  <ion-item
+    lines="none"
+    class="workout-list-item"
+    [button]="true"
+    [detail]="false"
+    [routerLink]="['/workout-logger']"
+    [queryParams]="{ id: workout.id }"
+  >
+    @let state = status;
+    <app-date-block-row
+      [date]="workout.date"
+      [title]="workout.name"
+      [sub]="state.text"
+      [subTone]="state.tone"
+    >
+      @if (workout.hasPb) {
+        <span tags class="pb-trophy" role="img" aria-label="Has a personal best">
+          <app-status-pill kind="pr" size="sm" aria-hidden="true" />
+        </span>
+      }
+      @if (source === 'coach') {
+        <span tags class="coach-badge"><app-status-pill kind="coach" size="sm" /></span>
+      } @else if (source === 'program') {
+        <span tags class="program-badge"><app-status-pill kind="program" size="sm" /></span>
+      }
+      <span trailing class="row-volume" [class.empty]="!workout.totalWeightLifted">
+        <span class="num">{{ units.toDisplay(workout.totalWeightLifted) | number: '1.0-0' }}</span>
+        <span class="volume-unit">{{ units.unit() }}</span>
+      </span>
+    </app-date-block-row>
   </ion-item>
   <ion-item-options *ngIf="!isLocked" side="end">
     <ion-item-option

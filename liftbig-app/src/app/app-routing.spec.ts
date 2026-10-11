@@ -127,6 +127,7 @@ describe('App navigation', () => {
     ['CLIENT', '/programs/active', '/programs/active', true],
     ['CLIENT', '/history', '/history', true],
     ['CLIENT', '/profile', '/profile', true],
+    ['CLIENT', '/history/lifts/ex1', '/history/lifts/ex1', true],
     // Full-screen athlete routes
     ['CLIENT', '/workout-logger', '/workout-logger', false],
     ['CLIENT', '/programs/p1', '/programs/p1', false],
@@ -149,6 +150,7 @@ describe('App navigation', () => {
     ['COACH', '/today', '/coach/clients', true],
     ['COACH', '/stats', '/coach/clients', true],
     ['COACH', '/history', '/coach/clients', true],
+    ['COACH', '/history/lifts/ex1', '/coach/clients', true],
     ['COACH', '/workout-logger', '/coach/clients', true],
     ['COACH', '/programs', '/coach/clients', true],
     ['COACH', '/programs/active', '/coach/clients', true],

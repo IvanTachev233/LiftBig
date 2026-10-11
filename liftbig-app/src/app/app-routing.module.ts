@@ -69,6 +69,14 @@ export const routes: Routes = [
           import('./pages/stats/stats.module').then((m) => m.StatsPageModule),
       },
       {
+        path: 'history/lifts/:exerciseId',
+        canActivate: [clientDashboardGuard],
+        loadComponent: () =>
+          import('./pages/exercise-detail/exercise-detail.page').then(
+            (m) => m.ExerciseDetailPage,
+          ),
+      },
+      {
         path: 'profile',
         canActivate: [clientDashboardGuard],
         data: { coachUrl: '/coach/profile' },

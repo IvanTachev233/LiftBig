@@ -1,53 +1,56 @@
-<ion-header [translucent]="true">
-  <ion-toolbar>
-    <ion-title>Login</ion-title>
-  </ion-toolbar>
-</ion-header>
-
-<ion-content [fullscreen]="true" class="ion-padding">
-  <form class="auth-form mt-10" (ngSubmit)="login()">
-    <div class="auth-header">
-      <h1>LiftBig</h1>
-      <p>Train like a champion.</p>
+<ion-content class="auth-content">
+  <div class="auth-page">
+    <div class="auth-brand">
+      <span class="wordmark num">LiftBig<span class="wordmark-dot">.</span></span>
+      <p class="auth-tagline">Train like a champion.</p>
     </div>
 
-    <ion-item class="auth-item" lines="none">
+    <form class="auth-form" (ngSubmit)="login()">
       <ion-input
+        class="input-field"
         label="Email"
         labelPlacement="stacked"
         type="email"
         name="email"
         autocomplete="email"
         [(ngModel)]="credentials.email"
-        placeholder="email@example.com"
+        placeholder="you@example.com"
         required
       ></ion-input>
-    </ion-item>
 
-    <ion-item class="auth-item" lines="none">
       <ion-input
+        class="input-field password-input"
         label="Password"
         labelPlacement="stacked"
-        type="password"
         name="password"
         autocomplete="current-password"
+        [type]="showPassword ? 'text' : 'password'"
         [(ngModel)]="credentials.password"
         placeholder="Your password"
         required
-      ></ion-input>
-    </ion-item>
+      >
+        <button
+          slot="end"
+          type="button"
+          class="password-toggle"
+          [attr.aria-pressed]="showPassword"
+          [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+          (click)="showPassword = !showPassword"
+        >
+          <ion-icon [name]="showPassword ? 'eye-off-outline' : 'eye-outline'" aria-hidden="true"></ion-icon>
+        </button>
+      </ion-input>
 
-    <ion-button
-      expand="block"
-      type="submit"
-      class="mt-4"
-      [disabled]="!credentials.email || !credentials.password"
-    >
-      Login
-    </ion-button>
+      <ion-button
+        class="btn-primary"
+        expand="block"
+        type="submit"
+        [disabled]="!credentials.email || !credentials.password"
+      >
+        Log in
+      </ion-button>
+    </form>
 
-    <p class="auth-footer">
-      Don't have an account? <a routerLink="/register">Create one</a>
-    </p>
-  </form>
+    <p class="auth-footer">New to LiftBig? <a routerLink="/register">Create an account</a></p>
+  </div>
 </ion-content>

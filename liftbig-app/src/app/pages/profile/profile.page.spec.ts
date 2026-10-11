@@ -11,6 +11,7 @@ import { AuthService, User } from '../../core/auth.service';
 import { fakeToken } from '../../core/auth.testing';
 import { THEME_KEY } from '../../core/theme.service';
 import { WeightUnitService } from '../../core/weight-unit.service';
+import { BottomSheetService } from '../../shared/ui/bottom-sheet.service';
 import { ProfilePage } from './profile.page';
 
 describe('ProfilePage', () => {
@@ -18,6 +19,7 @@ describe('ProfilePage', () => {
   let component: ProfilePage;
   let http: HttpTestingController;
   let toastCtrl: jasmine.SpyObj<ToastController>;
+  let sheet: jasmine.SpyObj<BottomSheetService>;
   const url = `${environment.apiUrl}/users/me`;
   const profile = {
     id: 'u1',
@@ -30,6 +32,7 @@ describe('ProfilePage', () => {
   beforeEach(() => {
     toastCtrl = jasmine.createSpyObj('ToastController', ['create']);
     toastCtrl.create.and.resolveTo({ present: () => Promise.resolve() } as any);
+    sheet = jasmine.createSpyObj('BottomSheetService', ['open']);
     TestBed.configureTestingModule({
       imports: [ProfilePage],
       providers: [
@@ -37,6 +40,7 @@ describe('ProfilePage', () => {
         provideHttpClientTesting(),
         provideRouter([]),
         { provide: ToastController, useValue: toastCtrl },
+        { provide: BottomSheetService, useValue: sheet },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -103,9 +107,9 @@ describe('ProfilePage', () => {
       const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
       fixture.detectChanges();
 
-      const item = Array.from<HTMLElement>(fixture.nativeElement.querySelectorAll('ion-item')).find(
-        (el) => el.textContent?.trim() === 'Logout',
-      )!;
+      const item = fixture.nativeElement.querySelector('.logout-btn') as HTMLElement;
+      expect(item.textContent!.trim()).toBe('Log out');
+      expect(item.classList).toContain('danger');
       item.click();
 
       expect(TestBed.inject(AuthService).isAuthenticated()).toBe(false);
@@ -114,21 +118,52 @@ describe('ProfilePage', () => {
     });
   });
 
-  describe('Join a Coach', () => {
-    const card = () => fixture.nativeElement.querySelector('.invite-card') as HTMLElement | null;
+  describe('Coach connection', () => {
+    const card = () => fixture.nativeElement.querySelector('.coach-card') as HTMLElement | null;
     const signIn = (role: User['role']) => {
       TestBed.inject(AuthService).setSession(fakeToken(role));
       fixture.detectChanges();
     };
 
-    it('is offered to a client without a coach', () => {
+    it('offers Connect to a client without a coach', () => {
       signIn('CLIENT');
-      expect(card()?.textContent).toContain('Join a Coach');
+      expect(card()?.querySelector('.coach-title')?.textContent?.trim()).toBe('No coach connected');
+      expect(card()?.querySelector('.connect-btn')?.textContent?.trim()).toBe('Connect');
+    });
+
+    it('shows a connected coach without the Connect button', () => {
+      TestBed.inject(AuthService).setSession(fakeToken('CLIENT', { coachId: 'coach-1' }));
+      fixture.detectChanges();
+      expect(card()?.querySelector('.coach-title')?.textContent?.trim()).toBe('Coach connected');
+      expect(card()?.querySelector('.connect-btn')).toBeNull();
     });
 
     it('is not offered to a coach', () => {
       signIn('COACH');
       expect(card()).toBeNull();
+    });
+
+    it('Connect opens the invite code sheet and accepts the code it returns', async () => {
+      signIn('CLIENT');
+      sheet.open.and.resolveTo({ data: 'token-9', role: 'confirm' });
+      (card()!.querySelector('.connect-btn') as HTMLElement).click();
+      await fixture.whenStable();
+
+      const [, options] = sheet.open.calls.mostRecent().args;
+      expect(options).toEqual({ label: 'Connect a coach', props: { code: '' } });
+      const req = http.expectOne(`${environment.apiUrl}/auth/invites/token-9/accept`);
+      expect(req.request.method).toBe('POST');
+      req.flush({ user: {}, access_token: fakeToken('CLIENT', { coachId: 'coach-1' }) });
+      fixture.detectChanges();
+      expect(card()?.querySelector('.coach-title')?.textContent?.trim()).toBe('Coach connected');
+    });
+
+    it('closing the sheet accepts nothing', async () => {
+      signIn('CLIENT');
+      sheet.open.and.resolveTo({ role: 'cancel' });
+      await component.openConnect();
+      http.expectNone(`${environment.apiUrl}/auth/invites/undefined/accept`);
+      expect(component.inviteToken).toBe('');
     });
 
     it('accepts an invite code and clears the field', async () => {
@@ -157,6 +192,40 @@ describe('ProfilePage', () => {
       expect(toastCtrl.create).toHaveBeenCalledWith(
         jasmine.objectContaining({ message: 'Invite expired', color: 'danger' }),
       );
+    });
+  });
+
+  describe('layout', () => {
+    it('shows initials from the name, or the email without one', () => {
+      expect(text('.avatar')).toBe('U');
+      component.profile = { ...component.profile!, name: 'Alex Rivera' };
+      fixture.detectChanges();
+      expect(text('.avatar')).toBe('AR');
+      component.profile = { ...component.profile!, name: null };
+      fixture.detectChanges();
+      expect(text('.avatar')).toBe('U');
+      expect(text('.profile-name')).toBe('una@x.io');
+    });
+
+    it('hides Edit and Change password until they exist', () => {
+      expect(fixture.nativeElement.textContent).not.toContain('Edit');
+      expect(fixture.nativeElement.textContent).not.toContain('Change password');
+    });
+
+    it('My 1RMs opens the Lifts view of History for a client', () => {
+      TestBed.inject(AuthService).setSession(fakeToken('CLIENT'));
+      fixture.detectChanges();
+      const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+      (fixture.nativeElement.querySelector('.my-1rms') as HTMLElement).click();
+      expect(navigate).toHaveBeenCalledWith(['/history'], { queryParams: { view: 'lifts' } });
+    });
+
+    it('shows a coach neither the coach card nor My 1RMs', () => {
+      TestBed.inject(AuthService).setSession(fakeToken('COACH'));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.coach-card')).toBeNull();
+      expect(fixture.nativeElement.querySelector('.my-1rms')).toBeNull();
+      expect(fixture.nativeElement.querySelector('.logout-btn')).toBeTruthy();
     });
   });
 });

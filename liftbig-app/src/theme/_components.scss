@@ -282,6 +282,28 @@ ion-input.input-field {
 }
 
 /* ---------------------------------------------------------------------------
+ * Round checkbox: <ion-checkbox class="round-check">, accent fill when checked
+ * ------------------------------------------------------------------------- */
+
+ion-checkbox.round-check {
+  --size: 26px;
+  --border-radius: 50%;
+  --border-width: 1.5px;
+  --border-color: var(--line-control);
+  --checkbox-background: transparent;
+  --checkbox-background-checked: var(--accent);
+  --border-color-checked: var(--accent);
+  --checkmark-color: var(--on-accent);
+  margin-inline-end: 14px;
+
+  // A 14px tick in the 26px circle, as in the handoff
+  &::part(mark) {
+    transform: scale(0.55);
+    transform-origin: center;
+  }
+}
+
+/* ---------------------------------------------------------------------------
  * Cards
  * ------------------------------------------------------------------------- */
 
@@ -337,8 +359,10 @@ ion-action-sheet.overflow-menu {
   --button-color: var(--text);
   --color: var(--text-2);
 
-  // Ionic colours destructive actions in iOS mode only
-  .action-sheet-destructive {
+  // Ionic colours destructive actions in iOS mode only; the label is a span,
+  // which global.scss colours with the text colour
+  .action-sheet-destructive,
+  .action-sheet-destructive span {
     color: var(--danger-text);
   }
 

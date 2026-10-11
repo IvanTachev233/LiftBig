@@ -1,43 +1,76 @@
-<ion-header [translucent]="true">
+<ion-header class="logger-header ion-no-border">
   <ion-toolbar>
     <ion-buttons slot="start">
       <!-- Back to the screen it was opened from; the workout stays in progress -->
       <ion-back-button
+        class="minimise-btn"
         icon="chevron-down"
         text=""
         aria-label="Minimise workout"
         [defaultHref]="dashboardUrl()"
       ></ion-back-button>
     </ion-buttons>
-    <ion-title>Workout Logger</ion-title>
+    @if (workoutSubject | async; as workout) {
+      <div class="logger-title">
+        @if (workout.assigned) {
+          <h1 class="workout-title">{{ workout.name }}</h1>
+        } @else {
+          <ion-input
+            class="workout-name-input"
+            aria-label="Workout name"
+            placeholder="Workout name"
+            [(ngModel)]="workoutName"
+            (ionBlur)="updateWorkoutName()"
+          ></ion-input>
+        }
+      </div>
+      <ion-buttons slot="end">
+        @if (workout.status === 'COMPLETED') {
+          <app-status-pill kind="done" />
+        } @else {
+          <ion-button
+            class="finish-btn complete-btn"
+            [disabled]="!hasSets(workout) || !!workout._pendingComplete"
+            (click)="completeWorkout()"
+          >
+            Finish
+          </ion-button>
+        }
+      </ion-buttons>
+    }
   </ion-toolbar>
 </ion-header>
 
-<ion-content [fullscreen]="true" class="ion-padding">
-  <ng-container *ngIf="workoutSubject | async as workout; else loading">
+<ion-content class="logger-content">
+  @if (workoutSubject | async; as workout) {
     @let assigned = workout.assigned;
-    @if (assigned) {
-      @if (workout.source === 'program') {
-        <ion-badge color="primary" class="program-badge" routerLink="/programs/active">{{
-          programLabel(workout)
-        }}</ion-badge>
+    @let logged = loggedCount(workout.cards);
+    @let total = setCount(workout.cards);
+
+    <div class="set-progress">
+      <div class="progress-meta">
+        <span class="progress-count">{{ logged }} of {{ total }} sets</span>
+        @if (position) {
+          <span class="program-position">Week {{ position.week }} · Day {{ position.day }}</span>
+        }
+      </div>
+      <app-progress-bar [value]="logged" [max]="total" label="Sets logged" />
+    </div>
+
+    <div class="workout-meta">
+      @if (assigned) {
+        @if (workout.source === 'program') {
+          <a class="program-badge" routerLink="/programs/active">
+            <app-status-pill kind="program" [label]="programLabel(workout)" />
+          </a>
+        } @else {
+          <span class="coach-badge">
+            <app-status-pill kind="coach" [label]="coachLabel(workout)" />
+          </span>
+        }
+        <span class="workout-date">{{ workout.date | date: 'EEE d MMM' }}</span>
       } @else {
-        <ion-badge color="primary" class="coach-badge">{{ coachLabel(workout) }}</ion-badge>
-      }
-      <h1 class="workout-title">{{ workout.name }}</h1>
-      <p class="text-muted mb-4">{{ workout.date | date: 'mediumDate' }}</p>
-    } @else {
-      <ion-item lines="none" class="workout-name-item mb-2">
-        <ion-input
-          [(ngModel)]="workoutName"
-          (ionBlur)="updateWorkoutName()"
-          class="workout-name-input"
-          placeholder="Workout Name"
-        ></ion-input>
-      </ion-item>
-      <ion-item lines="none" class="workout-date-item mb-4">
-        <ion-icon name="calendar-outline" slot="start" color="medium"></ion-icon>
-        <ion-datetime-button datetime="workoutDate"></ion-datetime-button>
+        <ion-datetime-button class="date-chip" datetime="workoutDate"></ion-datetime-button>
         <ion-modal [keepContentsMounted]="true">
           <ng-template>
             <ion-datetime
@@ -48,11 +81,12 @@
             ></ion-datetime>
           </ng-template>
         </ion-modal>
-      </ion-item>
-    }
+      }
+    </div>
 
-    <!-- Exercise Cards (a superset is drawn as one card) -->
+    <!-- Exercise cards (a superset is drawn as one card) -->
     @for (block of groupBlocks(); track block.key) {
+      @let open = isExpanded(block.groups);
       @if (block.superset) {
         @let labelId = idPrefix + '-superset-' + $index;
         <!-- ion-card drops its host aria-label, so the name comes from the label -->
@@ -62,142 +96,155 @@
           aria-label="Superset"
           [attr.aria-labelledby]="labelId"
         >
-          <ion-card-header class="superset-header">
-            <div class="superset-label" [id]="labelId">SUPERSET</div>
-            @if (!assigned) {
-              <ion-button
-                color="danger"
-                aria-label="Delete superset"
-                (click)="removeSuperset(block.groups[0].supersetGroup)"
-              >
-                <ion-icon name="trash-outline" slot="start"></ion-icon>
-                Delete
-              </ion-button>
-            }
-          </ion-card-header>
-
-          @for (card of block.groups; track card) {
-            <div class="exercise-card superset-member">
-              <div class="exercise-header-row">
-                <ion-card-title class="exercise-title"
-                  ><button
-                    type="button"
-                    class="exercise-name-btn"
-                    [attr.aria-label]="card.exerciseName + ', rep max history'"
-                    (click)="openHistory(card)"
-                  >{{ card.exerciseName }}</button></ion-card-title
-                >
-                @if (!assigned) {
-                  <ng-container
-                    *ngTemplateOutlet="cardActions; context: { $implicit: card }"
-                  ></ng-container>
-                }
+          <div class="superset-label eyebrow accent" [id]="labelId">SUPERSET</div>
+          @if (open) {
+            @for (card of block.groups; track card) {
+              <div class="exercise-card superset-member">
+                <ng-container
+                  *ngTemplateOutlet="cardHeader; context: { $implicit: card, cards: block.groups }"
+                ></ng-container>
+                <ng-container *ngTemplateOutlet="setRows; context: { $implicit: card }"></ng-container>
               </div>
-              <ng-container
-                *ngTemplateOutlet="setRows; context: { $implicit: card }"
-              ></ng-container>
-            </div>
+            }
+          } @else {
+            <button
+              type="button"
+              class="card-toggle"
+              aria-expanded="false"
+              (click)="toggleExpanded(block.groups)"
+            >
+              <span class="toggle-members">
+                @for (card of block.groups; track card) {
+                  <span class="exercise-card">
+                    <ng-container
+                      *ngTemplateOutlet="collapsedSummary; context: { $implicit: card }"
+                    ></ng-container>
+                  </span>
+                }
+              </span>
+              <ion-icon class="toggle-chevron" name="chevron-down" aria-hidden="true"></ion-icon>
+            </button>
           }
         </ion-card>
       } @else {
         @for (card of block.groups; track card) {
-          <ion-card class="exercise-card">
-            <ion-card-header class="exercise-card-header">
-              <div class="exercise-header-row">
-                <ion-card-title class="exercise-title"
-                  ><button
-                    type="button"
-                    class="exercise-name-btn"
-                    [attr.aria-label]="card.exerciseName + ', rep max history'"
-                    (click)="openHistory(card)"
-                  >{{ card.exerciseName }}</button></ion-card-title
-                >
-                @if (!assigned) {
-                  <ng-container
-                    *ngTemplateOutlet="cardActions; context: { $implicit: card }"
-                  ></ng-container>
-                }
-              </div>
-            </ion-card-header>
-
-            <ng-container
-              *ngTemplateOutlet="setRows; context: { $implicit: card }"
-            ></ng-container>
+          <ion-card class="exercise-card" [class.collapsed]="!open">
+            @if (open) {
+              <ng-container
+                *ngTemplateOutlet="cardHeader; context: { $implicit: card, cards: block.groups }"
+              ></ng-container>
+              <ng-container *ngTemplateOutlet="setRows; context: { $implicit: card }"></ng-container>
+            } @else {
+              <button
+                type="button"
+                class="card-toggle"
+                aria-expanded="false"
+                (click)="toggleExpanded(block.groups)"
+              >
+                <ng-container
+                  *ngTemplateOutlet="collapsedSummary; context: { $implicit: card }"
+                ></ng-container>
+                <ion-icon class="toggle-chevron" name="chevron-down" aria-hidden="true"></ion-icon>
+              </button>
+            }
           </ion-card>
         }
       }
     }
 
-    <!-- Replace and remove buttons of a self-made card -->
-    <ng-template #cardActions let-card>
-      <ion-button
-        fill="clear"
-        size="small"
-        class="replace-btn"
-        [attr.aria-label]="'Replace ' + card.exerciseName"
-        (click)="replaceExercise(card)"
-      >
-        Replace
-      </ion-button>
-      <ion-button
-        color="danger"
-        fill="clear"
-        size="small"
-        [attr.aria-label]="'Remove ' + card.exerciseName"
-        (click)="removeExercise(card)"
-      >
-        <ion-icon name="trash-outline"></ion-icon>
-      </ion-button>
+    <!-- A collapsed card: name, plan and logged/total -->
+    <ng-template #collapsedSummary let-card>
+      <span class="collapsed-summary">
+        <span class="collapsed-main">
+          <span class="exercise-title">{{ card.exerciseName }}</span>
+          <span class="plan-line">{{ planLine(card) }}</span>
+        </span>
+        <span class="logged-of num">{{ loggedCount([card]) }}/{{ card.sets.length }}</span>
+      </span>
     </ng-template>
 
-    <!-- Sets and add-set row of one exercise -->
+    <!-- Name (opens the history), plan, `⋯` and collapse -->
+    <ng-template #cardHeader let-card let-cards="cards">
+      <div class="exercise-header-row">
+        <div class="exercise-heading">
+          <h2 class="exercise-title">
+            <button
+              type="button"
+              class="exercise-name-btn"
+              [attr.aria-label]="card.exerciseName + ', rep max history'"
+              (click)="openHistory(card)"
+            >{{ card.exerciseName }}</button>
+          </h2>
+          <span class="plan-line">{{ planLine(card) }}</span>
+        </div>
+        <ion-button
+          fill="clear"
+          class="icon-btn"
+          [attr.aria-label]="card.exerciseName + ' options'"
+          (click)="openCardMenu(card)"
+        >
+          <ion-icon slot="icon-only" name="ellipsis-horizontal" aria-hidden="true"></ion-icon>
+        </ion-button>
+        <ion-button
+          fill="clear"
+          class="icon-btn"
+          aria-expanded="true"
+          [attr.aria-label]="'Collapse ' + card.exerciseName"
+          (click)="toggleExpanded(cards)"
+        >
+          <ion-icon slot="icon-only" name="chevron-up" aria-hidden="true"></ion-icon>
+        </ion-button>
+      </div>
+    </ng-template>
+
+    <!-- Set table: set · target · kg · reps · tick -->
     <ng-template #setRows let-card>
-      @if (assigned && card.sets.length) {
-        <div class="set-row set-head text-muted" aria-hidden="true">
-          <span class="set-order">Set</span>
-          <span class="set-plan">Plan</span>
-          <span class="set-input">Reps</span>
-          <span class="set-input">{{ units.unit() }}</span>
-          <span class="made-col text-center">Made</span>
+      @if (card.sets.length) {
+        <div class="set-grid set-head" aria-hidden="true">
+          <span>Set</span>
+          <span>Target</span>
+          <span class="center">{{ units.unit() }}</span>
+          <span class="center">Reps</span>
+          <span></span>
         </div>
       }
       @for (set of card.sets; track set; let si = $index) {
         @if (assigned) {
           <!-- Plan, actual inputs (placeholder = plan) and result -->
-          <div class="set-row">
-            <span class="set-order text-muted">
-              #{{ si + 1 }}
-              @if (set.pb) {
-                <span class="pb-trophy" role="img" aria-label="Personal best">
-                  <ion-icon name="trophy" color="warning" aria-hidden="true"></ion-icon>
-                </span>
-              }
+          <div
+            class="set-grid set-row"
+            [class.done]="set.made === true"
+            [class.missed]="set.made === false"
+            [class.active]="isActiveSet(set)"
+          >
+            <span class="set-order num">{{ si + 1 }}</span>
+            <span class="set-target">
+              <span class="set-plan">{{ set.reps }} × {{ weightLabel(set.weight) }}</span>
+              <ng-container *ngTemplateOutlet="trophy; context: { $implicit: set }"></ng-container>
             </span>
-            <span class="set-plan">{{ set.reps }} × {{ weightLabel(set.weight) }}</span>
-            <ion-input
-              type="number"
-              step="1"
-              inputmode="numeric"
-              class="set-input actual-reps"
-              [(ngModel)]="set.actualReps"
-              (ionChange)="actualChanged(set)"
-              [placeholder]="'' + set.reps"
-              [attr.aria-label]="'Actual reps, set ' + (si + 1)"
-            ></ion-input>
             <ion-input
               type="number"
               inputmode="decimal"
-              class="set-input actual-weight"
+              class="set-input actual-weight num"
               [(ngModel)]="set.actualWeight"
               (ionChange)="actualChanged(set)"
               [placeholder]="set.weight === null ? units.unit() : '' + units.toDisplay(set.weight)"
               [attr.aria-label]="'Actual ' + units.unit() + ', set ' + (si + 1)"
             ></ion-input>
+            <ion-input
+              type="number"
+              step="1"
+              inputmode="numeric"
+              class="set-input actual-reps num"
+              [(ngModel)]="set.actualReps"
+              (ionChange)="actualChanged(set)"
+              [placeholder]="'' + set.reps"
+              [attr.aria-label]="'Actual reps, set ' + (si + 1)"
+            ></ion-input>
             @let state = madeState(set);
             <ion-button
               fill="clear"
-              size="small"
-              class="made-col"
+              class="made-col tick"
               [color]="state.color"
               [attr.aria-label]="state.label"
               (click)="toggleMade(set)"
@@ -206,120 +253,128 @@
             </ion-button>
           </div>
           @if (set.prescribedPercent) {
-            <p class="set-prescription text-muted">{{ prescriptionLabel(set) }}</p>
+            <p class="set-prescription">{{ prescriptionLabel(set) }}</p>
           }
           @if (set.notes) {
-            <p class="set-notes text-muted">{{ set.notes }}</p>
+            <p class="set-notes">{{ set.notes }}</p>
           }
         } @else {
-          <div class="set-row">
-            <span class="set-order text-muted">
-              #{{ si + 1 }}
-              @if (set.pb) {
-                <span class="pb-trophy" role="img" aria-label="Personal best">
-                  <ion-icon name="trophy" color="warning" aria-hidden="true"></ion-icon>
-                </span>
-              }
-            </span>
-            <span class="set-info">{{ weightLabel(set.weight) }}</span>
-            <span class="set-info">x {{ set.reps }}</span>
-            <div class="set-actions">
-              <ion-button
-                [color]="set.made === true ? 'success' : 'medium'"
-                (click)="toggleSetCompletion(set)"
-                size="small"
+          <!-- Swipe left to remove; a card keeps at least 1 set -->
+          <ion-item-sliding [disabled]="card.sets.length <= 1">
+            <ion-item lines="none" class="set-item">
+              <div
+                class="set-grid set-row"
+                [class.done]="set.made === true"
+                [class.missed]="set.made === false"
+                [class.active]="isActiveSet(set)"
               >
-                <ion-icon name="checkmark"></ion-icon>
-              </ion-button>
-              <ion-button
+                <span class="set-order num">{{ si + 1 }}</span>
+                <span class="set-target">
+                  <ng-container *ngTemplateOutlet="trophy; context: { $implicit: set }"></ng-container>
+                </span>
+                <ion-input
+                  type="number"
+                  inputmode="decimal"
+                  class="set-input set-weight num"
+                  [value]="units.toInput(set.weight)"
+                  (ionChange)="setValueChanged(set, 'weight', $event)"
+                  [placeholder]="units.unit()"
+                  [attr.aria-label]="units.unit() + ', set ' + (si + 1)"
+                ></ion-input>
+                <ion-input
+                  type="number"
+                  step="1"
+                  inputmode="numeric"
+                  class="set-input set-reps num"
+                  [value]="set.reps"
+                  (ionChange)="setValueChanged(set, 'reps', $event)"
+                  [attr.aria-label]="'Reps, set ' + (si + 1)"
+                ></ion-input>
+                <ion-button
+                  fill="clear"
+                  class="made-col tick"
+                  [attr.aria-label]="(set.made === true ? 'Mark set ' + (si + 1) + ' not done' : 'Mark set ' + (si + 1) + ' done')"
+                  (click)="toggleSetCompletion(set)"
+                >
+                  <ion-icon slot="icon-only" name="checkmark" aria-hidden="true"></ion-icon>
+                </ion-button>
+              </div>
+            </ion-item>
+            <ion-item-options side="end">
+              <ion-item-option
                 color="danger"
-                fill="clear"
-                size="small"
                 [attr.aria-label]="'Remove set ' + (si + 1)"
                 [disabled]="card.sets.length <= 1"
                 (click)="removeSet(set)"
               >
-                <ion-icon name="close-outline"></ion-icon>
-              </ion-button>
-            </div>
-          </div>
+                Remove
+              </ion-item-option>
+            </ion-item-options>
+          </ion-item-sliding>
         }
       }
 
-      <!-- Add set row -->
-      <div class="add-set-row">
-        <ion-input
-          type="number"
-          [(ngModel)]="card.newWeight"
-          [placeholder]="units.unit()"
-          class="set-input"
-        ></ion-input>
-        <ion-input
-          type="number"
-          step="1"
-          inputmode="numeric"
-          [(ngModel)]="card.newReps"
-          placeholder="reps"
-          class="set-input"
-        ></ion-input>
-        <ion-button
-          size="small"
-          (click)="addSetToExercise(card)"
-          [disabled]="!card.newWeight || !card.newReps"
-        >
-          <ion-icon name="add"></ion-icon>
-        </ion-button>
-      </div>
+      @if (card.sets.length) {
+        <div class="add-set-row">
+          <button type="button" class="add-set-btn" (click)="copyLastSet(card)">
+            <ion-icon name="add" aria-hidden="true"></ion-icon>
+            Add set
+          </button>
+        </div>
+      } @else {
+        <!-- The first set: enter its weight and reps, then tick to log it -->
+        <div class="set-grid add-set-row new-set-row active">
+          <span class="set-order num">1</span>
+          <span class="set-target"></span>
+          <ion-input
+            type="number"
+            inputmode="decimal"
+            class="set-input num"
+            [(ngModel)]="card.newWeight"
+            [placeholder]="units.unit()"
+            [attr.aria-label]="units.unit() + ', set 1'"
+          ></ion-input>
+          <ion-input
+            type="number"
+            step="1"
+            inputmode="numeric"
+            class="set-input num"
+            [(ngModel)]="card.newReps"
+            placeholder="reps"
+            aria-label="Reps, set 1"
+          ></ion-input>
+          <ion-button
+            fill="clear"
+            class="made-col tick"
+            aria-label="Log set 1"
+            [disabled]="!card.newWeight || !card.newReps"
+            (click)="addSetToExercise(card)"
+          >
+            <ion-icon slot="icon-only" name="checkmark" aria-hidden="true"></ion-icon>
+          </ion-button>
+        </div>
+      }
     </ng-template>
 
-    <!-- Empty state -->
-    <div
-      *ngIf="cards.length === 0"
-      class="empty-sets-message text-center text-muted"
-    >
-      <p>No exercises added yet.</p>
-    </div>
+    <ng-template #trophy let-set>
+      @if (set.pb) {
+        <span class="pb-trophy" role="img" aria-label="Personal best">
+          <ion-icon name="trophy" color="warning" aria-hidden="true"></ion-icon>
+        </span>
+      }
+    </ng-template>
 
-    <!-- Add Exercise -->
-    @if (!assigned) {
-      <ion-button
-        expand="block"
-        fill="outline"
-        class="add-exercise-btn mb-4"
-        (click)="openExercisePicker()"
-      >
-        <ion-icon name="barbell-outline" slot="start"></ion-icon>
-        Add Exercise
-      </ion-button>
+    @if (cards.length === 0) {
+      <p class="empty-sets-message">No exercises added yet.</p>
     }
 
-    <!-- Complete Workout -->
-    <ion-button
-      *ngIf="workout.status !== 'COMPLETED'"
-      expand="block"
-      color="success"
-      class="complete-btn mt-4"
-      [disabled]="!hasSets(workout) || workout._pendingComplete"
-      (click)="completeWorkout()"
-    >
-      <ion-icon name="checkmark-done-outline" slot="start"></ion-icon>
-      Complete Workout
-    </ion-button>
-
-    <ion-button
-      *ngIf="workout.status === 'COMPLETED'"
-      expand="block"
-      color="medium"
-      fill="outline"
-      class="complete-btn mt-4"
-      disabled
-    >
-      <ion-icon name="checkmark-done-outline" slot="start"></ion-icon>
-      Workout Completed
-    </ion-button>
-  </ng-container>
-
-  <ng-template #loading>
+    @if (!assigned) {
+      <button type="button" class="add-exercise-btn" (click)="openExercisePicker()">
+        <ion-icon name="add" aria-hidden="true"></ion-icon>
+        Add exercise
+      </button>
+    }
+  } @else {
     <ion-spinner class="block mx-auto mt-10"></ion-spinner>
-  </ng-template>
+  }
 </ion-content>

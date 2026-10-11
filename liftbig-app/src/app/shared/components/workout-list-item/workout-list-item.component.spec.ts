@@ -4,10 +4,11 @@ import {
   HttpTestingController,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { AlertController, ToastController } from '@ionic/angular';
 import { WorkoutListItemComponent } from './workout-list-item.component';
 import { Workout } from '../../../core/workout.service';
+import { WeightUnitService } from '../../../core/weight-unit.service';
 import { environment } from '../../../../environments/environment';
 
 describe('WorkoutListItemComponent', () => {
@@ -112,9 +113,63 @@ describe('WorkoutListItemComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('renders the workout card', () => {
-    const card = fixture.nativeElement.querySelector('app-workout-card');
-    expect(card).toBeTruthy();
+  it('renders a date-block row with the workout name', () => {
+    const row = fixture.nativeElement.querySelector('app-date-block-row');
+    expect(row.querySelector('.row-title').textContent.trim()).toBe('Leg Day');
+    expect(row.querySelector('time').getAttribute('datetime')).toBe('2026-09-28');
+  });
+
+  describe('status line and volume', () => {
+    // Saturday 10 Oct 2026, a minute before midnight on the device
+    const today = new Date(2026, 9, 10, 23, 59);
+
+    function sub() {
+      const el = fixture.nativeElement.querySelector('.row-sub');
+      return [el.textContent.trim(), el.classList.contains('tone-accent'), el.classList.contains('tone-muted')];
+    }
+
+    beforeEach(() => fixture.componentRef.setInput('today', today));
+
+    it('shows Completed with the exercise count, In progress, Missed, Today and Planned', () => {
+      const cards = [1, 2, 3].map((n) => ({ id: `c${n}` }) as any);
+      showWorkout({ ...workout, status: 'COMPLETED', exercises: cards });
+      expect(sub()).toEqual(['Completed · 3 exercises', false, false]);
+
+      showWorkout({ ...workout, status: 'COMPLETED', exercises: [cards[0]] });
+      expect(sub()).toEqual(['Completed · 1 exercise', false, false]);
+
+      showWorkout({ ...workout, status: 'IN_PROGRESS' });
+      expect(sub()).toEqual(['In progress', true, false]);
+
+      showWorkout({ ...workout, date: '2026-10-09T00:00:00.000Z' });
+      expect(sub()).toEqual(['Missed', false, true]);
+
+      showWorkout({ ...workout, date: '2026-10-10T00:00:00.000Z' });
+      expect(sub()).toEqual(['Today', false, false]);
+    });
+
+    it("shows the volume in the user's unit", () => {
+      showWorkout({ ...workout, totalWeightLifted: 1157 });
+      const volume = () =>
+        [
+          fixture.nativeElement.querySelector('.row-volume .num').textContent.trim(),
+          fixture.nativeElement.querySelector('.row-volume .volume-unit').textContent.trim(),
+        ];
+      expect(volume()).toEqual(['1,157', 'kg']);
+
+      TestBed.inject(WeightUnitService).setUnit('lb');
+      fixture.componentRef.setInput('workout', { ...workout, totalWeightLifted: 500 });
+      fixture.detectChanges();
+      expect(volume()).toEqual(['1,102', 'lb']);
+    });
+  });
+
+  it('opens the workout in the logger on tap', () => {
+    const router = TestBed.inject(Router);
+    spyOn(router, 'navigateByUrl').and.resolveTo(true);
+    fixture.nativeElement.querySelector('ion-item').click();
+    const [url] = (router.navigateByUrl as jasmine.Spy).calls.mostRecent().args;
+    expect(router.serializeUrl(url)).toBe('/workout-logger?id=workout-1');
   });
 
   it('shows no coach badge and offers delete on a self-made workout', () => {
@@ -124,16 +179,11 @@ describe('WorkoutListItemComponent', () => {
     expect(sliding.disabled).toBeFalsy();
   });
 
-  it('shows a "Coach · name" badge on an assigned workout', () => {
+  it('shows a Coach tag on an assigned workout, with or without a coach name', () => {
     showWorkout(assigned);
-    const badge = fixture.nativeElement.querySelector('.coach-badge');
-    expect(badge?.textContent.trim()).toBe('Coach · Coach Carter');
-  });
-
-  it('falls back to "Coach" when the coach has no name', () => {
+    expect(fixture.nativeElement.querySelector('.coach-badge')?.textContent.trim()).toBe('Coach');
     showWorkout({ ...assigned, assignedBy: { id: 'coach-1', name: null } });
-    const badge = fixture.nativeElement.querySelector('.coach-badge');
-    expect(badge?.textContent.trim()).toBe('Coach');
+    expect(fixture.nativeElement.querySelector('.coach-badge')?.textContent.trim()).toBe('Coach');
   });
 
   it('offers no swipe delete on an assigned workout', async () => {
@@ -257,10 +307,10 @@ describe('WorkoutListItemComponent', () => {
       program: { enrollmentId: 'en1', name: 'Sample Powerlifting Program' },
     };
 
-    it('shows a "Program · name" badge', () => {
+    it('shows a Program tag', () => {
       showWorkout(program);
       const badge = fixture.nativeElement.querySelector('.program-badge');
-      expect(badge?.textContent.trim()).toBe('Program · Sample Powerlifting Program');
+      expect(badge?.textContent.trim()).toBe('Program');
       expect(fixture.nativeElement.querySelector('.coach-badge')).toBeNull();
     });
 

@@ -1,41 +1,85 @@
-<ion-header [translucent]="true">
-  <ion-toolbar>
-    <ion-title> Dashboard </ion-title>
-  </ion-toolbar>
-</ion-header>
+<ion-content class="screen-tab">
+  <header class="today-header">
+    <span class="today-date">{{ now | date: 'EEEE, d MMMM' }}</span>
+    <h1 class="title-screen">{{ greeting }}</h1>
+  </header>
 
-<ion-content [fullscreen]="true" class="ion-padding">
-  <ion-header collapse="condense">
-    <ion-toolbar>
-      <ion-title size="large">Dashboard</ion-title>
-    </ion-toolbar>
-  </ion-header>
+  <app-week-strip [days]="strip" />
 
-  <h2 class="section-title">Upcoming Workouts</h2>
+  @if (!loaded) {
+    <ion-spinner class="block mx-auto mt-10"></ion-spinner>
+  } @else {
+    @if (today; as workout) {
+      <section class="today-card surface-card" aria-label="Today's session">
+        <div class="today-heading">
+          <span class="eyebrow accent">{{ eyebrow }}</span>
+          <h2 class="title-card">{{ workout.name }}</h2>
+        </div>
+        @if (workout.exercises.length) {
+          <div class="plan-rows">
+            @for (card of workout.exercises; track card.id) {
+              <div class="plan-row">
+                <span class="plan-name">{{ card.exercise?.name ?? 'Exercise' }}</span>
+                <span class="plan-figures">
+                  <span class="plan-sets num">{{ card.sets.length }} × {{ card.sets[0]?.reps }}</span>
+                  @if (firstWeight(card) !== null) {
+                    <span class="plan-weight">{{ units.format(firstWeight(card)) }}</span>
+                  }
+                </span>
+              </div>
+            }
+          </div>
+        }
+        <ion-button class="btn-primary start-btn" expand="block" (click)="open(workout)">
+          <ion-icon slot="start" name="play" aria-hidden="true"></ion-icon>
+          {{ workout.status === 'IN_PROGRESS' ? 'Resume' : 'Start session' }}
+        </ion-button>
+      </section>
+      <ion-button class="btn-text muted empty-workout-btn" expand="block" (click)="emptyWorkout()">
+        <ion-icon slot="start" name="add" aria-hidden="true"></ion-icon>
+        Empty workout
+      </ion-button>
+    } @else {
+      <section class="today-card rest-day surface-card" aria-label="Today's session">
+        <div class="today-heading">
+          <span class="eyebrow">Today</span>
+          <h2 class="title-card">{{ doneToday ? 'Done for today' : 'Rest day' }}</h2>
+          <p class="text-secondary">Nothing planned today. Log a session of your own any time.</p>
+        </div>
+        <ion-button class="btn-secondary empty-workout-btn" expand="block" (click)="emptyWorkout()">
+          <ion-icon slot="start" name="add" aria-hidden="true"></ion-icon>
+          Empty workout
+        </ion-button>
+      </section>
+    }
 
-  <!-- Loading State (Simple) -->
-  <div *ngIf="upcomingWorkouts === null" class="flex justify-center mt-10">
-    <ion-spinner></ion-spinner>
-  </div>
+    <section class="up-next" aria-labelledby="up-next-title">
+      <div class="section-head">
+        <h2 class="heading-section" id="up-next-title">Up next</h2>
+        @if (active) {
+          <a class="full-plan" routerLink="/programs/active">Full plan</a>
+        }
+      </div>
+      @for (workout of next; track workout.id) {
+        <button type="button" class="row-button next-row" (click)="open(workout)">
+          <app-date-block-row [date]="workout.date" [title]="workout.name" [sub]="sub(workout)">
+            <ion-icon trailing name="chevron-forward" aria-hidden="true"></ion-icon>
+          </app-date-block-row>
+        </button>
+      } @empty {
+        <p class="empty-next text-secondary">Nothing planned yet.</p>
+      }
+      @if (!active) {
+        <a class="browse-programs" routerLink="/programs">Browse programs</a>
+      }
+    </section>
 
-  <ion-list lines="none" class="bg-transparent">
-    <app-workout-list-item
-      *ngFor="let workout of upcomingWorkouts"
-      [workout]="workout"
-      (deleted)="onWorkoutDeleted($event)"
-    ></app-workout-list-item>
-  </ion-list>
-
-  <div
-    *ngIf="upcomingWorkouts?.length === 0"
-    class="text-center text-muted mt-10"
-  >
-    <p>No upcoming workouts planned.</p>
-  </div>
-
-  <ion-fab vertical="bottom" horizontal="end" slot="fixed">
-    <ion-fab-button routerLink="/workout-logger">
-      <ion-icon name="add"></ion-icon>
-    </ion-fab-button>
-  </ion-fab>
+    @if (pr && prName) {
+      <button type="button" class="row-button pr-banner" (click)="openPr()">
+        <ion-icon name="trophy-outline" aria-hidden="true"></ion-icon>
+        <span class="pr-text">New PR · {{ prName }}</span>
+        <span class="pr-weight num">{{ units.format(pr.weightKg) }}</span>
+      </button>
+    }
+  }
 </ion-content>

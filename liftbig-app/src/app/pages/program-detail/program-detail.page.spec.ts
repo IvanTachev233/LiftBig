@@ -272,4 +272,42 @@ describe('ProgramDetailPage', () => {
       expect(navigate).not.toHaveBeenCalled();
     });
   });
+
+  describe('layout', () => {
+    it('shows the sport and author, the name and weeks, sessions per week and total sessions', () => {
+      setup();
+      expect(all('.detail-eyebrow')).toEqual(['Powerlifting · LiftBig']);
+      expect(all('h1')).toEqual(['Sample Powerlifting Program']);
+      expect(all('.stat')).toEqual(['2 weeks', '2 per week', '4 sessions']);
+    });
+
+    it('puts the unit after each 1RM input', () => {
+      setup('lb');
+      expect(all('ion-input.max-input .unit-suffix')).toEqual(['lb', 'lb']);
+    });
+
+    it('shows the first session day and opens the date picker in a sheet', () => {
+      jasmine.clock().install();
+      jasmine.clock().mockDate(new Date(2026, 9, 10, 9, 0));
+      setup();
+      expect(all('.first-session .first-session-date')).toEqual(['Sat, 10 Oct']);
+      // Checked without change detection: a presented inline sheet would outlive the test
+      (fixture.nativeElement.querySelector('.first-session') as HTMLElement).click();
+      expect(component.pickingDate).toBeTrue();
+
+      component.dateChanged({ detail: { value: '2026-10-12' } });
+      fixture.detectChanges();
+      expect(component.pickingDate).toBeFalse();
+      expect(all('.first-session .first-session-date')).toEqual(['Mon, 12 Oct']);
+    });
+
+    it('keeps Start program and Preview full schedule in the footer; the preview opens the schedule sheet', () => {
+      setup();
+      const footer = fixture.nativeElement.querySelector('ion-footer') as HTMLElement;
+      expect(footer.querySelector('.start-btn')!.textContent!.trim()).toBe('Start program');
+      (footer.querySelector('.preview-btn') as HTMLElement).click();
+      expect(component.showingSchedule).toBeTrue();
+      component.showingSchedule = false;
+    });
+  });
 });

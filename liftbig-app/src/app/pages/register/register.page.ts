@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 
+// Sign up: name, email, password twice (one show toggle) and Client/Coach
 @Component({
   selector: 'app-register',
   templateUrl: './register.page.html',
@@ -25,6 +26,7 @@ export class RegisterPage {
   };
 
   submitting = false;
+  showPassword = false;
 
   get formValid(): boolean {
     return (

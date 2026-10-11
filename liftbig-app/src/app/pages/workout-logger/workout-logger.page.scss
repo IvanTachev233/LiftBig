@@ -1,157 +1,120 @@
-ion-card.exercise-card {
-  margin-bottom: 16px;
-  background: var(--bg-surface);
-  border-radius: 8px;
-  box-shadow: var(--card-shadow);
-  border: 1px solid var(--border-color);
-  padding-bottom: 8px;
+// Cards and the set table are in theme/_workout.scss
+
+.logger-header ion-toolbar {
+  --background: var(--bg);
+  --padding-top: 16px;
+  --padding-bottom: 8px;
+  --padding-start: 12px;
+  --padding-end: 12px;
 }
 
-.exercise-card-header {
-  padding-bottom: 12px;
+// Equal side columns keep the name centred
+ion-buttons {
+  min-width: 64px;
 }
 
-.exercise-header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 4px;
-
-  ion-button {
-    flex-shrink: 0;
-  }
+ion-buttons[slot='end'] {
+  justify-content: flex-end;
 }
 
-// A long name wraps instead of pushing the buttons off the card
-.exercise-title {
-  flex: 1;
+.minimise-btn {
+  --background: var(--surface);
+  --border-radius: 12px;
+  --color: var(--text-soft);
+  width: 44px;
+  height: 44px;
+}
+
+.logger-title {
   min-width: 0;
-  overflow-wrap: anywhere;
-  font-size: 1.125rem;
+  text-align: center;
+}
+
+.workout-title,
+.workout-name-input {
+  --color: var(--text);
+  margin: 0;
+  overflow: hidden;
+  font-size: 16px;
   font-weight: 600;
-  letter-spacing: -0.025em;
-  color: var(--text-main);
-}
-
-.set-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 8px;
-  padding: 0 16px;
-  gap: 4px;
-}
-
-// The trophy sits under the set number
-.set-order {
-  flex: 0 0 32px;
-  display: flex;
-  flex-direction: column;
-  font-weight: 500;
-}
-
-.set-info {
-  flex: none;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.set-actions {
-  flex: 0 0 auto;
-  display: flex;
-  margin-left: auto;
+.workout-name-input {
+  --padding-start: 4px;
+  --padding-end: 4px;
+  --highlight-height: 0;
+  min-height: 44px;
+  text-align: center;
 }
 
-.add-set-row {
+ion-button.finish-btn {
+  --background: var(--success-tint);
+  --color: var(--success-text);
+  --border-radius: 10px;
+  --padding-start: 14px;
+  --padding-end: 14px;
+  --box-shadow: none;
+  height: 36px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: none;
+}
+
+.logger-content {
+  --padding-start: 16px;
+  --padding-end: 16px;
+  --padding-bottom: 32px;
+}
+
+.set-progress {
   display: flex;
-  align-items: center;
-  padding: 8px 16px 0;
+  flex-direction: column;
   gap: 8px;
-  border-top: 1px solid var(--border-color);
+  padding: 4px 4px 12px;
 }
 
-.set-input {
-  flex: 1;
-  min-width: 0;
-}
-
-// Assigned workout: plan, actual inputs and result per set; a long plan wraps
-.set-plan {
-  flex: 0 0 4.5rem;
-  font-size: 0.875rem;
-}
-
-.made-col {
-  flex: 0 0 36px;
-}
-
-.set-head {
-  font-size: 0.75rem;
-}
-
-.set-notes,
-.set-prescription {
-  margin: -4px 16px 8px 52px;
-  font-size: 0.8125rem;
-}
-
-.superset-card {
-  margin-bottom: 16px;
-  border-radius: 12px;
-  border: 2px solid var(--ion-color-primary);
-  padding-bottom: 8px;
-  // Subtle primary tint over the card surface
-  --background: linear-gradient(
-      rgba(var(--ion-color-primary-rgb), 0.06),
-      rgba(var(--ion-color-primary-rgb), 0.06)
-    ),
-    var(--bg-surface);
-}
-
-.superset-header {
-  flex-direction: row;
+.progress-meta {
+  display: flex;
   justify-content: space-between;
+
+  span {
+    font-size: 12px;
+    color: var(--text-2);
+  }
+}
+
+.workout-meta {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  padding-bottom: 8px;
+  gap: 8px;
+  min-height: 32px;
+  margin: 0 4px 12px;
 }
 
-.superset-label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--accent-text);
+.program-badge {
+  text-decoration: none;
 }
 
-.superset-member {
-  padding-top: 12px;
+.workout-date {
+  font-size: 13px;
+  color: var(--text-2);
+}
 
-  & + & {
-    margin-top: 8px;
-    border-top: 2px solid var(--border-color);
-  }
-
-  .exercise-header-row {
-    padding: 0 8px 8px 16px;
-  }
+ion-datetime-button.date-chip::part(native) {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line-stronger);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font-size: 13px;
 }
 
 .empty-sets-message {
   padding: 16px;
-}
-
-.workout-name-item,
-.workout-date-item {
-  --background: transparent;
-  --padding-start: 0;
-  --inner-padding-end: 0;
-}
-
-.workout-name-input,
-.workout-title {
-  --color: var(--ion-text-color);
-  font-size: 1.5rem;
-  font-weight: 600;
-  letter-spacing: -0.025em;
-}
-
-.workout-title {
-  margin: 8px 0 4px;
+  text-align: center;
+  color: var(--text-2);
 }

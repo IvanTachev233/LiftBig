@@ -9,6 +9,8 @@ import { AuthService } from '../../../core/auth.service';
 import { Exercise, WorkoutService } from '../../../core/workout.service';
 import { ExerciseDetailModalComponent } from '../exercise-detail-modal/exercise-detail-modal.component';
 import { CreateExerciseModalComponent } from '../create-exercise-modal/create-exercise-modal.component';
+import { ChipGroupComponent, ChipOption } from '../../ui/chip-group.component';
+import { BODY_PARTS, bodyPartName } from '../../body-part';
 
 /** Data the picker dismisses with (role 'confirm'). Back dismisses with null and role 'cancel'. */
 export interface ExercisePickerResult {
@@ -27,7 +29,7 @@ function byName(a: Exercise, b: Exercise): number {
   templateUrl: './exercise-picker.component.html',
   styleUrls: ['./exercise-picker.component.scss'],
   standalone: true,
-  imports: [IonicModule],
+  imports: [IonicModule, ChipGroupComponent],
 })
 export class ExercisePickerComponent implements OnInit {
   private modalCtrl = inject(ModalController);
@@ -43,6 +45,8 @@ export class ExercisePickerComponent implements OnInit {
 
   readonly allExercises = signal<Exercise[]>([]);
   readonly query = signal('');
+  /** Body part code of the selected chip; 'all' shows every exercise */
+  readonly bodyPart = signal<string | null>('all');
   readonly selectedIds = signal<string[]>([]);
   readonly loading = signal(false);
   readonly loadError = signal(false);
@@ -50,27 +54,41 @@ export class ExercisePickerComponent implements OnInit {
   readonly isCoach = computed(() => this.auth.currentUser()?.role === 'COACH');
   readonly selectedSet = computed(() => new Set(this.selectedIds()));
   readonly selectedCount = computed(() => this.selectedIds().length);
+  private readonly listed = computed(() => {
+    const excluded = new Set(this.excludeIds);
+    return this.allExercises().filter((e) => !excluded.has(e.id));
+  });
+  /** "All", then the body parts of the listed exercises */
+  readonly bodyPartChips = computed<ChipOption[]>(() => {
+    const present = new Set(this.listed().map((e) => e.bodyPart));
+    return [
+      { value: 'all', label: 'All' },
+      ...BODY_PARTS.filter((p) => present.has(p.code)).map((p) => ({
+        value: p.code,
+        label: p.name,
+      })),
+    ];
+  });
   readonly filteredExercises = computed(() => {
     const q = this.query().trim().toLowerCase();
-    const excluded = new Set(this.excludeIds);
-    const all = this.allExercises().filter((e) => !excluded.has(e.id));
-    return q ? all.filter((e) => e.name.toLowerCase().includes(q)) : all;
+    const part = this.bodyPart();
+    return this.listed().filter(
+      (e) =>
+        (!part || part === 'all' || e.bodyPart === part) &&
+        (!q || e.name.toLowerCase().includes(q)),
+    );
   });
   readonly primaryDisabled = computed(() =>
     this.mode === 'replace' ? this.selectedCount() !== 1 : this.selectedCount() < 1,
   );
-  readonly primaryLabel = computed(() =>
-    this.mode === 'replace'
-      ? 'Replace'
-      : 'Add' + (this.selectedCount() ? ` (${this.selectedCount()})` : ''),
-  );
-  readonly primaryAriaLabel = computed(() =>
-    this.mode === 'replace'
-      ? 'Replace'
-      : this.selectedCount()
-        ? `Add ${this.selectedCount()} selected`
-        : 'Add',
-  );
+  readonly primaryLabel = computed(() => {
+    const count = this.selectedCount();
+    if (this.mode === 'replace') return 'Replace';
+    if (count === 0) return 'Add exercise';
+    return count === 1 ? 'Add 1 exercise' : `Add ${count} exercises`;
+  });
+
+  readonly bodyPartName = bodyPartName;
 
   // Prevents a double tap from stacking two child modals
   private childModalOpen = false;
@@ -195,7 +213,8 @@ export class ExercisePickerComponent implements OnInit {
     }
   }
 
-  // Adds the new exercise in name order (ignoring case) and selects it last
+  // Adds the new exercise in name order (ignoring case) and selects it last;
+  // a search or chip that would hide it is cleared
   private insertCreated(exercise: Exercise) {
     const list = this.allExercises().filter((e) => e.id !== exercise.id);
     const index = list.findIndex((e) => byName(e, exercise) > 0);
@@ -205,6 +224,10 @@ export class ExercisePickerComponent implements OnInit {
     const q = this.query().trim().toLowerCase();
     if (q && !exercise.name.toLowerCase().includes(q)) {
       this.query.set('');
+    }
+    const part = this.bodyPart();
+    if (part !== 'all' && exercise.bodyPart !== part) {
+      this.bodyPart.set('all');
     }
     this.setSelected(exercise, true);
   }

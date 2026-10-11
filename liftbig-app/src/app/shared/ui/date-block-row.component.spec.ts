@@ -5,7 +5,7 @@ import { DateBlockRowComponent } from './date-block-row.component';
 @Component({
   imports: [DateBlockRowComponent],
   template: `
-    <app-date-block-row [date]="date" [title]="title" [sub]="sub">
+    <app-date-block-row [date]="date" [title]="title" [sub]="sub" [subTone]="tone">
       <span tags class="tag">PR</span>
       <span trailing class="trailing">258 kg</span>
     </app-date-block-row>
@@ -15,6 +15,7 @@ class HostComponent {
   date = '2026-10-13T00:00:00.000Z';
   title = 'Snatch & Back Squat';
   sub: string | null = 'Completed · 3 exercises';
+  tone: 'default' | 'accent' | 'muted' = 'default';
 }
 
 describe('DateBlockRowComponent', () => {
@@ -54,6 +55,16 @@ describe('DateBlockRowComponent', () => {
     expect(text('.row-sub')).toBe('Completed · 3 exercises');
     expect(el().querySelector('.row-heading .tag')).not.toBeNull();
     expect(el().querySelector('.row-trailing .trailing')).not.toBeNull();
+  });
+
+  it('marks the sub line with its tone', () => {
+    expect(el().querySelector('.row-sub')!.className).toBe('row-sub');
+    fixture.componentInstance.tone = 'accent';
+    fixture.detectChanges();
+    expect(el().querySelector('.row-sub')!.classList).toContain('tone-accent');
+    fixture.componentInstance.tone = 'muted';
+    fixture.detectChanges();
+    expect(el().querySelector('.row-sub')!.classList).toContain('tone-muted');
   });
 
   it('leaves out the sub line when there is none', () => {

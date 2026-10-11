@@ -18,6 +18,8 @@ export class DateBlockRowComponent {
   readonly date = input.required<string>();
   readonly title = input.required<string>();
   readonly sub = input<string | null>();
+  /** accent: an open state such as "In progress"; muted: e.g. "Missed" */
+  readonly subTone = input<'default' | 'accent' | 'muted'>('default');
 
   protected readonly day = computed(() => this.date().slice(0, 10));
   protected readonly weekday = computed(() => {
