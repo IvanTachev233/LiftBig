@@ -6,16 +6,18 @@ import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 import { ClientService } from '../../core/client.service';
 import { Profile, ProfileService } from '../../core/profile.service';
+import { RestTimeService, formatRest } from '../../core/rest-time';
 import { ThemeService, ThemeSetting } from '../../core/theme.service';
 import { WeightUnit } from '../../core/weight-unit.service';
 import { BottomSheetService } from '../../shared/ui/bottom-sheet.service';
 import { ConnectCoachSheetComponent } from './connect-coach-sheet.component';
+import { RestTimerSheetComponent } from './rest-timer-sheet.component';
 import { initialsOf } from '../../shared/initials';
 import { LargeTitleComponent } from '../../shared/ui/large-title.component';
 import { TabHeaderComponent } from '../../shared/ui/tab-header.component';
 
 // Profile for both roles: who you are, coach connection (clients), weight
-// unit, theme, My 1RMs (clients) and log out
+// unit, rest timer (clients), theme, My 1RMs (clients) and log out
 @Component({
   selector: 'app-profile',
   templateUrl: './profile.page.html',
@@ -30,6 +32,7 @@ export class ProfilePage implements ViewWillEnter {
   private toastController = inject(ToastController);
   private bottomSheet = inject(BottomSheetService);
   private router = inject(Router);
+  private restTime = inject(RestTimeService);
   readonly theme = inject(ThemeService);
 
   profile: Profile | null = null;
@@ -43,6 +46,12 @@ export class ProfilePage implements ViewWillEnter {
 
   get isClient(): boolean {
     return this.user()?.role === 'CLIENT';
+  }
+
+  /** "2:00", or "Off" for 0 */
+  get restLabel(): string {
+    const seconds = this.restTime.seconds();
+    return seconds ? formatRest(seconds) : 'Off';
   }
 
   get initials(): string {
@@ -67,6 +76,23 @@ export class ProfilePage implements ViewWillEnter {
       error: () => {
         this.unit = previous;
         this.presentToast("Couldn't save the weight unit");
+      },
+    });
+  }
+
+  /** Picks the default rest time in a sheet; a failed save puts the old one back */
+  async openRestTimer() {
+    const previous = this.restTime.seconds();
+    const { data, role } = await this.bottomSheet.open<number>(RestTimerSheetComponent, {
+      label: 'Default rest timer',
+      props: { seconds: previous },
+    });
+    if (role !== 'confirm' || data === undefined || data === previous) return;
+    this.restTime.set(data);
+    this.profileService.updateRestSeconds(data).subscribe({
+      error: () => {
+        this.restTime.set(previous);
+        this.presentToast("Couldn't save the rest timer");
       },
     });
   }

@@ -485,3 +485,8 @@ ion-input.set-note-input {
 .editor-content .add-exercise-btn {
   margin-top: 4px;
 }
+
+// The logger's rest bar, kept clear of the home indicator
+ion-footer.rest-footer {
+  padding: 8px var(--gutter-dense) calc(12px + var(--ion-safe-area-bottom, 0px));
+}

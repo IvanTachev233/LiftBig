@@ -50,10 +50,12 @@ import { AuthService } from '../../core/auth.service';
 import { predictPb, PbLift } from '../../shared/pb-predict';
 import { ExerciseHistoryModalComponent } from '../../shared/components/exercise-history-modal/exercise-history-modal.component';
 import { WeightUnitService } from '../../core/weight-unit.service';
+import { RestTimer, RestTimeService, formatRest } from '../../core/rest-time';
 import { ProgramService, sessionPosition } from '../../core/program.service';
 import { OverflowAction, OverflowMenuService } from '../../shared/ui/overflow-menu.service';
 import { StatusPillComponent } from '../../shared/ui/status-pill.component';
 import { ProgressBarComponent } from '../../shared/ui/progress-bar.component';
+import { RestBarComponent } from './rest-bar.component';
 
 // Makes element ids unique when more than one page instance is in the DOM
 let nextPageId = 0;
@@ -151,6 +153,7 @@ import { ConfirmSheetService } from '../../shared/ui/confirm-sheet.component';
     FormsModule,
     StatusPillComponent,
     ProgressBarComponent,
+    RestBarComponent,
   ],
 })
 export class WorkoutLoggerPage implements OnInit, OnDestroy {
@@ -165,6 +168,10 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
   private programService = inject(ProgramService);
   private overflowMenu = inject(OverflowMenuService);
   readonly units = inject(WeightUnitService);
+  private restTime = inject(RestTimeService);
+
+  // Rest countdown, started when a set is logged
+  readonly rest = new RestTimer();
 
   dashboardUrl = this.authService.dashboardUrl;
 
@@ -256,6 +263,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.rest.stop();
     // Requests already queued still go out
     this.setWrites.complete();
     this.cardSaves.complete();
@@ -498,6 +506,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     card.newWeight = null;
     card.newReps = null;
     this.saveAddedSet(currentWorkout, card, set);
+    this.startRest();
   }
 
   /** "+ Add set": an unlogged set with the previous set's planned reps and weight */
@@ -662,6 +671,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     set.made = set.made === true ? null : true;
     this.predictPb(set);
     this.saveCards();
+    if (set.made !== null) this.startRest();
   }
 
   madeState(set: LoggerSet) {
@@ -678,8 +688,20 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
       set.made = null;
     } else {
       set.made = true;
+      this.startRest();
     }
     this.saveResult(set);
+  }
+
+  /** Starts the rest countdown at the user's default; 0 (off) shows none */
+  private startRest() {
+    this.rest.start(this.restTime.seconds());
+  }
+
+  /** " · rest 2:00" after an expanded card's plan; empty when off or no sets */
+  restSuffix(card: LoggerCard): string {
+    const seconds = this.restTime.seconds();
+    return seconds && card.sets.length ? ` · rest ${formatRest(seconds)}` : '';
   }
 
   /** An actual value was committed; an unlogged set sends it with its result */

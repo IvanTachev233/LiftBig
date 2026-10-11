@@ -53,6 +53,15 @@
             <ion-segment-button value="lb"><ion-label>lb</ion-label></ion-segment-button>
           </ion-segment>
         </div>
+        @if (isClient) {
+          <button type="button" class="setting-row rest-row" (click)="openRestTimer()">
+            <span class="setting-label">Default rest timer</span>
+            <span class="setting-value">
+              <span class="rest-value num">{{ restLabel }}</span>
+              <ion-icon name="chevron-forward" aria-hidden="true"></ion-icon>
+            </span>
+          </button>
+        }
       }
       <!-- Stored on the device, so it works without the profile -->
       <div class="setting-row stacked">

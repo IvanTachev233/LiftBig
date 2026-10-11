@@ -175,7 +175,7 @@
               (click)="openHistory(card)"
             >{{ card.exerciseName }}</button>
           </h2>
-          <span class="plan-line">{{ planLine(card) }}</span>
+          <span class="plan-line">{{ planLine(card) }}{{ restSuffix(card) }}</span>
         </div>
         <ion-button
           fill="clear"
@@ -378,3 +378,9 @@
     <ion-spinner class="block mx-auto mt-10"></ion-spinner>
   }
 </ion-content>
+
+@if (rest.remaining() !== null) {
+  <ion-footer class="rest-footer ion-no-border">
+    <app-rest-bar [timer]="rest" />
+  </ion-footer>
+}

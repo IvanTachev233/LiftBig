@@ -1,4 +1,11 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import {
+  ComponentFixture,
+  TestBed,
+  discardPeriodicTasks,
+  fakeAsync,
+  flush,
+  tick,
+} from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import {
   HttpTestingController,
@@ -19,6 +26,7 @@ import { ActiveWorkoutService } from '../../core/active-workout.service';
 import { AuthService } from '../../core/auth.service';
 import { fakeToken } from '../../core/auth.testing';
 import { WeightUnitService } from '../../core/weight-unit.service';
+import { RestTimeService } from '../../core/rest-time';
 import { ExerciseHistoryModalComponent } from '../../shared/components/exercise-history-modal/exercise-history-modal.component';
 import { OverflowMenuService } from '../../shared/ui/overflow-menu.service';
 
@@ -3383,5 +3391,190 @@ describe('WorkoutLoggerPage', () => {
         ]);
       });
     });
+  });
+
+  describe('rest timer', () => {
+    const restBar = () => el('.rest-bar');
+    const restTime = () => el('.rest-bar .rest-time').textContent!.trim();
+    const restButton = (text: string) =>
+      Array.from<HTMLElement>(fixture.nativeElement.querySelectorAll('.rest-bar button')).find(
+        (b) => b.textContent!.trim() === text,
+      )!;
+    const headerPlanLines = () =>
+      Array.from<HTMLElement>(
+        fixture.nativeElement.querySelectorAll('.exercise-heading .plan-line'),
+      ).map((p) => p.textContent!.replace(/\s+/g, ' ').trim());
+
+    /** A self-made workout whose sets are not logged yet */
+    function loadUnlogged(id = 'w201') {
+      const squat = card('c1', 'ex1', 'Squat', [5, 5, 5]);
+      squat.sets.forEach((s) => (s.made = null));
+      createComponentWithNoId();
+      loadWorkout(id, [squat]);
+    }
+
+    function tickSet(n: number) {
+      buttonsLabelled(`Mark set ${n} done`)[0].click();
+      fixture.detectChanges();
+    }
+
+    /** Lets Ionic's own pending work finish so fakeAsync ends with no timers */
+    function settle() {
+      flush();
+      discardPeriodicTasks();
+    }
+
+    it('ticking a set shows the bar at the default, counting down, and it hides at 0', fakeAsync(() => {
+      loadUnlogged();
+      expect(restBar()).toBeNull();
+
+      tickSet(1);
+      patchBody('w201');
+      expect(restTime()).toBe('2:00');
+      expect(el('.rest-bar .rest-label').textContent!.trim()).toBe('Rest');
+      expect(el('.rest-bar .rest-time').getAttribute('role')).toBe('timer');
+
+      tick(1000);
+      fixture.detectChanges();
+      expect(restTime()).toBe('1:59');
+
+      tick(119_000);
+      fixture.detectChanges();
+      expect(restBar()).toBeNull();
+      settle();
+    }));
+
+    it('+15s adds 15 seconds and Skip hides the bar', fakeAsync(() => {
+      loadUnlogged();
+      tickSet(1);
+      patchBody('w201');
+      tick(36_000);
+
+      restButton('+15s').click();
+      fixture.detectChanges();
+      expect(restTime()).toBe('1:39');
+
+      restButton('Skip').click();
+      fixture.detectChanges();
+      expect(restBar()).toBeNull();
+      expect(component.rest.remaining()).toBeNull();
+      settle();
+    }));
+
+    it('a new logged set restarts it; unticking leaves it running', fakeAsync(() => {
+      loadUnlogged();
+      tickSet(1);
+      patchBody('w201');
+      tick(30_000);
+
+      tickSet(2);
+      patchBody('w201');
+      expect(restTime()).toBe('2:00');
+
+      tick(10_000);
+      buttonsLabelled('Mark set 2 not done')[0].click();
+      fixture.detectChanges();
+      patchBody('w201');
+      expect(restTime()).toBe('1:50');
+      component.rest.stop();
+      settle();
+    }));
+
+    it('logging the first set of a new exercise starts it', fakeAsync(() => {
+      createComponentWithNoId();
+      component.addExercises([{ id: 'ex1', name: 'Bench Press' }]);
+      const c = component.cards[0];
+      c.newWeight = 100;
+      c.newReps = 5;
+      component.addSetToExercise(c);
+      fixture.detectChanges();
+      httpTesting.expectOne((req) => req.method === 'POST' && req.url === workoutsUrl);
+      expect(restTime()).toBe('2:00');
+      component.rest.stop();
+      settle();
+    }));
+
+    it('a plan-locked set starts it on its first tap only (made), not on missed or cleared', fakeAsync(() => {
+      const squat = card('c1', 'ex1', 'Back Squat', [3, 3]);
+      squat.sets.forEach((s) => (s.made = null));
+      createComponentWithNoId();
+      loadResponse({
+        ...workoutResponse('a20', [squat]),
+        status: 'PLANNED',
+        assignedById: 'coach1',
+        assignedBy: { id: 'coach1', name: 'Kim' },
+      });
+      const set = component.cards[0].sets[0];
+      const result = () =>
+        httpTesting
+          .expectOne((r) => r.method === 'PATCH' && r.url === `${workoutsUrl}/a20/sets/c1-s1`)
+          .flush({ ...squat.sets[0], made: set.made });
+
+      component.toggleMade(set);
+      result();
+      fixture.detectChanges();
+      expect(restTime()).toBe('2:00');
+
+      restButton('Skip').click();
+      component.toggleMade(set);
+      result();
+      fixture.detectChanges();
+      expect(set.made).toBeFalse();
+      expect(restBar()).toBeNull();
+
+      component.toggleMade(set);
+      result();
+      fixture.detectChanges();
+      expect(set.made).toBeNull();
+      expect(restBar()).toBeNull();
+      settle();
+    }));
+
+    it('with the default Off no bar appears and the plan line has no rest', fakeAsync(() => {
+      TestBed.inject(RestTimeService).set(0);
+      loadUnlogged();
+      expect(headerPlanLines()).toEqual(['3 × 5 @ 100 kg']);
+
+      tickSet(1);
+      patchBody('w201');
+      expect(restBar()).toBeNull();
+      settle();
+    }));
+
+    it('an expanded card shows the default rest in its plan line; a collapsed card does not', () => {
+      TestBed.inject(RestTimeService).set(90);
+      const squat = card('c1', 'ex1', 'Squat', [5]);
+      squat.sets.forEach((s) => (s.made = null));
+      createComponentWithNoId();
+      loadResponse(workoutResponse('w202', [squat, card('c2', 'ex2', 'Row', [8])]), false);
+
+      expect(headerPlanLines()).toEqual(['1 × 5 @ 100 kg · rest 1:30']);
+      expect(el('.collapsed-summary .plan-line').textContent!.trim()).toBe('1 × 8 @ 100 kg');
+    });
+
+    it('stays dark in light mode', () => {
+      loadUnlogged();
+      component.rest.start(60);
+      fixture.detectChanges();
+      document.documentElement.setAttribute('data-theme', 'light');
+      try {
+        const style = getComputedStyle(restBar());
+        expect(style.backgroundColor).toBe('rgb(20, 21, 24)');
+        expect(getComputedStyle(el('.rest-bar .rest-time')).color).toBe('rgb(243, 243, 241)');
+      } finally {
+        document.documentElement.removeAttribute('data-theme');
+        component.rest.stop();
+      }
+    });
+
+    it('leaving the logger ends it', fakeAsync(() => {
+      loadUnlogged();
+      tickSet(1);
+      patchBody('w201');
+      const rest = component.rest;
+      fixture.destroy();
+      expect(rest.remaining()).toBeNull();
+      settle();
+    }));
   });
 });

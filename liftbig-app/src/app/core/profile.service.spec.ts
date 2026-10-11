@@ -6,6 +6,7 @@ import {
 } from '@angular/common/http/testing';
 import { environment } from '../../environments/environment';
 import { Profile, ProfileService } from './profile.service';
+import { RestTimeService } from './rest-time';
 import { WeightUnitService } from './weight-unit.service';
 
 describe('ProfileService', () => {
@@ -53,5 +54,31 @@ describe('ProfileService', () => {
     service.load();
     http.expectOne(url).flush('', { status: 500, statusText: 'Error' });
     expect(units.unit()).toBe('kg');
+  });
+
+  describe('rest time', () => {
+    it('applies the rest time from /users/me', () => {
+      service.getMe().subscribe();
+      http.expectOne(url).flush({ ...profile, restSeconds: 90 });
+      expect(TestBed.inject(RestTimeService).seconds()).toBe(90);
+    });
+
+    it('uses 120 s when the API sends no rest time', () => {
+      const rest = TestBed.inject(RestTimeService);
+      rest.set(45);
+      service.getMe().subscribe();
+      http.expectOne(url).flush(profile);
+      expect(rest.seconds()).toBe(120);
+    });
+
+    it('saves the rest time alone with PATCH /users/me and applies the answer', () => {
+      service.updateRestSeconds(0).subscribe();
+      const req = http.expectOne(url);
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body).toEqual({ restSeconds: 0 });
+      req.flush({ ...profile, restSeconds: 0 });
+      expect(TestBed.inject(RestTimeService).seconds()).toBe(0);
+      expect(units.unit()).toBe('lb');
+    });
   });
 });

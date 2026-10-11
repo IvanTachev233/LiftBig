@@ -196,6 +196,13 @@ ion-segment-button {
   padding: 4px 0;
 }
 
+// Chips that wrap onto more lines instead of scrolling, e.g. in a sheet
+app-chip-group.wrap .chip-row {
+  flex-wrap: wrap;
+  row-gap: 10px;
+  overflow-x: visible;
+}
+
 .chip {
   position: relative;
   flex-shrink: 0;

@@ -128,6 +128,16 @@
   }
 }
 
+.setting-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rest-value {
+  font-size: 18px;
+}
+
 button.setting-row {
   width: 100%;
   cursor: pointer;

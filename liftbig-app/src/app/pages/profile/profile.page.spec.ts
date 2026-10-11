@@ -9,10 +9,12 @@ import { ToastController } from '@ionic/angular';
 import { environment } from '../../../environments/environment';
 import { AuthService, User } from '../../core/auth.service';
 import { fakeToken } from '../../core/auth.testing';
+import { RestTimeService } from '../../core/rest-time';
 import { THEME_KEY } from '../../core/theme.service';
 import { WeightUnitService } from '../../core/weight-unit.service';
 import { BottomSheetService } from '../../shared/ui/bottom-sheet.service';
 import { ProfilePage } from './profile.page';
+import { RestTimerSheetComponent } from './rest-timer-sheet.component';
 
 describe('ProfilePage', () => {
   let fixture: ComponentFixture<ProfilePage>;
@@ -191,6 +193,76 @@ describe('ProfilePage', () => {
       expect(component.inviteToken).toBe('bad');
       expect(toastCtrl.create).toHaveBeenCalledWith(
         jasmine.objectContaining({ message: 'Invite expired', color: 'danger' }),
+      );
+    });
+  });
+
+  describe('Default rest timer', () => {
+    const row = () => fixture.nativeElement.querySelector('.rest-row') as HTMLElement | null;
+    const rest = () => TestBed.inject(RestTimeService);
+    const signIn = (role: User['role']) => {
+      TestBed.inject(AuthService).setSession(fakeToken(role));
+      fixture.detectChanges();
+    };
+
+    it('shows a client the default, 2:00 when the API sends none', () => {
+      signIn('CLIENT');
+      expect(row()?.querySelector('.setting-label')?.textContent?.trim()).toBe('Default rest timer');
+      expect(row()?.querySelector('.rest-value')?.textContent?.trim()).toBe('2:00');
+    });
+
+    it('shows the stored time, and Off for 0', () => {
+      signIn('CLIENT');
+      rest().set(90);
+      fixture.detectChanges();
+      expect(row()?.querySelector('.rest-value')?.textContent?.trim()).toBe('1:30');
+      rest().set(0);
+      fixture.detectChanges();
+      expect(row()?.querySelector('.rest-value')?.textContent?.trim()).toBe('Off');
+    });
+
+    it('is not offered to a coach', () => {
+      signIn('COACH');
+      expect(row()).toBeNull();
+    });
+
+    it('opens the sheet with the current time and saves the one picked', async () => {
+      signIn('CLIENT');
+      sheet.open.and.resolveTo({ data: 90, role: 'confirm' });
+      row()!.click();
+      await fixture.whenStable();
+
+      const [component, options] = sheet.open.calls.mostRecent().args;
+      expect(component).toBe(RestTimerSheetComponent);
+      expect(options).toEqual({ label: 'Default rest timer', props: { seconds: 120 } });
+      const req = http.expectOne(url);
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body).toEqual({ restSeconds: 90 });
+      fixture.detectChanges();
+      expect(row()?.querySelector('.rest-value')?.textContent?.trim()).toBe('1:30');
+      req.flush({ ...profile, restSeconds: 90 });
+      expect(rest().seconds()).toBe(90);
+    });
+
+    it('saves nothing when the sheet is closed or the time is unchanged', async () => {
+      signIn('CLIENT');
+      sheet.open.and.resolveTo({ role: 'cancel' });
+      await component.openRestTimer();
+      sheet.open.and.resolveTo({ data: 120, role: 'confirm' });
+      await component.openRestTimer();
+      http.expectNone(url);
+      expect(rest().seconds()).toBe(120);
+    });
+
+    it('puts the old time back and shows a toast when saving fails', async () => {
+      signIn('CLIENT');
+      sheet.open.and.resolveTo({ data: 0, role: 'confirm' });
+      await component.openRestTimer();
+      http.expectOne(url).flush('', { status: 500, statusText: 'Error' });
+      await fixture.whenStable();
+      expect(rest().seconds()).toBe(120);
+      expect(toastCtrl.create).toHaveBeenCalledWith(
+        jasmine.objectContaining({ message: "Couldn't save the rest timer" }),
       );
     });
   });
