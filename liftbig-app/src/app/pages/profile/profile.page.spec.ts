@@ -17,6 +17,7 @@ import { ProfilePage } from './profile.page';
 import { RestTimerSheetComponent } from './rest-timer-sheet.component';
 import { EditProfileSheetComponent } from './edit-profile-sheet.component';
 import { ChangePasswordSheetComponent } from './change-password-sheet.component';
+import { DeleteAccountSheetComponent } from './delete-account-sheet.component';
 
 describe('ProfilePage', () => {
   let fixture: ComponentFixture<ProfilePage>;
@@ -389,7 +390,58 @@ describe('ProfilePage', () => {
         fixture.nativeElement.querySelectorAll('#account-heading + .settings-group > *'),
       );
       expect(rows.map((r) => r.classList.contains('password-row') ? 'password' : r.textContent!.trim()))
-        .toEqual(['password', 'Log out']);
+        .toEqual(['password', 'Log out', 'Delete account']);
+    });
+  });
+
+  describe('Delete account', () => {
+    const row = () => fixture.nativeElement.querySelector('.delete-account-row') as HTMLElement | null;
+    const signIn = (role: User['role']) => {
+      TestBed.inject(AuthService).setSession(fakeToken(role));
+      fixture.detectChanges();
+    };
+
+    it('is offered to both roles below Log out in the danger colour', () => {
+      for (const role of ['CLIENT', 'COACH'] as const) {
+        signIn(role);
+        expect(row()?.textContent?.trim()).toBe('Delete account');
+        expect(row()?.classList).toContain('danger');
+        expect(row()?.previousElementSibling?.classList).toContain('logout-btn');
+      }
+    });
+
+    it('opens the sheet for the signed-in role', async () => {
+      for (const [role, isCoach] of [['CLIENT', false], ['COACH', true]] as const) {
+        signIn(role);
+        sheet.open.and.resolveTo({ role: 'cancel' });
+        row()!.click();
+        await fixture.whenStable();
+        const [sheetComponent, options] = sheet.open.calls.mostRecent().args;
+        expect(sheetComponent).toBe(DeleteAccountSheetComponent);
+        expect(options).toEqual({ label: 'Delete account', props: { isCoach } });
+      }
+    });
+
+    it('signs out to Login with a toast once the account is deleted', async () => {
+      signIn('CLIENT');
+      const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+      sheet.open.and.resolveTo({ data: true, role: 'confirm' });
+      await component.openDeleteAccount();
+
+      expect(TestBed.inject(AuthService).isAuthenticated()).toBe(false);
+      expect(localStorage.getItem('token')).toBeNull();
+      expect(navigate).toHaveBeenCalledWith(['/login']);
+      expect(toastCtrl.create).toHaveBeenCalledWith(
+        jasmine.objectContaining({ message: 'Account deleted', color: 'success' }),
+      );
+    });
+
+    it('keeps the session when the sheet is closed', async () => {
+      signIn('CLIENT');
+      sheet.open.and.resolveTo({ role: 'cancel' });
+      await component.openDeleteAccount();
+      expect(TestBed.inject(AuthService).isAuthenticated()).toBe(true);
+      expect(toastCtrl.create).not.toHaveBeenCalled();
     });
   });
 });

@@ -4,25 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { IonicModule, ModalController } from '@ionic/angular';
 import { ProfileService } from '../../core/profile.service';
 import { BottomSheetComponent } from '../../shared/ui/bottom-sheet.component';
+import { passwordErrorMessage } from './password-errors';
 
 const MIN_LENGTH = 6;
-
-const plural = (n: number, word: string, many: string) => `${n} ${n === 1 ? word : many}`;
-
-function errorMessage(err: HttpErrorResponse): string {
-  const body = (err.error ?? {}) as { attemptsLeft?: number; retryAfterMinutes?: number };
-  if (err.status === 403) {
-    const left = body.attemptsLeft;
-    return left === undefined
-      ? 'Your current password is incorrect.'
-      : `Your current password is incorrect. ${plural(left, 'try', 'tries')} left.`;
-  }
-  if (err.status === 429) {
-    const minutes = body.retryAfterMinutes ?? 15;
-    return `Too many wrong passwords. Try again in ${plural(minutes, 'minute', 'minutes')}.`;
-  }
-  return "Couldn't change your password. Try again.";
-}
 
 /**
  * Sheet that changes the password itself, so a wrong current password keeps
@@ -122,7 +106,11 @@ export class ChangePasswordSheetComponent {
       next: () => this.modalController.dismiss(true, 'confirm'),
       error: (err: HttpErrorResponse) => {
         this.saving = false;
-        this.error = errorMessage(err);
+        this.error = passwordErrorMessage(
+          err,
+          'Your current password is incorrect.',
+          "Couldn't change your password. Try again.",
+        );
       },
     });
   }

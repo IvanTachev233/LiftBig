@@ -14,13 +14,14 @@ import { ConnectCoachSheetComponent } from './connect-coach-sheet.component';
 import { RestTimerSheetComponent } from './rest-timer-sheet.component';
 import { EditProfileSheetComponent } from './edit-profile-sheet.component';
 import { ChangePasswordSheetComponent } from './change-password-sheet.component';
+import { DeleteAccountSheetComponent } from './delete-account-sheet.component';
 import { initialsOf } from '../../shared/initials';
 import { LargeTitleComponent } from '../../shared/ui/large-title.component';
 import { TabHeaderComponent } from '../../shared/ui/tab-header.component';
 
 // Profile for both roles: who you are (editable name), coach connection
 // (clients), weight unit, rest timer (clients), theme, My 1RMs (clients),
-// change password and log out
+// change password, log out and delete account
 @Component({
   selector: 'app-profile',
   templateUrl: './profile.page.html',
@@ -161,6 +162,17 @@ export class ProfilePage implements ViewWillEnter {
 
   logout() {
     this.authService.logout();
+  }
+
+  /** The sheet deletes the account itself; then this device signs out to Login */
+  async openDeleteAccount() {
+    const { role } = await this.bottomSheet.open(DeleteAccountSheetComponent, {
+      label: 'Delete account',
+      props: { isCoach: !this.isClient },
+    });
+    if (role !== 'confirm') return;
+    this.authService.logout();
+    this.presentToast('Account deleted', 'success');
   }
 
   private async presentToast(message: string, color: 'success' | 'danger' = 'danger') {
