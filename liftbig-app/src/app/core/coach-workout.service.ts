@@ -12,12 +12,14 @@ export interface CoachSetInput {
   order?: number;
 }
 
-// One planned card; `id` keeps an existing card of the workout
+// One planned card; `id` keeps an existing card of the workout. `notes` is
+// the note for the athlete: absent keeps it, null clears it.
 export interface CoachCardInput {
   id?: string;
   exerciseId: string;
   order: number;
   supersetGroup?: string | null;
+  notes?: string | null;
   sets: CoachSetInput[];
 }
 
@@ -44,6 +46,7 @@ function plannedCards(cards: CoachCardInput[]): CoachCardInput[] {
     exerciseId: card.exerciseId,
     order: card.order,
     supersetGroup: card.supersetGroup ?? null,
+    ...(card.notes !== undefined ? { notes: card.notes } : {}),
     sets: card.sets.map((set) => ({
       ...(set.id ? { id: set.id } : {}),
       reps: set.reps,

@@ -1,143 +1,108 @@
-.workout-name-input {
-  font-size: 1.2rem;
+// Cards and the set table are in theme/_workout.scss
+
+// Accent text action. A toolbar colours a colourless clear button with
+// --ion-toolbar-color; [fill] outranks the screen header's muted colour
+ion-button.save-btn[fill] {
+  --color: var(--accent-text);
+  --ion-toolbar-color: var(--accent-text);
+  font-size: 15px;
   font-weight: 600;
-  letter-spacing: -0.025em;
+  text-transform: none;
 }
 
-.exercise-card {
-  margin-bottom: 8px;
+.editor-content {
+  --padding-start: var(--gutter-dense);
+  --padding-end: var(--gutter-dense);
+  --padding-top: 8px;
+  --padding-bottom: 32px;
 }
 
-.exercise-header-row {
+.workout-meta {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 4px;
-
-  ion-button {
-    flex-shrink: 0;
-  }
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 4px 16px;
 }
 
-// A long name wraps instead of pushing the buttons off the card
-.exercise-title {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  font-size: 1rem;
+ion-input.workout-name-input {
+  --padding-start: 0;
+  --padding-end: 0;
+  --highlight-height: 0;
+  --placeholder-color: var(--placeholder);
+  --placeholder-opacity: 1;
+  min-height: 44px;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
-.exercise-actions {
+.meta-chips {
   display: flex;
-  flex-shrink: 0;
-}
-
-.set-row {
-  display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--border-color);
 }
 
-.set-order {
-  min-width: 28px;
-  font-weight: 500;
-  color: var(--ion-color-medium);
-  font-size: 0.85rem;
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  font: 500 13px var(--font-ui);
 }
 
-.set-input {
-  flex: 1;
+.date-chip {
+  position: relative;
+  border: 1px solid var(--line-stronger);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+
+  ion-icon {
+    font-size: 15px;
+    color: var(--text-2);
+  }
+
+  // 44px touch target around the 34px chip
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -5px 0;
+  }
 }
 
-.notes-input {
-  flex: 2;
-}
-
-.column-headers {
-  border-bottom: 2px solid var(--border-color);
-  padding-bottom: 6px;
-  margin-bottom: 2px;
-}
-
-.col-header {
-  font-size: 0.75rem;
+.completion-chip {
+  background: var(--surface-2);
+  color: var(--text-2);
   font-weight: 600;
-  text-transform: uppercase;
-  color: var(--ion-color-medium);
-  text-align: center;
+
+  &.done {
+    background: var(--success-tint);
+    color: var(--success-text);
+  }
+
+  &.live {
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--text);
+  }
 }
 
-.made-col {
-  min-width: 36px;
+.date-sheet {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 1.2rem;
-}
+  flex-direction: column;
+  gap: 12px;
+  padding: 33px 20px 24px;
 
-.remove-col {
-  min-width: 36px;
-}
-
-.set-result {
-  padding: 2px 0 4px 36px;
-  font-size: 0.8rem;
-  color: var(--ion-color-medium);
-}
-
-.add-set-btn {
-  margin-top: 8px;
-}
-
-.add-exercise-btn {
-  margin-top: 16px;
-}
-
-.superset-card {
-  margin-bottom: 8px;
-  border: 2px solid var(--ion-color-primary);
-  border-radius: 12px;
-  // Subtle primary tint over the card surface
-  --background: linear-gradient(
-      rgba(var(--ion-color-primary-rgb), 0.06),
-      rgba(var(--ion-color-primary-rgb), 0.06)
-    ),
-    var(--bg-surface);
-}
-
-.superset-header {
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 8px;
-}
-
-.superset-label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--ion-color-primary);
-}
-
-.superset-member {
-  padding-top: 12px;
-
-  & + & {
-    border-top: 2px solid var(--border-color);
-  }
-
-  .exercise-header-row {
-    padding: 0 8px 0 16px;
-  }
-
-  .exercise-title {
-    flex: 1;
+  ion-datetime {
+    --background: var(--surface);
+    align-self: center;
   }
 }
 
-.save-btn {
-  margin-top: 16px;
-  margin-bottom: 32px;
+.empty-note {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-2);
 }

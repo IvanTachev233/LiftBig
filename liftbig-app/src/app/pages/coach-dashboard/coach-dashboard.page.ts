@@ -1,150 +1,138 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import {
-  IonicModule,
-  AlertController,
-  ToastController,
-  ViewWillEnter,
-} from '@ionic/angular';
+import { IonicModule, ToastController, ViewWillEnter } from '@ionic/angular';
 import { RouterModule } from '@angular/router';
-import { FormsModule } from '@angular/forms';
-import { AuthService } from '../../core/auth.service';
+import { EMPTY, Observable, Subject, catchError, switchMap } from 'rxjs';
+import { addIcons } from 'ionicons';
+import { chevronForward, mailOutline, personAddOutline } from 'ionicons/icons';
 import { ClientService, Client, Invite } from '../../core/client.service';
-import { Observable, Subject, shareReplay, switchMap } from 'rxjs';
+import { BottomSheetService } from '../../shared/ui/bottom-sheet.service';
+import { LargeTitleComponent } from '../../shared/ui/large-title.component';
+import { ProgressBarComponent } from '../../shared/ui/progress-bar.component';
+import { StatTile, StatTilesComponent } from '../../shared/ui/stat-tiles.component';
+import { StatusPillComponent } from '../../shared/ui/status-pill.component';
+import { TabHeaderComponent } from '../../shared/ui/tab-header.component';
+import { initialsOf } from '../../shared/initials';
+import { InviteSheetComponent } from './invite-sheet.component';
 
+// Coach Clients tab: search, totals, client cards with their last workout and
+// progress (→ Client workouts), pending invites (tap shows the code) and the
+// Invite sheet
 @Component({
   selector: 'app-coach-dashboard',
   templateUrl: './coach-dashboard.page.html',
   styleUrls: ['./coach-dashboard.page.scss'],
   standalone: true,
-  imports: [CommonModule, IonicModule, RouterModule, FormsModule],
+  imports: [
+    CommonModule,
+    IonicModule,
+    RouterModule,
+    TabHeaderComponent,
+    LargeTitleComponent,
+    ProgressBarComponent,
+    StatTilesComponent,
+    StatusPillComponent,
+  ],
 })
-export class CoachDashboardPage implements OnInit, ViewWillEnter {
-  public authService = inject(AuthService);
+export class CoachDashboardPage implements ViewWillEnter {
   private clientService = inject(ClientService);
-  private alertController = inject(AlertController);
+  private bottomSheet = inject(BottomSheetService);
   private toastController = inject(ToastController);
 
-  private refreshTrigger = new Subject<void>();
-  clients$: Observable<Client[]> | undefined;
-  pendingInvites$: Observable<Invite[]> | undefined;
+  private refreshClients = new Subject<void>();
+  private refreshInvites = new Subject<void>();
 
-  user = this.authService.currentUser;
+  /** null until the first load */
+  readonly clients = signal<Client[] | null>(null);
+  readonly invites = signal<Invite[]>([]);
+  readonly query = signal('');
 
-  // Shared so the template's several async pipes make one request per refresh
-  ngOnInit() {
-    this.clients$ = this.refreshTrigger.pipe(
-      switchMap(() => this.clientService.getClients()),
-      shareReplay({ bufferSize: 1, refCount: true }),
+  /** Clients whose name or email contains the search text, ignoring case */
+  readonly shownClients = computed(() => {
+    const q = this.query().trim().toLowerCase();
+    const clients = this.clients() ?? [];
+    if (!q) return clients;
+    return clients.filter((c) =>
+      [c.name, c.email].some((v) => v?.toLowerCase().includes(q)),
     );
-    this.pendingInvites$ = this.refreshTrigger.pipe(
-      switchMap(() => this.clientService.getPendingInvites()),
-      shareReplay({ bufferSize: 1, refCount: true }),
-    );
+  });
+
+  /** Totals over every client (not the search); null without counts from the API */
+  readonly tiles = computed<StatTile[] | null>(() => {
+    const clients = this.clients() ?? [];
+    if (!clients.length || clients.some((c) => c.assignedCount === undefined)) return null;
+    const sum = (count: (c: Client) => number | undefined) =>
+      clients.reduce((total, c) => total + (count(c) ?? 0), 0);
+    return [
+      { label: clients.length === 1 ? 'client' : 'clients', value: clients.length },
+      { label: 'assigned', value: sum((c) => c.assignedCount) },
+      { label: 'completed', value: sum((c) => c.completedCount) },
+    ];
+  });
+
+  readonly initials = initialsOf;
+
+  constructor() {
+    addIcons({ chevronForward, mailOutline, personAddOutline });
+    // A newer refresh cancels an older one still loading; the list shown
+    // stays until the new one arrives, and a failed load keeps it
+    this.refreshClients
+      .pipe(
+        switchMap(() => this.loadOrToast(this.clientService.getClients(), "Couldn't load your clients")),
+        takeUntilDestroyed(),
+      )
+      .subscribe((clients) => this.clients.set(clients));
+    this.refreshInvites
+      .pipe(
+        switchMap(() =>
+          this.loadOrToast(this.clientService.getPendingInvites(), "Couldn't load pending invites"),
+        ),
+        takeUntilDestroyed(),
+      )
+      .subscribe((invites) => this.invites.set(invites));
   }
 
-  // Runs on every visit; cached pages don't re-run ngOnInit
+  // Runs on every visit; cached pages don't re-run their constructor
   ionViewWillEnter() {
-    this.refreshTrigger.next();
+    this.refreshClients.next();
+    this.refreshInvites.next();
   }
 
-  async inviteClient() {
-    const alert = await this.alertController.create({
-      header: 'Invite Client',
-      inputs: [
-        {
-          name: 'email',
-          type: 'email',
-          placeholder: 'Client email address',
-        },
-      ],
-      buttons: [
-        { text: 'Cancel', role: 'cancel' },
-        {
-          text: 'Send Invite',
-          handler: (data) => {
-            if (data.email) {
-              this.clientService.sendInvite(data.email).subscribe({
-                next: (invite) => {
-                  this.showInviteToken(invite.token);
-                  this.refreshTrigger.next();
-                },
-                error: (err) => {
-                  this.presentToast(
-                    err.error?.message || 'Failed to send invite',
-                    'danger',
-                  );
-                },
-              });
-            }
-          },
-        },
-      ],
+  onSearch(event: Event) {
+    this.query.set((event as CustomEvent<{ value?: string | null }>).detail.value ?? '');
+  }
+
+  /** The Invite sheet; a created invite refreshes the pending list at once */
+  inviteClient() {
+    return this.bottomSheet.open(InviteSheetComponent, {
+      label: 'Invite a client',
+      props: { created: () => this.refreshInvites.next() },
     });
-    await alert.present();
   }
 
-  async removeClient(clientId: string) {
-    const alert = await this.alertController.create({
-      header: 'Remove Client',
-      message: 'Are you sure you want to remove this client?',
-      buttons: [
-        { text: 'Cancel', role: 'cancel' },
-        {
-          text: 'Remove',
-          role: 'destructive',
-          handler: () => {
-            this.clientService.removeClient(clientId).subscribe({
-              next: () => {
-                this.presentToast('Client removed', 'success');
-                this.refreshTrigger.next();
-              },
-              error: () => {
-                this.presentToast('Failed to remove client', 'danger');
-              },
-            });
-          },
-        },
-      ],
+  /** The same sheet showing a pending invite's code */
+  showInvite(invite: Invite) {
+    return this.bottomSheet.open(InviteSheetComponent, {
+      label: 'Invite code',
+      props: { invite },
     });
-    await alert.present();
   }
 
-  async showInviteToken(token: string) {
-    const alert = await this.alertController.create({
-      header: 'Invite Created',
-      message: `Share this code with your client:`,
-      inputs: [
-        {
-          name: 'token',
-          type: 'text',
-          value: token,
-          attributes: { readonly: true },
-        },
-      ],
-      buttons: [
-        {
-          text: 'Copy',
-          handler: () => {
-            navigator.clipboard.writeText(token);
-            this.presentToast('Code copied to clipboard', 'success');
-            return false; // keep alert open
-          },
-        },
-        { text: 'Done' },
-      ],
-    });
-    await alert.present();
+  private loadOrToast<T>(request: Observable<T>, message: string): Observable<T> {
+    return request.pipe(
+      catchError(() => {
+        this.presentToast(message);
+        return EMPTY;
+      }),
+    );
   }
 
-  private async presentToast(
-    message: string,
-    color: 'success' | 'danger' = 'danger',
-  ) {
+  private async presentToast(message: string) {
     const toast = await this.toastController.create({
       message,
       duration: 3000,
-      color,
+      color: 'danger',
       position: 'top',
     });
     await toast.present();

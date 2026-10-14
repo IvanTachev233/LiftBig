@@ -1,0 +1,147 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hero-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.hero-value {
+  font-size: 72px;
+  font-weight: 600;
+  line-height: 0.85;
+}
+
+.hero-unit {
+  font-size: 18px;
+  color: var(--text-2);
+}
+
+.delta-chip {
+  align-self: center;
+  margin-left: auto;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+
+  &.up {
+    background: var(--success-tint);
+    color: var(--success-text);
+  }
+}
+
+.chart {
+  position: relative;
+  height: 168px;
+}
+
+.history-empty,
+.range-empty {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.latest-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.latest-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.latest-label,
+.latest-date {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.latest-value {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.entries-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 6px;
+}
+
+.entries-hint {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.entries-list {
+  padding: 0;
+  background: transparent;
+}
+
+.entry-row {
+  --background: var(--bg);
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  --min-height: 54px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.entry-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 116px;
+}
+
+.entry-kg {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.entry-unit,
+.entry-date {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.entry-date {
+  flex: 1;
+}
+
+.entry-pr {
+  margin-inline-end: 8px;
+}
+
+.entry-source {
+  min-width: 52px;
+  font-size: 12px;
+  text-align: right;
+  color: var(--text-2);
+}
+
+.entry-line {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 54px;
+}

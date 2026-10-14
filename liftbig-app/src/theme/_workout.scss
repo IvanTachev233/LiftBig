@@ -1,0 +1,510 @@
+// Exercise cards and the set table of the workout logger (design handoff
+// Logger): cards, collapsed cards, set rows with kg/reps inputs and a tick.
+
+/* ---------------------------------------------------------------------------
+ * Exercise cards
+ * ------------------------------------------------------------------------- */
+
+ion-card.exercise-card,
+ion-card.superset-card {
+  --background: var(--surface);
+  margin: 0 0 10px;
+  padding: 14px 12px 6px;
+  color: var(--text);
+}
+
+ion-card.exercise-card.collapsed {
+  padding: 0;
+  border-radius: 16px;
+}
+
+ion-card.superset-card {
+  border-color: var(--accent);
+}
+
+.superset-label {
+  padding: 0 4px 8px;
+}
+
+.superset-member + .superset-member {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.exercise-header-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 0 10px 4px;
+}
+
+.exercise-heading {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+// A long name wraps instead of pushing the buttons off the card
+.exercise-heading .exercise-title {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.plan-line {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+// [fill] outranks the global clear-button accent colour
+ion-button.icon-btn[fill] {
+  --color: var(--text-2);
+  --padding-start: 0;
+  --padding-end: 0;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+/* Collapsed card: a button with the name, plan, logged/total and a chevron */
+
+.card-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 14px 16px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+
+  ion-card.superset-card & {
+    padding: 0 4px 8px;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: -2px;
+    border-radius: inherit;
+  }
+}
+
+.toggle-members {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 10px;
+  min-width: 0;
+}
+
+.collapsed-summary {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 12px;
+  min-width: 0;
+}
+
+.collapsed-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+
+  .exercise-title {
+    overflow-wrap: anywhere;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+  }
+}
+
+.logged-of {
+  font-size: 16px;
+  color: var(--text-3);
+}
+
+.toggle-chevron {
+  flex-shrink: 0;
+  font-size: 18px;
+  color: var(--icon-muted);
+}
+
+/* ---------------------------------------------------------------------------
+ * Set table: set · target · kg · reps · tick
+ * ------------------------------------------------------------------------- */
+
+.set-grid {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 68px 52px 44px;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 8px;
+  margin-bottom: 4px;
+  border-radius: 10px;
+}
+
+.set-head {
+  padding-top: 0;
+  padding-bottom: 6px;
+  margin-bottom: 0;
+
+  span {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  .center {
+    text-align: center;
+  }
+}
+
+ion-item.set-item {
+  --background: var(--surface);
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  --min-height: 0;
+  --border-width: 0;
+  --background-focused-opacity: 0;
+}
+
+ion-item.set-item .set-row {
+  width: 100%;
+}
+
+.set-order {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.set-target {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.set-plan {
+  font-size: 13px;
+  line-height: 1.2;
+  color: var(--text-2);
+}
+
+.set-grid ion-input.set-input {
+  --background: var(--surface-input);
+  --color: var(--text);
+  --placeholder-color: var(--text);
+  --placeholder-opacity: 1;
+  --padding-start: 2px;
+  --padding-end: 2px;
+  --padding-top: 0;
+  --padding-bottom: 0;
+  min-height: 36px;
+  height: 36px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+// Rows after the one to log next show their plan dimmed
+.set-row:not(.done, .active) ion-input.set-input {
+  --placeholder-color: var(--icon-muted);
+}
+
+.set-row.active ion-input.set-weight,
+.set-row.active ion-input.actual-weight,
+.new-set-row ion-input.set-input:first-of-type {
+  border: 1.5px solid var(--accent);
+}
+
+.set-row.done {
+  background: var(--success-row);
+
+  .set-order {
+    color: var(--success-text);
+  }
+
+  ion-input.set-input {
+    --background: transparent;
+    border-color: transparent;
+  }
+}
+
+// The coach's note for the athlete, under the card name
+.card-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 4px 0 0;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: pre-line;
+
+  ion-icon {
+    flex-shrink: 0;
+    margin-top: 2px;
+    font-size: 14px;
+    color: var(--accent-text);
+  }
+}
+
+.set-prescription,
+.set-notes {
+  margin: -2px 8px 6px 46px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+/* The tick: 44×40, outlined while unlogged, filled green when made */
+
+ion-button.tick {
+  --padding-start: 0;
+  --padding-end: 0;
+  --border-radius: 10px;
+  width: 44px;
+  height: 40px;
+  margin: 0;
+
+  &::part(native) {
+    border: 1.5px solid var(--line-control);
+    border-radius: 10px;
+  }
+
+  ion-icon {
+    font-size: 18px;
+    color: var(--icon-muted);
+  }
+}
+
+.set-row.done ion-button.tick {
+  &::part(native) {
+    border-color: var(--success);
+    background: var(--success);
+  }
+
+  ion-icon {
+    color: var(--on-success);
+  }
+}
+
+.set-row.missed ion-button.tick {
+  &::part(native) {
+    border-color: var(--danger-text);
+  }
+
+  ion-icon {
+    color: var(--danger-text);
+  }
+}
+
+.add-set-btn,
+.note-btn,
+.add-exercise-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text-soft);
+  font: 500 14px var(--font-ui);
+  cursor: pointer;
+
+  ion-icon {
+    font-size: 16px;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: -2px;
+  }
+}
+
+.add-set-btn,
+.note-btn {
+  height: 44px;
+}
+
+.add-exercise-btn {
+  height: 48px;
+  border: 1px dashed var(--line-control);
+  border-radius: var(--radius-md);
+}
+
+/* ---------------------------------------------------------------------------
+ * Coach workout editor: drag handle, set · reps · weight · result
+ * ------------------------------------------------------------------------- */
+
+ion-reorder.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 40px;
+  color: var(--icon-muted);
+  font-size: 20px;
+  cursor: grab;
+}
+
+.superset-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 0 8px;
+
+  .superset-label {
+    flex: 1;
+    padding: 0;
+  }
+}
+
+// The handle stays beside the expand button of a collapsed card
+.collapsed-row {
+  display: flex;
+  align-items: center;
+  padding-inline-start: 8px;
+
+  .card-toggle {
+    padding-inline-start: 4px;
+  }
+}
+
+.superset-card .card-toggle {
+  padding-top: 4px;
+}
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 4px;
+
+  &.with-result {
+    grid-template-columns: 30px 56px 68px minmax(0, 1fr);
+  }
+}
+
+.plan-head {
+  padding-bottom: 2px;
+
+  span {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  .center {
+    text-align: center;
+  }
+}
+
+.plan-set {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.plan-grid ion-input.set-input {
+  --background: var(--surface-input);
+  --color: var(--text);
+  --placeholder-color: var(--icon-muted);
+  --placeholder-opacity: 1;
+  --padding-start: 2px;
+  --padding-end: 2px;
+  --padding-top: 0;
+  --padding-bottom: 0;
+  min-height: 40px;
+  height: 40px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  font-size: 19px;
+  font-weight: 600;
+  text-align: center;
+}
+
+// The athlete's result: "✓ 5 × 100 kg", missed in the danger colour
+.result-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-self: start;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 4px 7px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+
+  ion-icon {
+    flex-shrink: 0;
+    font-size: 15px;
+  }
+
+  &.made {
+    background: var(--success-row);
+    color: var(--success-text);
+  }
+
+  &.missed {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--danger-text);
+    color: var(--danger-text);
+  }
+}
+
+ion-input.set-note-input {
+  --background: var(--surface-input);
+  --color: var(--text);
+  --placeholder-color: var(--placeholder);
+  --placeholder-opacity: 1;
+  --padding-start: 12px;
+  --padding-end: 12px;
+  min-height: 40px;
+  width: auto;
+  margin: 2px 4px 6px 42px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.card-footer {
+  display: flex;
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+
+  .note-btn {
+    border-left: 1px solid var(--line);
+  }
+}
+
+.editor-content .add-exercise-btn {
+  margin-top: 4px;
+}
+
+// The logger's rest bar, kept clear of the home indicator
+ion-footer.rest-footer {
+  padding: 8px var(--gutter-dense) calc(12px + var(--ion-safe-area-bottom, 0px));
+}

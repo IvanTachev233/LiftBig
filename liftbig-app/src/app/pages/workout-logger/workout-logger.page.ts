@@ -1,7 +1,6 @@
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
-  AlertController,
   IonicModule,
   ModalController,
   ToastController,
@@ -46,10 +45,18 @@ import {
   normalizeSupersets,
   toGroupBlocks,
 } from '../../shared/superset';
+import { ActiveWorkoutService } from '../../core/active-workout.service';
 import { AuthService } from '../../core/auth.service';
 import { predictPb, PbLift } from '../../shared/pb-predict';
 import { ExerciseHistoryModalComponent } from '../../shared/components/exercise-history-modal/exercise-history-modal.component';
 import { WeightUnitService } from '../../core/weight-unit.service';
+import { RestTimer, RestTimeService, formatRest } from '../../core/rest-time';
+import { ElapsedClock, formatElapsed } from '../../core/elapsed-time';
+import { ProgramService, sessionPosition } from '../../core/program.service';
+import { OverflowAction, OverflowMenuService } from '../../shared/ui/overflow-menu.service';
+import { StatusPillComponent } from '../../shared/ui/status-pill.component';
+import { ProgressBarComponent } from '../../shared/ui/progress-bar.component';
+import { RestBarComponent } from './rest-bar.component';
 
 // Makes element ids unique when more than one page instance is in the DOM
 let nextPageId = 0;
@@ -86,6 +93,8 @@ interface LoggerCard {
   newReps: number | null;
   // Cards sharing a value form one superset; null when not in one
   supersetGroup: string | null;
+  // The coach's note for the athlete
+  notes: string | null;
   // Bars a set must beat to be a PB; unknown until the API sends them
   pbBars?: PbBars;
   // From the card's exercise; undefined falls back to the exercise list
@@ -97,11 +106,14 @@ interface LoggerWorkout {
   name: string;
   date: string;
   status: WorkoutStatus | 'DRAFT';
+  // When the API recorded the start; null before that or when it has none
+  startedAt: string | null;
   source: WorkoutSource;
   // A coach or program workout: only results, added sets and status can change
   assigned: boolean;
   coachName: string | null;
   programName: string | null;
+  enrollmentId: string | null;
   // In display order
   cards: LoggerCard[];
   _pendingComplete?: boolean;
@@ -115,17 +127,17 @@ interface SentCard {
 
 const MADE_STATES = {
   made: {
-    icon: 'checkmark-circle',
+    icon: 'checkmark-sharp',
     color: 'success',
     label: 'Made. Tap to mark as missed',
   },
   missed: {
-    icon: 'close-circle',
+    icon: 'close-sharp',
     color: 'danger',
     label: 'Missed. Tap to clear result',
   },
   unset: {
-    icon: 'remove-circle-outline',
+    icon: 'checkmark-outline',
     color: 'medium',
     label: 'No result. Tap to mark as made',
   },
@@ -133,12 +145,21 @@ const MADE_STATES = {
 
 type QueuedRequest = () => Observable<unknown>;
 
+import { ConfirmSheetService } from '../../shared/ui/confirm-sheet.component';
 @Component({
   selector: 'app-workout-logger',
   templateUrl: './workout-logger.page.html',
   styleUrls: ['./workout-logger.page.scss'],
   standalone: true,
-  imports: [CommonModule, IonicModule, RouterModule, FormsModule],
+  imports: [
+    CommonModule,
+    IonicModule,
+    RouterModule,
+    FormsModule,
+    StatusPillComponent,
+    ProgressBarComponent,
+    RestBarComponent,
+  ],
 })
 export class WorkoutLoggerPage implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
@@ -146,9 +167,19 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
   private workoutService = inject(WorkoutService);
   private toastController = inject(ToastController);
   private modalCtrl = inject(ModalController);
-  private alertCtrl = inject(AlertController);
+  private confirmSheet = inject(ConfirmSheetService);
   private authService = inject(AuthService);
+  private activeWorkout = inject(ActiveWorkoutService);
+  private programService = inject(ProgramService);
+  private overflowMenu = inject(OverflowMenuService);
   readonly units = inject(WeightUnitService);
+  private restTime = inject(RestTimeService);
+
+  // Rest countdown, started when a set is logged
+  readonly rest = new RestTimer();
+  // Time since the workout started, shown under its name
+  readonly elapsed = new ElapsedClock();
+  readonly formatElapsed = formatElapsed;
 
   dashboardUrl = this.authService.dashboardUrl;
 
@@ -167,6 +198,12 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
 
   // Prevents a double tap from opening two pickers
   private pickerOpen = false;
+
+  // "Week w · Day d" of a program workout, from its active enrollment
+  position: { week: number; day: number } | null = null;
+
+  // Cards opened or closed by a tap; the others follow the first unlogged set
+  private toggled = new Map<LoggerCard, boolean>();
 
   // Set results and added sets of an assigned workout run one at a time, so
   // responses apply in the order the server saved them
@@ -225,12 +262,18 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     );
 
     this.workout$.subscribe((w) => {
+      this.toggled.clear();
+      this.position = null;
       this.workoutSubject.next(w);
+      this.syncElapsed();
       this.workoutName = w.name;
+      if (w.source === 'program') this.loadPosition(w);
     });
   }
 
   ngOnDestroy() {
+    this.rest.stop();
+    this.elapsed.stop();
     // Requests already queued still go out
     this.setWrites.complete();
     this.cardSaves.complete();
@@ -246,10 +289,12 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
       name: 'New Workout',
       date: new Date().toISOString(),
       status: 'DRAFT',
+      startedAt: null,
       source: 'manual',
       assigned: false,
       coachName: null,
       programName: null,
+      enrollmentId: null,
       cards: [],
     };
   }
@@ -277,6 +322,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
         newWeight: null,
         newReps: null,
         supersetGroup: card.supersetGroup ?? null,
+        notes: card.notes ?? null,
         pbBars: card.pbBars,
         isMaxTrackable: card.exercise?.isMaxTrackable,
       }),
@@ -286,10 +332,12 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
       name: w.name,
       date: w.date,
       status: w.status,
+      startedAt: w.startedAt ?? null,
       source: workoutSource(w),
       assigned: isPlanLocked(w),
       coachName: w.assignedBy?.name ?? null,
       programName: w.program?.name ?? null,
+      enrollmentId: w.program?.enrollmentId ?? null,
       // A superset needs 2 members next to each other
       cards: normalizeSupersets(cards),
     };
@@ -343,6 +391,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
         newWeight: null,
         newReps: null,
         supersetGroup,
+        notes: null,
         isMaxTrackable: ex.isMaxTrackable,
       });
     }
@@ -388,6 +437,9 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
         exerciseId: card.exerciseId,
         exerciseName: card.exerciseName,
       },
+      breakpoints: [0, 0.94],
+      initialBreakpoint: 0.94,
+      handle: true,
     });
     await modal.present();
     await modal.onDidDismiss();
@@ -432,17 +484,12 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     );
     if (!members.length) return;
 
-    const alert = await this.alertCtrl.create({
-      header: 'Delete superset?',
+    const confirmed = await this.confirmSheet.confirm({
+      title: 'Delete superset?',
       message: `Removes ${members.length} exercises and their sets`,
-      buttons: [
-        { text: 'Cancel', role: 'cancel' },
-        { text: 'Delete', role: 'destructive' },
-      ],
+      confirmLabel: 'Delete superset',
     });
-    await alert.present();
-    const { role } = await alert.onDidDismiss();
-    if (role !== 'destructive') return;
+    if (!confirmed) return;
 
     const currentWorkout = this.workoutSubject.value;
     if (!currentWorkout) return;
@@ -472,19 +519,67 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     this.predictPb(set);
     card.newWeight = null;
     card.newReps = null;
+    this.saveAddedSet(currentWorkout, card, set);
+    this.startRest();
+  }
 
-    if (currentWorkout.assigned) {
-      this.addAssignedSet(currentWorkout, card, set);
+  /** "+ Add set": an unlogged set with the previous set's planned reps and weight */
+  copyLastSet(card: LoggerCard) {
+    const currentWorkout = this.workoutSubject.value;
+    const last = card.sets[card.sets.length - 1];
+    if (!currentWorkout || !last) return;
+    const set: LoggerSet = {
+      reps: last.reps,
+      weight: last.weight,
+      made: null,
+      actualReps: null,
+      actualWeight: null,
+      notes: null,
+      pb: false,
+    };
+    card.sets.push(set);
+    this.saveAddedSet(currentWorkout, card, set);
+  }
+
+  /** Saves a set just added to the card; a draft is created by its first set */
+  private saveAddedSet(workout: LoggerWorkout, card: LoggerCard, set: LoggerSet) {
+    if (workout.assigned) {
+      this.addAssignedSet(workout, card, set);
       return;
     }
 
-    if (!currentWorkout.id) {
-      if (!this.inFlightCreates.has(currentWorkout)) {
-        this.createDraftWorkout(currentWorkout);
+    if (!workout.id) {
+      if (!this.inFlightCreates.has(workout)) {
+        this.createDraftWorkout(workout);
       }
       return;
     }
 
+    this.saveCards();
+  }
+
+  /**
+   * A self-made set's own weight (typed in the user's unit) or reps, committed
+   * from its input. Reps below 1 or not a number put the old value back.
+   */
+  setValueChanged(set: LoggerSet, field: 'weight' | 'reps', event: Event) {
+    const value = (event as CustomEvent<{ value?: string | null }>).detail?.value;
+    if (field === 'reps') {
+      const reps = this.toNumber(value, true);
+      if (reps === null || reps < 1) {
+        const input = event.target as HTMLIonInputElement | null;
+        if (input) input.value = set.reps;
+        return;
+      }
+      if (reps === set.reps) return;
+      set.reps = reps;
+    } else {
+      const typed = this.toNumber(value);
+      // An unchanged pound value would otherwise drift by its rounding
+      if (typed === this.units.toInput(set.weight)) return;
+      set.weight = this.units.toKg(typed);
+    }
+    this.predictPb(set);
     this.saveCards();
   }
 
@@ -520,11 +615,14 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
                 tap({
                   next: (saved) => {
                     this.adoptIds(sent, saved, sentAt);
+                    this.adoptStart(draft, saved?.startedAt);
                     if (completing) {
                       draft._pendingComplete = false;
                       draft.status = 'COMPLETED';
+                      this.activeWorkout.completed(created.id);
                       if (isCurrent) {
                         this.workoutSubject.next(draft);
+                        this.syncElapsed();
                         this.router.navigate([this.dashboardUrl()]);
                       }
                       return;
@@ -589,6 +687,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     set.made = set.made === true ? null : true;
     this.predictPb(set);
     this.saveCards();
+    if (set.made !== null) this.startRest();
   }
 
   madeState(set: LoggerSet) {
@@ -605,8 +704,20 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
       set.made = null;
     } else {
       set.made = true;
+      this.startRest();
     }
     this.saveResult(set);
+  }
+
+  /** Starts the rest countdown at the user's default; 0 (off) shows none */
+  private startRest() {
+    this.rest.start(this.restTime.seconds());
+  }
+
+  /** " · rest 2:00" after an expanded card's plan; empty when off or no sets */
+  restSuffix(card: LoggerCard): string {
+    const seconds = this.restTime.seconds();
+    return seconds && card.sets.length ? ` · rest ${formatRest(seconds)}` : '';
   }
 
   /** An actual value was committed; an unlogged set sends it with its result */
@@ -640,8 +751,9 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
 
   /** Sends the set's whole result, queued behind its earlier requests */
   private saveResult(set: LoggerSet) {
-    const workoutId = this.workoutSubject.value?.id;
-    if (!workoutId) return;
+    const workout = this.workoutSubject.value;
+    const workoutId = workout?.id;
+    if (!workout || !workoutId) return;
     // The API takes whole reps; an empty input means "as planned"
     set.actualReps = this.toNumber(set.actualReps, true);
     set.actualWeight = this.toNumber(set.actualWeight);
@@ -658,7 +770,10 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
       set.id
         ? this.workoutService.updateSetResult(workoutId, set.id, body).pipe(
             finalize(() => this.answered(sentAt)),
-            tap((saved) => this.adoptPbs(workoutId, set, saved, sentAt)),
+            tap((saved) => {
+              this.adoptPbs(workoutId, set, saved, sentAt);
+              this.adoptStart(workout, saved?.workoutStartedAt);
+            }),
           )
         : EMPTY,
     );
@@ -679,6 +794,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
             next: (saved) => {
               set.id = saved.id;
               this.adoptPbs(workoutId, set, saved, sentAt);
+              this.adoptStart(workout, saved?.workoutStartedAt);
             },
             error: () => {
               const i = card.sets.indexOf(set);
@@ -726,6 +842,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
         // Nothing to save
         currentWorkout.status = 'COMPLETED';
         this.workoutSubject.next(currentWorkout);
+        this.syncElapsed();
         this.router.navigate([this.dashboardUrl()]);
         return;
       }
@@ -747,7 +864,9 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
         next: () => {
           currentWorkout._pendingComplete = false;
           currentWorkout.status = 'COMPLETED';
+          this.activeWorkout.completed(currentWorkout.id!);
           this.workoutSubject.next(currentWorkout);
+          this.syncElapsed();
           this.router.navigate([this.dashboardUrl()]);
         },
         error: () => {
@@ -756,6 +875,100 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
           this.presentSaveErrorToast();
         },
       });
+  }
+
+  /** Sets with a result, made or missed */
+  loggedCount(cards: LoggerCard[]): number {
+    return cards.reduce((n, c) => n + c.sets.filter((s) => s.made !== null).length, 0);
+  }
+
+  setCount(cards: LoggerCard[]): number {
+    return cards.reduce((n, c) => n + c.sets.length, 0);
+  }
+
+  /** The card holding the first unlogged set, or the first card with no sets */
+  private focusCard(): LoggerCard | undefined {
+    return this.cards.find((c) => !c.sets.length || c.sets.some((s) => s.made === null));
+  }
+
+  /**
+   * A block (a card, or a superset's members) is open when tapped open, or
+   * when it holds the focus card. With every set logged, all are open.
+   */
+  isExpanded(cards: LoggerCard[]): boolean {
+    const tapped = cards.map((c) => this.toggled.get(c)).find((v) => v !== undefined);
+    if (tapped !== undefined) return tapped;
+    const focus = this.focusCard();
+    return !focus || cards.includes(focus);
+  }
+
+  toggleExpanded(cards: LoggerCard[]) {
+    const open = !this.isExpanded(cards);
+    for (const card of cards) this.toggled.set(card, open);
+  }
+
+  /** The row to log next: the focus card's first unlogged set */
+  isActiveSet(set: LoggerSet): boolean {
+    return this.focusCard()?.sets.find((s) => s.made === null) === set;
+  }
+
+  /** e.g. "3 × 5 @ 100 kg · 70%" when every set is the same, else "3 sets" */
+  planLine(card: LoggerCard): string {
+    const sets = card.sets;
+    if (!sets.length) return 'No sets yet';
+    const [first] = sets;
+    const same = sets.every((s) => s.reps === first.reps && s.weight === first.weight);
+    let line = `${sets.length} sets`;
+    if (same) {
+      line = `${sets.length} × ${first.reps}`;
+      if (first.weight !== null) line += ` @ ${this.units.format(first.weight)}`;
+    }
+    const percent = first.prescribedPercent;
+    if (percent && sets.every((s) => s.prescribedPercent === percent)) line += ` · ${percent}%`;
+    return line;
+  }
+
+  /** The card's `⋯` menu; plan-locked workouts only show the history */
+  async openCardMenu(card: LoggerCard) {
+    const history: OverflowAction = { id: 'history', text: 'History' };
+    const actions: OverflowAction[] = this.workoutSubject.value?.assigned
+      ? [history]
+      : [
+          { id: 'replace', text: 'Replace' },
+          history,
+          ...(card.supersetGroup
+            ? [{ id: 'delete-superset', text: 'Delete superset', destructive: true }]
+            : []),
+          { id: 'remove', text: 'Remove', destructive: true },
+        ];
+    switch (await this.overflowMenu.open(actions, card.exerciseName)) {
+      case 'replace':
+        await this.replaceExercise(card);
+        break;
+      case 'history':
+        await this.openHistory(card);
+        break;
+      case 'delete-superset':
+        await this.removeSuperset(card.supersetGroup);
+        break;
+      case 'remove':
+        this.removeExercise(card);
+        break;
+    }
+  }
+
+  private loadPosition(workout: LoggerWorkout) {
+    this.programService.getActive().subscribe({
+      next: ({ active }) => {
+        if (this.workoutSubject.value !== workout || !workout.id) return;
+        this.position =
+          active && active.id === workout.enrollmentId
+            ? sessionPosition(active, workout.id)
+            : null;
+      },
+      // The week is left out
+      error: () => undefined,
+    });
   }
 
   /** Whether any card has a logged set; Complete needs one */
@@ -778,7 +991,10 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
         .pipe(
           finalize(() => this.answered(sentAt)),
           tap({
-            next: (saved) => this.adoptIds(sent, saved, sentAt),
+            next: (saved) => {
+              this.adoptIds(sent, saved, sentAt);
+              this.adoptStart(currentWorkout, saved?.startedAt);
+            },
             error: () => this.presentSaveErrorToast(),
           }),
         );
@@ -894,6 +1110,23 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
   /** The server's trophy, unless the set changed after the request was sent */
   private adoptPb(set: LoggerSet, pb: boolean, sentAt: number) {
     if ((set.pbTouchedAt ?? 0) <= sentAt) set.pb = pb;
+  }
+
+  /** The start time from a save's answer; the first one stays */
+  private adoptStart(workout: LoggerWorkout, startedAt: string | null | undefined) {
+    if (!startedAt || workout.startedAt) return;
+    workout.startedAt = startedAt;
+    if (this.workoutSubject.value === workout) this.syncElapsed();
+  }
+
+  /** Runs the elapsed clock for the shown workout while it is started and not completed */
+  private syncElapsed() {
+    const workout = this.workoutSubject.value;
+    if (workout?.startedAt && workout.status !== 'COMPLETED') {
+      this.elapsed.start(workout.startedAt);
+    } else {
+      this.elapsed.stop();
+    }
   }
 
   private answered(sentAt: number) {

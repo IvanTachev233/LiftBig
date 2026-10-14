@@ -1,23 +1,137 @@
-.client-workout {
-  --background: var(--bg-surface);
-  background: var(--bg-surface);
-  margin: 0 0 8px;
-}
-
-.row {
+.client-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  gap: 14px;
+  margin-bottom: 20px;
 }
 
-.title {
-  font-size: 1.1rem;
+.client-avatar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.client-text,
+.workout-heading {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
   min-width: 0;
+}
+
+.client-name {
+  margin: 0;
+  overflow: hidden;
+  font-size: 19px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.client-email,
+.client-sub {
+  font-size: 13px;
+  color: var(--text-2);
   overflow-wrap: anywhere;
 }
 
+.assign-btn {
+  margin: 0 0 20px;
+}
+
+.workout-filter {
+  margin-bottom: 20px;
+}
+
+.workout-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+ion-item.workout-item {
+  --background: var(--surface);
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  --min-height: 0;
+  --border-radius: 16px;
+  --background-focused-opacity: 0;
+}
+
+.workout-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 16px;
+}
+
+.workout-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.workout-title {
+  font-size: 16px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.workout-date {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.workout-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  app-progress-bar {
+    flex: 1;
+  }
+}
+
 .set-progress {
-  font-family: monospace;
-  color: var(--ion-text-color);
+  font-size: 11px;
+  color: var(--text-3);
+
+  .num {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-soft);
+  }
+}
+
+.empty-note {
+  margin: 16px 0;
+  text-align: center;
+  color: var(--text-2);
+}
+
+.client-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.client-avatar.small {
+  width: 40px;
+  height: 40px;
+  font-size: 17px;
+}
+
+.client-summary-name {
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }

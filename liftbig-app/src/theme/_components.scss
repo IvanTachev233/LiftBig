@@ -1,0 +1,575 @@
+// Shared component styles from the design handoff (Foundations). Loaded by
+// global.scss after Ionic's CSS and before the utility classes. Buttons,
+// fields, chips and cards are opt-in classes; ion-segment and ion-card are
+// styled everywhere.
+
+/* ---------------------------------------------------------------------------
+ * Type scale
+ * ------------------------------------------------------------------------- */
+
+.num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+
+.title-screen,
+.title-detail,
+.title-card,
+.heading-section {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text);
+}
+
+// Tab root screens
+.title-screen {
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+// Pushed screens
+.title-detail {
+  font-size: 26px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.title-card {
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.heading-section {
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+
+  &.accent {
+    color: var(--accent-text);
+  }
+}
+
+.text-secondary {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-2);
+}
+
+/* ---------------------------------------------------------------------------
+ * Buttons (ion-button): .btn-primary, .btn-secondary, .btn-text
+ * ------------------------------------------------------------------------- */
+
+ion-button:is(.btn-primary, .btn-secondary, .btn-text) {
+  --box-shadow: none;
+  --padding-start: 16px;
+  --padding-end: 16px;
+  margin: 0;
+  min-height: var(--tap);
+  font-family: var(--font-ui);
+  letter-spacing: 0;
+  text-transform: none;
+
+  &.ion-focused {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+// One per screen
+ion-button.btn-primary {
+  --background: var(--accent);
+  --background-activated: var(--ion-color-primary-shade);
+  --background-hover: var(--ion-color-primary-tint);
+  --color: var(--on-accent);
+  --border-radius: var(--radius-md);
+  height: 52px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+ion-button.btn-secondary {
+  --background: var(--surface-2);
+  --background-activated: var(--line-strong);
+  --background-hover: var(--line-strong);
+  --color: var(--text);
+  --border-radius: 12px;
+  --border-width: 1px;
+  --border-style: solid;
+  --border-color: var(--line-stronger);
+  height: 44px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+ion-button.btn-text {
+  --background: transparent;
+  --background-activated: var(--surface-2);
+  --background-hover: var(--surface-2);
+  --color: var(--accent-text);
+  --border-radius: 12px;
+  height: 44px;
+  font-size: 14px;
+  font-weight: 500;
+
+  &.muted {
+    --color: var(--text-2);
+  }
+
+  &.danger {
+    --color: var(--danger-text);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Segmented control (every ion-segment)
+ * ------------------------------------------------------------------------- */
+
+ion-segment {
+  --background: var(--segment-track);
+  padding: 3px;
+  border-radius: 12px;
+}
+
+ion-segment-button {
+  --background-checked: var(--segment-checked);
+  --border-radius: 9px;
+  --border-width: 0;
+  --indicator-color: transparent;
+  --indicator-box-shadow: none;
+  --color: var(--text-3);
+  --color-checked: var(--text);
+  --padding-start: 8px;
+  --padding-end: 8px;
+  // 38 + the track's 3px padding = a 44px touch target
+  min-height: 38px;
+  margin: 0;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+
+  &.segment-button-checked {
+    box-shadow: var(--segment-shadow);
+  }
+
+  // md mode adds 12px above and below the label
+  ion-label {
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+}
+
+// The handoff's light --text-3 is 4.1:1 on the track and 4.4:1 on the page;
+// --text-2 reaches 4.5
+:root[data-theme='light'] {
+  ion-segment-button {
+    --color: var(--text-2);
+  }
+
+  .eyebrow:not(.accent) {
+    color: var(--text-2);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Filter chips: <button class="chip"> in a .chip-row; selected via
+ * aria-checked / aria-pressed
+ * ------------------------------------------------------------------------- */
+
+.chip-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  // Room for the chips' enlarged touch area
+  padding: 4px 0;
+}
+
+// Chips that wrap onto more lines instead of scrolling, e.g. in a sheet
+app-chip-group.wrap .chip-row {
+  flex-wrap: wrap;
+  row-gap: 10px;
+  overflow-x: visible;
+}
+
+.chip {
+  position: relative;
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid var(--line-stronger);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-soft);
+  font: 500 14px/1 var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+
+  // 44px touch target around the 36px pill
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -5px 0;
+  }
+
+  &[aria-checked='true'],
+  &[aria-pressed='true'] {
+    border-color: var(--text);
+    background: var(--text);
+    color: var(--bg);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Fields: <ion-input class="input-field" label="…" labelPlacement="stacked">
+ * ------------------------------------------------------------------------- */
+
+ion-input.input-field {
+  --color: var(--text);
+  --placeholder-color: var(--placeholder);
+  --placeholder-opacity: 1;
+  --padding-start: 0;
+  --padding-end: 0;
+  --highlight-height: 0;
+  --border-width: 0;
+  min-height: 0;
+  font-size: 16px;
+
+  .input-wrapper {
+    align-items: stretch;
+  }
+
+  .label-text-wrapper {
+    max-width: none;
+    margin-bottom: 8px;
+    transform: none;
+    color: var(--text-soft);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .native-wrapper {
+    box-sizing: border-box;
+    height: 52px;
+    padding: 0 16px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-md);
+    background: var(--surface-input);
+  }
+
+  &.has-focus {
+    // Ionic colours a focused label with the accent fill (2.9:1 in light) using
+    // a five-class selector
+    .label-text-wrapper {
+      color: var(--text-soft) !important;
+    }
+
+    // 1.5px accent ring
+    .native-wrapper {
+      border-color: var(--accent);
+      box-shadow: inset 0 0 0 0.5px var(--accent);
+    }
+  }
+}
+
+// Search: <ion-searchbar class="search-field">, a 44px filled field
+ion-searchbar.search-field {
+  --background: var(--surface-2);
+  --color: var(--text);
+  --placeholder-color: var(--placeholder);
+  --icon-color: var(--text-3);
+  --border-radius: 12px;
+  --box-shadow: none;
+  height: 44px;
+  padding: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Round checkbox: <ion-checkbox class="round-check">, accent fill when checked
+ * ------------------------------------------------------------------------- */
+
+ion-checkbox.round-check {
+  --size: 26px;
+  --border-radius: 50%;
+  --border-width: 1.5px;
+  --border-color: var(--line-control);
+  --checkbox-background: transparent;
+  --checkbox-background-checked: var(--accent);
+  --border-color-checked: var(--accent);
+  --checkmark-color: var(--on-accent);
+  margin-inline-end: 14px;
+
+  // A 14px tick in the 26px circle, as in the handoff
+  &::part(mark) {
+    transform: scale(0.55);
+    transform-origin: center;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Cards
+ * ------------------------------------------------------------------------- */
+
+.surface-card {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+
+// Dark: separated by colour and the line; light: the line plus a soft shadow
+ion-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-shadow);
+}
+
+/* ---------------------------------------------------------------------------
+ * List dividers: rows inside .list-divided
+ * ------------------------------------------------------------------------- */
+
+.list-divided > :not(:last-child) {
+  border-bottom: 1px solid var(--divider);
+}
+
+/* ---------------------------------------------------------------------------
+ * Bottom sheet (BottomSheetService) and overflow menu (OverflowMenuService)
+ * ------------------------------------------------------------------------- */
+
+ion-modal.bottom-sheet {
+  --height: auto;
+  --border-radius: var(--radius-sheet);
+  --background: var(--surface);
+  --backdrop-opacity: 0.62;
+
+  &::part(content) {
+    border-top: 1px solid var(--line-strong);
+  }
+
+  // The grabber
+  &::part(handle) {
+    top: 10px;
+    width: 40px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--line-control);
+  }
+}
+
+ion-action-sheet.overflow-menu {
+  --background: var(--surface);
+  --button-color: var(--text);
+  --color: var(--text-2);
+
+  // Ionic colours destructive actions in iOS mode only; the label is a span,
+  // which global.scss colours with the text colour
+  .action-sheet-destructive,
+  .action-sheet-destructive span {
+    color: var(--danger-text);
+  }
+
+  // md draws one flat panel; round it like the bottom sheet
+  &.md .action-sheet-group:first-child {
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Destructive actions: swipe Delete (SwipeDeleteRowComponent), confirm sheet
+ * (ConfirmSheetService) and undo toast (UndoToastService)
+ * ------------------------------------------------------------------------- */
+
+// The row slides 92px over an inset tinted button; the area around it shows
+// what is behind the row
+ion-item-options:has(.swipe-delete) {
+  border-width: 0;
+  background: transparent;
+}
+
+ion-item-option.swipe-delete {
+  --background: transparent;
+  --color: var(--danger-text);
+  min-width: 92px;
+  padding: 8px 0 8px 8px;
+
+  &::part(native) {
+    border-radius: 14px;
+    background: var(--danger-tint);
+    color: var(--danger-text);
+  }
+}
+
+.swipe-delete-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--danger-text);
+  font: 600 12px var(--font-ui);
+  text-transform: none;
+
+  ion-icon {
+    font-size: 20px;
+  }
+}
+
+.confirm-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 33px 20px calc(24px + var(--ion-safe-area-bottom, 0px));
+}
+
+.confirm-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.danger-circle {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--danger-tint);
+  color: var(--danger-text);
+  font-size: 22px;
+}
+
+.confirm-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.confirm-message {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.confirm-summary {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
+}
+
+.confirm-summary-row {
+  padding: 0 14px;
+}
+
+.confirm-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--pr-text);
+
+  ion-icon {
+    flex-shrink: 0;
+    font-size: 16px;
+  }
+}
+
+.confirm-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  button {
+    width: 100%;
+    border: 0;
+    border-radius: 14px;
+    cursor: pointer;
+  }
+}
+
+.confirm-btn {
+  height: 52px;
+  background: var(--danger);
+  color: var(--on-danger);
+  font: 600 16px var(--font-ui);
+}
+
+.cancel-btn {
+  height: 48px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: 500 15px var(--font-ui);
+}
+
+// Dark in both themes like the resume bar, so its text keeps the live-bar
+// colours and Undo the accent (light --accent-text is under 4.5:1 on it)
+ion-toast.undo-toast {
+  --background: var(--toast-bg);
+  --color: var(--live-bar-text);
+  --border-radius: 14px;
+  --box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --start: 12px;
+  --end: 12px;
+
+  // The 3px countdown along the bottom, emptying over UNDO_MS (5 s)
+  // Rounded too, so the bar is clipped by the corners
+  &::part(container) {
+    padding: 0 4px 3px;
+    border-radius: 14px;
+    background:
+      linear-gradient(var(--accent), var(--accent)) left bottom / 100% 3px no-repeat,
+      linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08)) left bottom / 100% 3px no-repeat;
+    animation: undo-countdown 5s linear forwards;
+  }
+
+  &::part(icon) {
+    margin-inline-start: 12px;
+    margin-inline-end: 0;
+    font-size: 18px;
+    color: var(--live-bar-text-2);
+  }
+
+  &::part(header) {
+    font: 600 14px var(--font-ui);
+    color: var(--live-bar-text);
+  }
+
+  &::part(message) {
+    font-size: 12px;
+    color: var(--live-bar-text-2);
+  }
+
+  &::part(button) {
+    min-height: 44px;
+    color: var(--accent);
+    font: 600 15px var(--font-ui);
+    text-transform: none;
+  }
+}
+
+@keyframes undo-countdown {
+  to {
+    background-size: 0 3px, 100% 3px;
+  }
+}

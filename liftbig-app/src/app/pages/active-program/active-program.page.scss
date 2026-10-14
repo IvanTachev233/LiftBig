@@ -1,0 +1,122 @@
+.program-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.program-start,
+.progress-label {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.progress-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 20px 0;
+  padding: 16px;
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+
+.progress-count {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.done-count {
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.total-count {
+  font-size: 20px;
+  color: var(--text-3);
+}
+
+.progress-detail {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sessions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.session-row {
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: var(--surface);
+
+  &.today {
+    border-color: var(--line-control);
+  }
+}
+
+.program-actions {
+  display: flex;
+  flex-direction: column;
+  margin-top: 24px;
+  border-top: 1px solid var(--surface-2);
+}
+
+.text-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: 400 15px var(--font-ui);
+  text-align: start;
+  cursor: pointer;
+
+  ion-icon {
+    font-size: 20px;
+    color: var(--text-2);
+  }
+
+  &.danger,
+  &.danger ion-icon {
+    color: var(--danger-text);
+  }
+}
+
+.no-program {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+
+  p {
+    margin: 0 0 8px;
+  }
+}
+
+.abandon-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 0;
+}
+
+.abandon-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.abandon-sub {
+  font-size: 12px;
+  color: var(--text-2);
+}

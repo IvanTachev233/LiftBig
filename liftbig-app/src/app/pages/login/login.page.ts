@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 
+// Log in: wordmark, email and password (with a show toggle), link to sign up
 @Component({
   selector: 'app-login',
   templateUrl: './login.page.html',
@@ -20,6 +21,7 @@ export class LoginPage {
     email: '',
     password: '',
   };
+  showPassword = false;
 
   async presentToast(message: string, color: 'success' | 'danger' = 'danger') {
     const toast = await this.toastController.create({

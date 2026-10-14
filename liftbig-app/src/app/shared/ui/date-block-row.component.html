@@ -1,0 +1,20 @@
+<time class="date-block" [attr.datetime]="day()">
+  <span class="weekday">{{ weekday() }}</span>
+  <span class="day num">{{ dayOfMonth() }}</span>
+</time>
+<span class="row-main">
+  <span class="row-heading">
+    <span class="row-title">{{ title() }}</span>
+    <ng-content select="[tags]" />
+  </span>
+  @if (sub()) {
+    <span
+      class="row-sub"
+      [class.tone-accent]="subTone() === 'accent'"
+      [class.tone-muted]="subTone() === 'muted'"
+    >{{ sub() }}</span>
+  }
+</span>
+<span class="row-trailing">
+  <ng-content select="[trailing]" />
+</span>

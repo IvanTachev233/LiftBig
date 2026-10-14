@@ -1,0 +1,10 @@
+@if (workout(); as w) {
+  <button type="button" class="resume-bar" (click)="resume(w)">
+    <span class="live-dot" aria-hidden="true"></span>
+    <span class="resume-text">
+      <span class="resume-title">Workout in progress</span>
+      <span class="resume-sub">{{ startedText(w) }}</span>
+    </span>
+    <span class="resume-action">Resume</span>
+  </button>
+}

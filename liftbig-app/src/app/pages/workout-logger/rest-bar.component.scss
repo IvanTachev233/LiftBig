@@ -1,0 +1,57 @@
+// Stays dark in the light theme so the live state stands out
+.rest-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 18px;
+  border-radius: var(--radius-card);
+  background: var(--live-bar-bg);
+  color: var(--live-bar-text);
+}
+
+.rest-icon {
+  flex-shrink: 0;
+  font-size: 20px;
+  color: var(--accent);
+}
+
+.rest-text {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+// Spans take the page text colour from global.scss, so each sets its own
+.rest-label {
+  font-size: 11px;
+  color: var(--live-bar-text-2);
+}
+
+.rest-time {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--live-bar-text);
+}
+
+.rest-add,
+.rest-skip {
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  font: 400 14px var(--font-ui);
+  cursor: pointer;
+}
+
+.rest-add {
+  background: var(--live-bar-control);
+  color: var(--live-bar-text);
+}
+
+.rest-skip {
+  padding: 0 14px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}

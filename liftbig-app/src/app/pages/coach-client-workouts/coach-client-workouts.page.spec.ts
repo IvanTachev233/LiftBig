@@ -6,14 +6,19 @@ import {
 } from '@angular/common/http/testing';
 import {
   ActivatedRoute,
+  Router,
   RouterLink,
   convertToParamMap,
   provideRouter,
 } from '@angular/router';
 import { By } from '@angular/platform-browser';
-import { AlertController, ToastController } from '@ionic/angular';
+import { ToastController } from '@ionic/angular';
 import { CoachClientWorkoutsPage } from './coach-client-workouts.page';
 import { Workout, WorkoutSet } from '../../core/workout.service';
+import { Client } from '../../core/client.service';
+import { OverflowMenuService } from '../../shared/ui/overflow-menu.service';
+import { ConfirmSheetService } from '../../shared/ui/confirm-sheet.component';
+import { SoftDelete, UndoToastService } from '../../shared/ui/undo-toast.service';
 import { environment } from '../../../environments/environment';
 
 const set = (made: boolean | null): WorkoutSet => ({
@@ -43,24 +48,26 @@ describe('CoachClientWorkoutsPage', () => {
   let fixture: ComponentFixture<CoachClientWorkoutsPage>;
   let component: CoachClientWorkoutsPage;
   let httpMock: HttpTestingController;
-  let alertSpy: jasmine.SpyObj<HTMLIonAlertElement>;
-  let alertControllerSpy: jasmine.SpyObj<AlertController>;
   let toastControllerSpy: jasmine.SpyObj<ToastController>;
+  let menuSpy: jasmine.SpyObj<OverflowMenuService>;
+  let sheetSpy: jasmine.SpyObj<ConfirmSheetService>;
+  let undoSpy: jasmine.SpyObj<UndoToastService>;
+  let navigateSpy: jasmine.Spy;
   const listUrl = `${environment.apiUrl}/coach/clients/client-1/workouts`;
+  const clientsUrl = `${environment.apiUrl}/auth/clients`;
+  const alice: Client = { id: 'client-1', name: 'Alice Rivera', email: 'alice@example.com', role: 'CLIENT' };
 
   beforeEach(() => {
-    alertSpy = jasmine.createSpyObj('HTMLIonAlertElement', [
-      'present',
-      'onDidDismiss',
-    ]);
-    alertSpy.present.and.resolveTo();
-    alertSpy.onDidDismiss.and.resolveTo({ role: 'destructive' } as any);
-    alertControllerSpy = jasmine.createSpyObj('AlertController', ['create']);
-    alertControllerSpy.create.and.resolveTo(alertSpy);
     const toastSpy = jasmine.createSpyObj('HTMLIonToastElement', ['present']);
     toastSpy.present.and.resolveTo();
     toastControllerSpy = jasmine.createSpyObj('ToastController', ['create']);
     toastControllerSpy.create.and.resolveTo(toastSpy);
+    menuSpy = jasmine.createSpyObj('OverflowMenuService', ['open']);
+    menuSpy.open.and.resolveTo(null);
+    sheetSpy = jasmine.createSpyObj('ConfirmSheetService', ['confirm']);
+    sheetSpy.confirm.and.resolveTo(true);
+    undoSpy = jasmine.createSpyObj('UndoToastService', ['softDelete']);
+    undoSpy.softDelete.and.resolveTo('undone');
 
     TestBed.configureTestingModule({
       imports: [CoachClientWorkoutsPage],
@@ -74,14 +81,20 @@ describe('CoachClientWorkoutsPage', () => {
             snapshot: { paramMap: convertToParamMap({ clientId: 'client-1' }) },
           },
         },
-        { provide: AlertController, useValue: alertControllerSpy },
         { provide: ToastController, useValue: toastControllerSpy },
+        { provide: OverflowMenuService, useValue: menuSpy },
+        { provide: ConfirmSheetService, useValue: sheetSpy },
+        { provide: UndoToastService, useValue: undoSpy },
       ],
     });
+    navigateSpy = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
     fixture = TestBed.createComponent(CoachClientWorkoutsPage);
     component = fixture.componentInstance;
     fixture.detectChanges();
     httpMock = TestBed.inject(HttpTestingController);
+    // The client for the header, from the coach's client list
+    httpMock.expectOne(clientsUrl).flush([alice]);
+    fixture.detectChanges();
   });
 
   afterEach(() => {
@@ -125,15 +138,15 @@ describe('CoachClientWorkoutsPage', () => {
     expect(rows()[0].querySelector('.set-progress')?.textContent?.trim()).toBe(
       '2/5 sets',
     );
-    expect(rows()[0].querySelector('ion-badge')?.textContent?.trim()).toBe(
-      'IN_PROGRESS',
+    expect(rows()[0].querySelector('app-status-pill')?.textContent?.trim()).toBe(
+      'In progress',
     );
     expect(rows()[1].querySelector('.set-progress')?.textContent?.trim()).toBe(
       '0/0 sets',
     );
   });
 
-  it('links each workout to the editor and the add button to a new workout', () => {
+  it('links each workout to the editor and Assign workout to a new workout', () => {
     component.ionViewWillEnter();
     httpMock.expectOne(listUrl).flush([workout({ id: 'w1' })]);
     fixture.detectChanges();
@@ -154,30 +167,79 @@ describe('CoachClientWorkoutsPage', () => {
     );
   });
 
-  it('deletes a workout after confirming and reloads the list', async () => {
-    component.ionViewWillEnter();
-    httpMock.expectOne(listUrl).flush([workout({ id: 'w1' })]);
-    fixture.detectChanges();
+  describe('delete', () => {
+    const deleteUrl = `${environment.apiUrl}/coach/workouts/w1`;
+    const job = () => undoSpy.softDelete.calls.mostRecent().args[0] as SoftDelete;
+    const loggedSet = () => ({ ...set(true) });
+    const withLog = (overrides: Partial<Workout>) =>
+      workout({
+        exercises: [{ id: 'c1', exerciseId: 'e1', order: 1, supersetGroup: null, sets: [loggedSet()] }],
+        ...overrides,
+      });
 
-    await component.deleteWorkout(workout({ id: 'w1' }));
-    httpMock
-      .expectOne({
-        method: 'DELETE',
-        url: `${environment.apiUrl}/coach/workouts/w1`,
-      })
-      .flush(null);
-    httpMock.expectOne(listUrl).flush([]);
-    fixture.detectChanges();
-    expect(rows().length).toBe(0);
-  });
+    it('a completed workout asks first with the card as its summary, then deletes behind the undo toast', async () => {
+      const done = workout({ id: 'w1', name: 'Week 1', status: 'COMPLETED', date: '2026-10-07T00:00:00.000Z' });
+      enter([done, workout({ id: 'w2', name: 'Week 2' })]);
 
-  it('keeps the workout when the delete is cancelled', async () => {
-    component.ionViewWillEnter();
-    httpMock.expectOne(listUrl).flush([workout({ id: 'w1' })]);
-    alertSpy.onDidDismiss.and.resolveTo({ role: 'cancel' } as any);
+      await component.requestDelete(done);
+      expect(sheetSpy.confirm).toHaveBeenCalledOnceWith(
+        jasmine.objectContaining({
+          title: 'Delete this workout?',
+          confirmLabel: 'Delete workout',
+          summary: component.workoutCard,
+          summaryContext: done,
+        }),
+      );
+      expect(job()).toEqual(
+        jasmine.objectContaining({ title: 'Workout deleted', sub: 'Week 1 · Wed 7 Oct' }),
+      );
+      httpMock.expectNone(deleteUrl);
 
-    await component.deleteWorkout(workout({ id: 'w1' }));
-    httpMock.expectNone(`${environment.apiUrl}/coach/workouts/w1`);
+      job().hide();
+      fixture.detectChanges();
+      expect(rows().map((r) => r.querySelector('.workout-title')!.textContent!.trim())).toEqual(['Week 2']);
+
+      job().restore();
+      fixture.detectChanges();
+      expect(rows().length).toBe(2);
+
+      // The same request as before, sent when the toast runs out
+      job().hide();
+      job().commit().subscribe();
+      httpMock.expectOne({ method: 'DELETE', url: deleteUrl }).flush(null);
+      job().done!();
+      fixture.detectChanges();
+      expect(rows().length).toBe(1);
+      expect(component.workouts()!.map((w) => w.id)).toEqual(['w2']);
+    });
+
+    it('a workout with a logged set asks first; cancelling deletes nothing', async () => {
+      const going = withLog({ id: 'w1', status: 'IN_PROGRESS' });
+      enter([going]);
+      sheetSpy.confirm.and.resolveTo(false);
+      await component.requestDelete(going);
+      expect(sheetSpy.confirm).toHaveBeenCalledTimes(1);
+      expect(undoSpy.softDelete).not.toHaveBeenCalled();
+    });
+
+    it('a planned workout without logged sets goes straight to the undo toast', async () => {
+      const planned = workout({ id: 'w1', status: 'PLANNED' });
+      enter([planned]);
+      await component.requestDelete(planned);
+      expect(sheetSpy.confirm).not.toHaveBeenCalled();
+      expect(undoSpy.softDelete).toHaveBeenCalledTimes(1);
+    });
+
+    it('the last workout date skips a workout waiting to be deleted', async () => {
+      const done = workout({ id: 'w1', status: 'COMPLETED', date: '2026-10-07T00:00:00.000Z' });
+      enter([done, workout({ id: 'w2', status: 'COMPLETED', date: '2026-10-01T00:00:00.000Z' })]);
+      await component.requestDelete(done);
+      job().hide();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.client-sub').textContent.trim()).toBe(
+        'Client · last workout Thu 1 Oct',
+      );
+    });
   });
 
   describe('page visits', () => {
@@ -204,6 +266,207 @@ describe('CoachClientWorkoutsPage', () => {
       fixture.detectChanges();
       expect(rows().length).toBe(2);
       expect(rows()[1].textContent).toContain('Week 2');
+    });
+  });
+
+  function enter(workouts: Workout[]) {
+    component.ionViewWillEnter();
+    httpMock.expectOne(listUrl).flush(workouts);
+    fixture.detectChanges();
+  }
+
+  const titles = () =>
+    rows().map((r) => r.querySelector('.workout-title')!.textContent!.trim());
+
+  function logged(done: number, total: number) {
+    return [
+      {
+        id: 'c1',
+        exerciseId: 'e1',
+        order: 1,
+        supersetGroup: null,
+        sets: Array.from({ length: total }, (_, i) => set(i < done ? true : null)),
+      },
+    ];
+  }
+
+  describe('client header', () => {
+    it('shows initials, name, email and the date of the last workout the client logged', () => {
+      enter([
+        workout({ id: 'w3', name: 'Next', status: 'PLANNED', date: '2026-10-20T00:00:00.000Z' }),
+        workout({ id: 'w2', name: 'Day 1', status: 'COMPLETED', date: '2026-10-07T00:00:00.000Z' }),
+        workout({ id: 'w1', name: 'Day 0', status: 'IN_PROGRESS', date: '2026-10-01T00:00:00.000Z' }),
+      ]);
+
+      const header = fixture.nativeElement.querySelector('.client-header') as HTMLElement;
+      expect(header.querySelector('.client-avatar')!.textContent!.trim()).toBe('AR');
+      expect(header.querySelector('h1')!.textContent!.trim()).toBe('Alice Rivera');
+      expect(header.querySelector('.client-email')!.textContent!.trim()).toBe('alice@example.com');
+      expect(header.querySelector('.client-sub')!.textContent!.trim()).toBe(
+        'Client · last workout Wed 7 Oct',
+      );
+    });
+
+    it('shows the email as the title without a name, and no date before anything is logged', () => {
+      httpMock.verify();
+      // A fresh page whose client has no name
+      fixture = TestBed.createComponent(CoachClientWorkoutsPage);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+      httpMock.expectOne(clientsUrl).flush([{ ...alice, name: null }]);
+      enter([workout({ status: 'PLANNED' })]);
+
+      const header = fixture.nativeElement.querySelector('.client-header') as HTMLElement;
+      expect(header.querySelector('h1')!.textContent!.trim()).toBe('alice@example.com');
+      expect(header.querySelector('.client-email')).toBeNull();
+      expect(header.querySelector('.client-avatar')!.textContent!.trim()).toBe('A');
+      expect(header.querySelector('.client-sub')!.textContent!.trim()).toBe('Client');
+    });
+  });
+
+  it('has an Assign workout button, no Program button and no floating button', () => {
+    enter([]);
+    const assign = fixture.nativeElement.querySelector('.assign-btn') as HTMLElement;
+    expect(assign.textContent!.trim()).toBe('Assign workout');
+    expect(assign.classList).toContain('btn-primary');
+    expect(fixture.nativeElement.textContent).not.toContain('Program');
+    expect(fixture.nativeElement.querySelector('ion-fab')).toBeNull();
+  });
+
+  describe('filter', () => {
+    function choose(value: string) {
+      const segment = fixture.nativeElement.querySelector('ion-segment.workout-filter') as HTMLElement;
+      segment.dispatchEvent(new CustomEvent('ionChange', { detail: { value } }));
+      fixture.detectChanges();
+    }
+
+    beforeEach(() => {
+      enter([
+        workout({ id: 'w1', name: 'Done', status: 'COMPLETED', exercises: logged(2, 2) }),
+        workout({ id: 'w2', name: 'Going', status: 'IN_PROGRESS', exercises: logged(1, 3) }),
+        workout({ id: 'w3', name: 'Planned', status: 'PLANNED' }),
+      ]);
+    });
+
+    it('shows All, Open (not completed) or Completed workouts', () => {
+      const labels = Array.from(
+        fixture.nativeElement.querySelectorAll('ion-segment.workout-filter ion-segment-button'),
+      ).map((b: any) => b.textContent.trim());
+      expect(labels).toEqual(['All', 'Open', 'Completed']);
+      expect(titles()).toEqual(['Done', 'Going', 'Planned']);
+
+      choose('open');
+      expect(titles()).toEqual(['Going', 'Planned']);
+
+      choose('completed');
+      expect(titles()).toEqual(['Done']);
+
+      choose('all');
+      expect(titles()).toEqual(['Done', 'Going', 'Planned']);
+    });
+
+    it('says when a filter has nothing to show', () => {
+      choose('completed');
+      expect(fixture.nativeElement.textContent).not.toContain('No completed workouts');
+
+      enter([workout({ id: 'w3', name: 'Planned', status: 'PLANNED' })]);
+      expect(rows().length).toBe(0);
+      expect(fixture.nativeElement.textContent).toContain('No completed workouts yet.');
+    });
+  });
+
+  it('shows each workout with its date, coach status word and a logged/all sets bar', () => {
+    enter([
+      workout({ id: 'w1', name: 'Done', status: 'COMPLETED', date: '2026-10-07T00:00:00.000Z', exercises: logged(2, 2) }),
+      workout({ id: 'w2', name: 'Past plan', status: 'PLANNED', date: '2020-01-01T00:00:00.000Z', exercises: logged(0, 4) }),
+    ]);
+
+    const [done, planned] = rows();
+    expect(done.querySelector('.workout-date')!.textContent!.trim()).toBe('Wed 7 Oct 2026');
+    expect(done.querySelector('app-status-pill')!.textContent!.trim()).toBe('Completed');
+    // Coaches see Not started, never Missed
+    expect(planned.querySelector('app-status-pill')!.textContent!.trim()).toBe('Not started');
+
+    const bar = (row: HTMLElement) => row.querySelector('[role="progressbar"]')!;
+    expect(bar(done).getAttribute('aria-valuenow')).toBe('2');
+    expect(bar(done).getAttribute('aria-valuemax')).toBe('2');
+    expect(bar(planned).getAttribute('aria-valuenow')).toBe('0');
+    expect(bar(planned).getAttribute('aria-valuemax')).toBe('4');
+    expect(planned.querySelector('.set-progress')!.textContent!.replace(/\s+/g, ' ').trim()).toBe('0/4 sets');
+  });
+
+  it('deletes by swiping: the inset Delete option, no trash icon in the card', async () => {
+    enter([workout({ id: 'w1', name: 'Week 1' })]);
+
+    const option = fixture.nativeElement.querySelector(
+      'ion-item-option[aria-label="Delete Week 1"]',
+    ) as HTMLElement;
+    expect(option.classList).toContain('swipe-delete');
+    expect(option.getAttribute('expandable')).not.toBe('false');
+    expect(rows()[0].querySelector('[name="trash-outline"]')).toBeNull();
+    option.click();
+    await fixture.whenStable();
+    expect(undoSpy.softDelete).toHaveBeenCalledTimes(1);
+  });
+
+  describe('Remove client', () => {
+    async function chooseRemove(answer: 'confirm' | 'cancel') {
+      sheetSpy.confirm.and.resolveTo(answer === 'confirm');
+      menuSpy.open.and.resolveTo('remove');
+      (fixture.nativeElement.querySelector('ion-button.client-menu-btn') as HTMLElement).click();
+      await fixture.whenStable();
+    }
+
+    beforeEach(() => enter([]));
+
+    it('is the only item of the header menu, in the danger colour', async () => {
+      await chooseRemove('cancel');
+      const [actions] = menuSpy.open.calls.mostRecent().args;
+      expect(actions).toEqual([{ id: 'remove', text: 'Remove client', destructive: true }]);
+    });
+
+    it('asks first, removes the client with DELETE /auth/clients/:id and goes back to Clients', async () => {
+      await chooseRemove('confirm');
+
+      expect(sheetSpy.confirm).toHaveBeenCalledOnceWith(
+        jasmine.objectContaining({
+          title: 'Remove this client?',
+          confirmLabel: 'Remove client',
+          icon: 'person-remove-outline',
+          summary: component.clientRow,
+        }),
+      );
+      httpMock.expectOne({ method: 'DELETE', url: `${clientsUrl}/client-1` }).flush(null);
+      await fixture.whenStable();
+      expect(navigateSpy).toHaveBeenCalledOnceWith(['/coach/clients']);
+      expect(toastControllerSpy.create).toHaveBeenCalledWith(
+        jasmine.objectContaining({ message: 'Client removed', color: 'success' }),
+      );
+    });
+
+    it('cancelling the confirm keeps the client', async () => {
+      await chooseRemove('cancel');
+      httpMock.expectNone(`${clientsUrl}/client-1`);
+      expect(navigateSpy).not.toHaveBeenCalled();
+    });
+
+    it('closing the menu asks nothing', async () => {
+      menuSpy.open.and.resolveTo(null);
+      (fixture.nativeElement.querySelector('ion-button.client-menu-btn') as HTMLElement).click();
+      await fixture.whenStable();
+      expect(sheetSpy.confirm).not.toHaveBeenCalled();
+    });
+
+    it('a failed remove shows a toast and stays', async () => {
+      await chooseRemove('confirm');
+      httpMock
+        .expectOne({ method: 'DELETE', url: `${clientsUrl}/client-1` })
+        .flush(null, { status: 500, statusText: 'Error' });
+      await fixture.whenStable();
+      expect(navigateSpy).not.toHaveBeenCalled();
+      expect(toastControllerSpy.create).toHaveBeenCalledWith(
+        jasmine.objectContaining({ color: 'danger' }),
+      );
     });
   });
 });

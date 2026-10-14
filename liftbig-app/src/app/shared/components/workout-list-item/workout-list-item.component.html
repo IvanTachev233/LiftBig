@@ -1,14 +1,37 @@
-<ion-item-sliding #slidingItem [disabled]="isLocked">
-  <ion-item lines="none" class="workout-list-item">
-    <app-workout-card [workout]="workout"></app-workout-card>
+<app-swipe-delete-row
+  [disabled]="isLocked"
+  [label]="'Delete ' + workout.name"
+  (delete)="requestDelete()"
+>
+  <ion-item
+    lines="none"
+    class="workout-list-item"
+    [button]="true"
+    [detail]="false"
+    [routerLink]="['/workout-logger']"
+    [queryParams]="{ id: workout.id }"
+  >
+    <ng-container *ngTemplateOutlet="row; context: { $implicit: workout }" />
   </ion-item>
-  <ion-item-options *ngIf="!isLocked" side="end">
-    <ion-item-option
-      color="danger"
-      aria-label="Delete workout"
-      (click)="confirmDelete()"
-    >
-      Delete
-    </ion-item-option>
-  </ion-item-options>
-</ion-item-sliding>
+</app-swipe-delete-row>
+
+<!-- The row; the delete sheet shows the same row as its summary -->
+<ng-template #row let-w>
+  @let state = status;
+  <app-date-block-row [date]="w.date" [title]="w.name" [sub]="state.text" [subTone]="state.tone">
+    @if (w.hasPb) {
+      <span tags class="pb-trophy" role="img" aria-label="Has a personal best">
+        <app-status-pill kind="pr" size="sm" aria-hidden="true" />
+      </span>
+    }
+    @if (source === 'coach') {
+      <span tags class="coach-badge"><app-status-pill kind="coach" size="sm" /></span>
+    } @else if (source === 'program') {
+      <span tags class="program-badge"><app-status-pill kind="program" size="sm" /></span>
+    }
+    <span trailing class="row-volume" [class.empty]="!w.totalWeightLifted">
+      <span class="num">{{ units.toDisplay(w.totalWeightLifted) | number: '1.0-0' }}</span>
+      <span class="volume-unit">{{ units.unit() }}</span>
+    </span>
+  </app-date-block-row>
+</ng-template>

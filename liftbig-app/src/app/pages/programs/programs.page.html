@@ -1,62 +1,72 @@
-<ion-header [translucent]="true">
-  <ion-toolbar>
-    <ion-buttons slot="start">
-      <ion-menu-button></ion-menu-button>
-    </ion-buttons>
-    <ion-title>Premade Programs</ion-title>
-    @if (active) {
-      <ion-buttons slot="end">
-        <ion-button class="my-program-btn" routerLink="/programs/active">
-          My program
-        </ion-button>
-      </ion-buttons>
-    }
-  </ion-toolbar>
-</ion-header>
+<app-tab-header title="Programs" [filters]="!!sports?.length">
+  <app-chip-group
+    class="sport-chips"
+    label="Sport"
+    [options]="sportChips"
+    [value]="selectedSportId"
+    (valueChange)="selectSport($event)"
+  />
+</app-tab-header>
 
-<ion-content [fullscreen]="true" class="ion-padding">
-  @if (sports?.length) {
-    <ion-segment
-      scrollable="true"
-      aria-label="Sports"
-      [value]="selectedSportId"
-      (ionChange)="selectSport($any($event).detail.value)"
-    >
-      @for (sport of sports; track sport.id) {
-        <ion-segment-button [value]="sport.id">
-          <ion-label>{{ sport.name }}</ion-label>
-        </ion-segment-button>
-      }
-    </ion-segment>
+<ion-content class="screen-tab" [fullscreen]="true">
+  <app-large-title title="Programs" />
+
+  @if (active; as enrollment) {
+    <a class="active-card my-program-btn surface-card" routerLink="/programs/active">
+      <span class="active-head">
+        <span class="eyebrow accent">Your active program</span>
+        <ion-icon name="chevron-forward" aria-hidden="true"></ion-icon>
+      </span>
+      <span class="active-title">
+        <span class="active-name">{{ enrollment.program.name }}</span>
+        <span class="active-week">{{ weekLine(enrollment) }}</span>
+      </span>
+      <span class="active-progress">
+        <app-progress-bar
+          [segmented]="true"
+          [value]="completed(enrollment)"
+          [max]="enrollment.workouts.length"
+          label="Sessions completed"
+        />
+        <span class="active-count">{{ completed(enrollment) }} of {{ enrollment.workouts.length }} sessions</span>
+      </span>
+    </a>
   }
 
-  @if (failed) {
-    <div class="programs-error text-center text-muted mt-10">
-      <p>Couldn't load programs.</p>
-      <ion-button fill="outline" (click)="loadSports()">Try again</ion-button>
-    </div>
-  } @else if (programs === null) {
-    <ion-spinner class="block mx-auto mt-10"></ion-spinner>
-  } @else if (programs.length === 0) {
-    <p class="programs-empty text-center text-muted mt-10">
-      No programs for this sport yet.
-    </p>
-  } @else {
-    <ion-list lines="none" class="bg-transparent mt-4">
+  <section class="browse" aria-labelledby="browse-title">
+    <h2 class="heading-section" id="browse-title">Browse</h2>
+
+    @if (failed) {
+      <div class="programs-error">
+        <p>Couldn't load programs.</p>
+        <ion-button class="btn-secondary" (click)="loadSports()">Try again</ion-button>
+      </div>
+    } @else if (programs === null) {
+      <ion-spinner class="block mx-auto mt-10"></ion-spinner>
+    } @else if (programs.length === 0) {
+      <p class="programs-empty">No programs for this sport yet.</p>
+    } @else {
       @for (program of programs; track program.id) {
-        <ion-card class="program-item" [routerLink]="['/programs', program.id]" button>
-          <ion-card-header>
-            <ion-card-title class="program-name">{{ program.name }}</ion-card-title>
-            <ion-card-subtitle>
-              {{ program.authorName }} · {{ program.durationWeeks }} weeks ·
-              {{ program.sessionsPerWeek }} sessions/week
-            </ion-card-subtitle>
-          </ion-card-header>
+        <a class="program-item surface-card" [routerLink]="['/programs', program.id]">
+          <span class="program-head">
+            <span class="program-icon" aria-hidden="true">
+              <ion-icon name="barbell-outline"></ion-icon>
+            </span>
+            <span class="program-title">
+              <span class="program-name">{{ program.name }}</span>
+              <span class="program-author">by {{ program.authorName }}</span>
+            </span>
+          </span>
           @if (program.description) {
-            <ion-card-content>{{ program.description }}</ion-card-content>
+            <span class="program-description">{{ program.description }}</span>
           }
-        </ion-card>
+          <span class="program-meta">
+            <span class="meta-chip">{{ program.durationWeeks }} weeks</span>
+            <span class="meta-chip">{{ program.sessionsPerWeek }} × week</span>
+            <span class="meta-chip">{{ program.durationWeeks * program.sessionsPerWeek }} sessions</span>
+          </span>
+        </a>
       }
-    </ion-list>
-  }
+    }
+  </section>
 </ion-content>

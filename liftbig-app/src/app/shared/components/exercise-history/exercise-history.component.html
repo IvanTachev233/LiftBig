@@ -1,0 +1,88 @@
+@if (history; as h) {
+  <div class="hero">
+    <span class="eyebrow">Estimated 1RM</span>
+    <div class="hero-row">
+      <span class="hero-value num">{{ hero === null ? '—' : units.toDisplay(hero) }}</span>
+      <span class="hero-unit">{{ units.unit() }}</span>
+      @if (delta) {
+        <span class="delta-chip" [class.up]="delta.kg > 0">{{ deltaLabel }}</span>
+      }
+    </div>
+  </div>
+
+  @if (h.entries.length) {
+    <ion-segment aria-label="Range" [value]="range" (ionChange)="setRange($event.detail.value)">
+      @for (r of ranges; track r) {
+        <ion-segment-button [value]="r"><ion-label>{{ r }}</ion-label></ion-segment-button>
+      }
+    </ion-segment>
+
+    @if (chartData.datasets[0]?.data?.length) {
+      <div class="chart">
+        <canvas
+          baseChart
+          type="line"
+          role="img"
+          [attr.aria-label]="'Estimated 1RM over time, best ' + (hero === null ? '' : (hero | weight))"
+          [data]="chartData"
+          [options]="chartOptions"
+        ></canvas>
+      </div>
+    } @else {
+      <p class="range-empty">No entries in this range.</p>
+    }
+  } @else {
+    <p class="history-empty">No rep maxes recorded yet. Log a 1–3 rep set or add an entry.</p>
+  }
+
+  <div class="latest-row">
+    @for (latest of h.latest; track latest.reps) {
+      <div class="latest-tile" [class]="'latest-' + latest.reps">
+        <span class="latest-label">{{ latest.reps }}RM</span>
+        <span class="latest-value num">{{ latest.entry ? (latest.entry.weightKg | weight) : '—' }}</span>
+        @if (latest.entry) {
+          <span class="latest-date">{{ latest.entry.achievedOn | date: 'mediumDate' }}</span>
+        }
+      </div>
+    }
+  </div>
+
+  @if (entries.length) {
+    <section class="entries" aria-labelledby="entries-title">
+      <div class="entries-head">
+        <h2 class="heading-section" id="entries-title">Entries</h2>
+        <span class="entries-hint">Swipe left to remove</span>
+      </div>
+      <ion-list lines="none" class="entries-list">
+        @for (entry of entries; track entry.id) {
+          <app-swipe-delete-row
+            text="Remove"
+            [label]="'Remove ' + entryLabel(entry) + ', ' + entryDate(entry)"
+            (delete)="requestRemove(entry)"
+          >
+            <ion-item class="entry-row" lines="none">
+              <ng-container *ngTemplateOutlet="entryLine; context: { $implicit: entry }" />
+            </ion-item>
+          </app-swipe-delete-row>
+        }
+      </ion-list>
+    </section>
+  }
+
+  <!-- An entry's row; the remove sheet shows the same row as its summary -->
+  <ng-template #entryLine let-entry>
+    <span class="entry-line">
+      <span class="entry-figure">
+        <span class="entry-kg num">{{ units.toDisplay(entry.weightKg) }}</span>
+        <span class="entry-unit">{{ units.unit() }} × {{ entry.reps }}</span>
+      </span>
+      <span class="entry-date">{{ entryDate(entry) }}</span>
+      @if (entry.id === bestEntryId) {
+        <app-status-pill class="entry-pr" kind="pr" />
+      }
+      <span class="entry-source">{{ sourceLabel(entry) }}</span>
+    </span>
+  </ng-template>
+} @else {
+  <ion-spinner class="block mx-auto mt-10"></ion-spinner>
+}

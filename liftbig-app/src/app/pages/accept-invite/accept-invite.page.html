@@ -1,27 +1,21 @@
-<ion-header [translucent]="true">
-  <ion-toolbar>
-    <ion-title>Accept Invite</ion-title>
-  </ion-toolbar>
-</ion-header>
-
-<ion-content [fullscreen]="true" class="ion-padding ion-text-center">
+<ion-content class="auth-content">
   <div class="invite-status">
-    <div *ngIf="loading" class="mt-20">
+    @if (loading) {
       <ion-spinner></ion-spinner>
-      <p>Accepting invite...</p>
-    </div>
+      <p class="invite-message">Accepting the invite…</p>
+    }
 
-    <div *ngIf="success" class="mt-20">
-      <ion-icon name="checkmark-circle" color="success" class="status-icon"></ion-icon>
-      <h2>Invite Accepted!</h2>
-      <p>You are now linked to your coach. Redirecting to dashboard...</p>
-    </div>
+    @if (success) {
+      <ion-icon name="checkmark-circle" class="status-icon success" aria-hidden="true"></ion-icon>
+      <h1 class="title-detail">Invite accepted</h1>
+      <p class="invite-message">You're connected to your coach. Taking you to Today…</p>
+    }
 
-    <div *ngIf="errorMessage" class="mt-20">
-      <ion-icon name="close-circle" color="danger" class="status-icon"></ion-icon>
-      <h2>Error</h2>
-      <p>{{ errorMessage }}</p>
-      <ion-button routerLink="/dashboard" class="mt-4">Go to Dashboard</ion-button>
-    </div>
+    @if (errorMessage) {
+      <ion-icon name="close-circle" class="status-icon error" aria-hidden="true"></ion-icon>
+      <h1 class="title-detail">Couldn't accept the invite</h1>
+      <p class="invite-message">{{ errorMessage }}</p>
+      <ion-button class="btn-primary" expand="block" routerLink="/today">Go to Today</ion-button>
+    }
   </div>
 </ion-content>

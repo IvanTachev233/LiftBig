@@ -1,0 +1,16 @@
+<div class="chip-row" role="radiogroup" [attr.aria-label]="label()">
+  @for (option of options(); track option.value; let i = $index) {
+    <button
+      #chip
+      type="button"
+      class="chip"
+      role="radio"
+      [attr.aria-checked]="option.value === value()"
+      [tabIndex]="i === tabStop() ? 0 : -1"
+      (click)="select(option)"
+      (keydown)="onKeydown($event, i)"
+    >
+      {{ option.label }}
+    </button>
+  }
+</div>

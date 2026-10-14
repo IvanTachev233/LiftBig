@@ -120,6 +120,28 @@ describe('CreateExerciseModalComponent', () => {
     expect(modalCtrlSpy.dismiss).toHaveBeenCalledWith(created, 'confirm');
   });
 
+  describe('category', () => {
+    const chips = () =>
+      Array.from<HTMLElement>(fixture.nativeElement.querySelectorAll('.category-chips [role="radio"]'));
+
+    it('offers None and the four categories, None picked', () => {
+      expect(chips().map((c) => c.textContent!.trim())).toEqual(['None', 'Olympic', 'Squat', 'Press', 'Pull']);
+      expect(chips()[0].getAttribute('aria-checked')).toBe('true');
+      expect(fixture.nativeElement.querySelector('.category-chips [role="radiogroup"]').getAttribute('aria-label'))
+        .toBe('Category');
+    });
+
+    it('sends the picked category', () => {
+      component.name = 'Zercher Squat';
+      chips()[2].click();
+      fixture.detectChanges();
+      component.save();
+      const req = httpMock.expectOne(`${environment.apiUrl}/workouts/exercises`);
+      expect(req.request.body).toEqual({ name: 'Zercher Squat', category: 'Squat' });
+      req.flush({ id: 'x1', name: 'Zercher Squat', category: 'Squat' });
+    });
+  });
+
   it('omits empty description and video URL from the body', () => {
     component.name = 'Deadlift Variation';
     component.description = '   ';

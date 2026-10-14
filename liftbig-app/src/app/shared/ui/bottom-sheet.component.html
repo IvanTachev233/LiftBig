@@ -1,0 +1,26 @@
+<div class="sheet">
+  <header class="sheet-header">
+    <div class="sheet-heading">
+      <h2 class="sheet-title title-card">{{ title() }}</h2>
+      @if (helper()) {
+        <p class="sheet-helper">{{ helper() }}</p>
+      }
+    </div>
+    <button type="button" class="sheet-close" aria-label="Close" (click)="close()">
+      <span class="close-circle">
+        <ion-icon name="close" aria-hidden="true"></ion-icon>
+      </span>
+    </button>
+  </header>
+
+  <ng-content />
+
+  <ion-button
+    class="btn-primary"
+    expand="block"
+    [disabled]="primaryDisabled()"
+    (click)="primary.emit()"
+  >
+    {{ primaryLabel() }}
+  </ion-button>
+</div>

@@ -1,80 +1,125 @@
-// Ionic Variables and Theming. For more info, please see:
+// Ionic variables mapped onto the design tokens. For more info, please see:
 // http://ionicframework.com/docs/theming/
+@use 'sass:color';
+@use 'sass:list';
+@use 'sass:map';
+@use 'sass:math';
+@use 'tokens';
 
-/** Ionic CSS Variables **/
-:root {
-  /* Midnight Momentum Palette */
-  --ion-color-primary: #6366f1;
-  --ion-color-primary-rgb: 99, 102, 241;
-  --ion-color-primary-contrast: #ffffff;
-  --ion-color-primary-contrast-rgb: 255, 255, 255;
-  --ion-color-primary-shade: #4f46e5;
-  --ion-color-primary-tint: #7376f2;
+@function rgb-triple($c) {
+  @return math.round(color.channel($c, 'red', $space: rgb)),
+    math.round(color.channel($c, 'green', $space: rgb)),
+    math.round(color.channel($c, 'blue', $space: rgb));
+}
 
-  --ion-color-secondary: #10b981; /* Success/Secondary */
-  --ion-color-secondary-rgb: 16, 185, 129;
-  --ion-color-secondary-contrast: #ffffff;
-  --ion-color-secondary-contrast-rgb: 255, 255, 255;
-  --ion-color-secondary-shade: #0ea372;
-  --ion-color-secondary-tint: #28c08e;
+// color.mix leaves fractional channels; round them to whole ones
+@function mix($a, $b, $weight) {
+  $c: color.mix($a, $b, $weight);
+  @return rgb(rgb-triple($c)...);
+}
 
-  --ion-color-tertiary: #f59e0b; /* Warning */
-  --ion-color-tertiary-rgb: 245, 158, 11;
-  --ion-color-tertiary-contrast: #000000;
-  --ion-color-tertiary-contrast-rgb: 0, 0, 0;
+// WCAG relative luminance
+@function luminance($c) {
+  $weights: 0.2126, 0.7152, 0.0722;
+  $channels: rgb-triple($c);
+  $sum: 0;
+  @for $i from 1 through 3 {
+    $s: math.div(list.nth($channels, $i), 255);
+    @if $s <= 0.03928 {
+      $s: math.div($s, 12.92);
+    } @else {
+      $s: math.pow(math.div($s + 0.055, 1.055), 2.4);
+    }
+    $sum: $sum + $s * list.nth($weights, $i);
+  }
+  @return $sum;
+}
 
-  --ion-color-success: #10b981;
-  --ion-color-success-rgb: 16, 185, 129;
-  --ion-color-success-contrast: #ffffff;
-  --ion-color-success-contrast-rgb: 255, 255, 255;
-  --ion-color-success-shade: #0ea372;
-  --ion-color-success-tint: #28c08e;
+@function contrast($a, $b) {
+  $la: luminance($a) + 0.05;
+  $lb: luminance($b) + 0.05;
+  @return math.div(math.max($la, $lb), math.min($la, $lb));
+}
 
-  --ion-color-warning: #f59e0b;
-  --ion-color-warning-rgb: 245, 158, 11;
-  --ion-color-warning-contrast: #000000;
-  --ion-color-warning-contrast-rgb: 0, 0, 0;
-  --ion-color-warning-shade: #d88b0a;
-  --ion-color-warning-tint: #f6a823;
+// Text on a fill: the dark on-accent colour or white, whichever reads better
+@function contrast-on($fill, $dark) {
+  @if contrast($fill, $dark) >= contrast($fill, #ffffff) {
+    @return $dark;
+  }
+  @return #ffffff;
+}
 
-  --ion-color-danger: #ef4444;
-  --ion-color-danger-rgb: 239, 68, 68;
-  --ion-color-danger-contrast: #ffffff;
-  --ion-color-danger-contrast-rgb: 255, 255, 255;
-  --ion-color-danger-shade: #d23c3c;
-  --ion-color-danger-tint: #f15757;
+@mixin ion-color($name, $base, $dark) {
+  $contrast: contrast-on($base, $dark);
+  --ion-color-#{$name}: #{$base};
+  --ion-color-#{$name}-rgb: #{rgb-triple($base)};
+  --ion-color-#{$name}-contrast: #{$contrast};
+  --ion-color-#{$name}-contrast-rgb: #{rgb-triple($contrast)};
+  --ion-color-#{$name}-shade: #{mix(#000000, $base, 12%)};
+  --ion-color-#{$name}-tint: #{mix(#ffffff, $base, 10%)};
+}
 
-  --ion-color-dark: #0f172a;
-  --ion-color-dark-rgb: 15, 23, 42;
-  --ion-color-dark-contrast: #ffffff;
-  --ion-color-dark-contrast-rgb: 255, 255, 255;
-  --ion-color-dark-shade: #0d1425;
-  --ion-color-dark-tint: #272e3f;
+@mixin ionic-theme($t) {
+  $bg: map.get($t, bg);
+  $text: map.get($t, text);
+  $on-accent: map.get($t, on-accent);
 
-  --ion-color-medium: #94a3b8;
-  --ion-color-medium-rgb: 148, 163, 184;
-  --ion-color-medium-contrast: #000000;
-  --ion-color-medium-contrast-rgb: 0, 0, 0;
-  --ion-color-medium-shade: #828fa2;
-  --ion-color-medium-tint: #9facbf;
+  @include ion-color(primary, map.get($t, accent), $on-accent);
+  @include ion-color(secondary, map.get($t, success), $on-accent);
+  @include ion-color(tertiary, map.get($t, pr-text), $on-accent);
+  @include ion-color(success, map.get($t, success), $on-accent);
+  @include ion-color(warning, map.get($t, pr-text), $on-accent);
+  @include ion-color(danger, map.get($t, danger-text), $on-accent);
+  @include ion-color(medium, map.get($t, text-3), $on-accent);
+  // Ionic's convention: "dark" contrasts with the background, "light" sits near it
+  @include ion-color(dark, $text, $on-accent);
+  @include ion-color(light, map.get($t, surface-2), $on-accent);
 
-  --ion-color-light: #f8fafc;
-  --ion-color-light-rgb: 248, 250, 252;
-  --ion-color-light-contrast: #000000;
-  --ion-color-light-contrast-rgb: 0, 0, 0;
-  --ion-color-light-shade: #dadce0;
-  --ion-color-light-tint: #f9fbfd;
+  --ion-background-color: #{$bg};
+  --ion-background-color-rgb: #{rgb-triple($bg)};
+  --ion-text-color: #{$text};
+  --ion-text-color-rgb: #{rgb-triple($text)};
 
-  /* Custom Backgrounds */
-  --bg-deep: #0f172a;
-  --bg-surface: #1e293b;
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --border-color: #334155;
+  // Ionic's stepped colours: background mixed towards text, and text towards background
+  @for $i from 1 through 19 {
+    --ion-background-color-step-#{$i * 50}: #{mix($text, $bg, $i * 5%)};
+    --ion-text-color-step-#{$i * 50}: #{mix($bg, $text, $i * 5%)};
+  }
 
-  --ion-background-color: var(--bg-deep);
-  --ion-text-color: var(--text-main);
-  --ion-item-background: var(--bg-surface);
-  --ion-card-background: var(--bg-surface);
-  --ion-border-color: var(--border-color);
+  --ion-border-color: var(--line);
+  --ion-placeholder-color: var(--placeholder);
+  --ion-overlay-background-color: var(--surface);
+  --ion-item-background: var(--surface);
+  --ion-item-border-color: var(--line);
+  --ion-card-background: var(--surface);
+  --ion-toolbar-background: var(--bg);
+  --ion-toolbar-color: var(--text);
+  --ion-toolbar-border-color: var(--line);
+  --ion-tab-bar-background: var(--tabbar-bg);
+  --ion-tab-bar-border-color: var(--line);
+  --ion-tab-bar-color: var(--text-3);
+  --ion-tab-bar-color-selected: var(--accent-text);
+  --ion-font-family: var(--font-ui);
+}
+
+// Ionic's dark palette sets these on `.ion-palette-dark.ios` / `.md`. These
+// selectors have the same specificity and this file loads after global.scss
+// (angular.json `styles`), so the tokens win.
+:root,
+:root.ios,
+:root.md {
+  @include ionic-theme(tokens.$dark);
+}
+
+:root[data-theme='light'],
+:root[data-theme='light'].ios,
+:root[data-theme='light'].md {
+  @include ionic-theme(tokens.$light);
+}
+
+// The iOS dark palette lifts modal backgrounds; keep them on the tokens
+.ion-palette-dark.ios ion-modal {
+  --ion-background-color: var(--bg);
+  --ion-toolbar-background: var(--bg);
+  --ion-toolbar-border-color: var(--line);
 }

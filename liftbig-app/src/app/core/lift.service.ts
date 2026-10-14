@@ -47,8 +47,11 @@ export class LiftService {
   private http = inject(HttpClient);
   private url = `${environment.apiUrl}/lifts`;
 
-  getBests(exerciseIds: string[]) {
-    const params = new HttpParams().set('exerciseIds', exerciseIds.join(','));
+  /** Bests of the given exercises; without ids, every best */
+  getBests(exerciseIds?: string[]) {
+    const params = exerciseIds
+      ? new HttpParams().set('exerciseIds', exerciseIds.join(','))
+      : undefined;
     return this.http.get<BestLift[]>(`${this.url}/best`, { params });
   }
 

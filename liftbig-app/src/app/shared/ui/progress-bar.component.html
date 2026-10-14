@@ -1,0 +1,18 @@
+<div
+  class="track"
+  role="progressbar"
+  aria-valuemin="0"
+  [attr.aria-valuemax]="max()"
+  [attr.aria-valuenow]="value()"
+  [attr.aria-label]="label()"
+  [class.segmented]="segmented()"
+  [class.complete]="complete()"
+>
+  @if (segmented()) {
+    @for (i of steps(); track i) {
+      <span class="segment" [class.filled]="i < value()"></span>
+    }
+  } @else {
+    <span class="fill" [style.width.%]="percent()"></span>
+  }
+</div>

@@ -10,7 +10,8 @@ import {
   provideRouter,
   Router,
 } from '@angular/router';
-import { AlertController, ToastController } from '@ionic/angular';
+import { ToastController } from '@ionic/angular';
+import { ConfirmSheetService } from '../../shared/ui/confirm-sheet.component';
 import { environment } from '../../../environments/environment';
 import { ProgramDetail } from '../../core/program.service';
 import { WeightUnitService } from '../../core/weight-unit.service';
@@ -20,7 +21,7 @@ describe('ProgramDetailPage', () => {
   let fixture: ComponentFixture<ProgramDetailPage>;
   let component: ProgramDetailPage;
   let http: HttpTestingController;
-  let alertCtrl: jasmine.SpyObj<AlertController>;
+  let confirmSpy: jasmine.SpyObj<ConfirmSheetService>;
   let navigate: jasmine.Spy;
   const api = environment.apiUrl;
 
@@ -85,7 +86,7 @@ describe('ProgramDetailPage', () => {
   };
 
   function setup(unit: 'kg' | 'lb' = 'kg', bests: object[] = []) {
-    alertCtrl = jasmine.createSpyObj('AlertController', ['create']);
+    confirmSpy = jasmine.createSpyObj('ConfirmSheetService', ['confirm']);
     const toastCtrl = jasmine.createSpyObj('ToastController', ['create']);
     toastCtrl.create.and.resolveTo({ present: () => Promise.resolve() });
     TestBed.configureTestingModule({
@@ -98,7 +99,7 @@ describe('ProgramDetailPage', () => {
           provide: ActivatedRoute,
           useValue: { snapshot: { paramMap: convertToParamMap({ id: 'p1' }) } },
         },
-        { provide: AlertController, useValue: alertCtrl },
+        { provide: ConfirmSheetService, useValue: confirmSpy },
         { provide: ToastController, useValue: toastCtrl },
       ],
     });
@@ -126,11 +127,10 @@ describe('ProgramDetailPage', () => {
       (e) => e.textContent!.replace(/\s+/g, ' ').trim(),
     );
 
-  function stubAlert(role: string) {
-    const alert = jasmine.createSpyObj('HTMLIonAlertElement', ['present', 'onDidDismiss']);
-    alert.present.and.resolveTo();
-    alert.onDidDismiss.and.resolveTo({ role });
-    alertCtrl.create.and.resolveTo(alert);
+  function stubConfirm(role: string) {
+    // The confirm sheet: 'destructive' confirms, anything else cancels
+    confirmSpy.confirm.and.resolveTo(role === 'destructive');
+    return confirmSpy.confirm;
   }
 
   function fillMaxes(squat: number | null, bench: number | null) {
@@ -242,15 +242,15 @@ describe('ProgramDetailPage', () => {
     it('asks before abandoning an active program and retries with abandonCurrent', async () => {
       setup();
       fillMaxes(140, 100);
-      stubAlert('destructive');
+      stubConfirm('destructive');
       component.start();
       http
         .expectOne(`${api}/program-enrollments`)
         .flush({ message: 'active' }, { status: 409, statusText: 'Conflict' });
       await fixture.whenStable();
 
-      expect(alertCtrl.create).toHaveBeenCalledWith(
-        jasmine.objectContaining({ header: 'Abandon current program?' }),
+      expect(confirmSpy.confirm).toHaveBeenCalledWith(
+        jasmine.objectContaining({ title: 'Abandon current program?', confirmLabel: 'Abandon and start' }),
       );
       const retry = http.expectOne(`${api}/program-enrollments`);
       expect(retry.request.body.abandonCurrent).toBeTrue();
@@ -262,7 +262,7 @@ describe('ProgramDetailPage', () => {
     it('keeps the current program when the abandon confirm is cancelled', async () => {
       setup();
       fillMaxes(140, 100);
-      stubAlert('cancel');
+      stubConfirm('cancel');
       component.start();
       http
         .expectOne(`${api}/program-enrollments`)
@@ -270,6 +270,44 @@ describe('ProgramDetailPage', () => {
       await fixture.whenStable();
       http.expectNone(`${api}/program-enrollments`);
       expect(navigate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('layout', () => {
+    it('shows the sport and author, the name and weeks, sessions per week and total sessions', () => {
+      setup();
+      expect(all('.detail-eyebrow')).toEqual(['Powerlifting · LiftBig']);
+      expect(all('h1')).toEqual(['Sample Powerlifting Program']);
+      expect(all('.stat')).toEqual(['2 weeks', '2 per week', '4 sessions']);
+    });
+
+    it('puts the unit after each 1RM input', () => {
+      setup('lb');
+      expect(all('ion-input.max-input .unit-suffix')).toEqual(['lb', 'lb']);
+    });
+
+    it('shows the first session day and opens the date picker in a sheet', () => {
+      jasmine.clock().install();
+      jasmine.clock().mockDate(new Date(2026, 9, 10, 9, 0));
+      setup();
+      expect(all('.first-session .first-session-date')).toEqual(['Sat, 10 Oct']);
+      // Checked without change detection: a presented inline sheet would outlive the test
+      (fixture.nativeElement.querySelector('.first-session') as HTMLElement).click();
+      expect(component.pickingDate).toBeTrue();
+
+      component.dateChanged({ detail: { value: '2026-10-12' } });
+      fixture.detectChanges();
+      expect(component.pickingDate).toBeFalse();
+      expect(all('.first-session .first-session-date')).toEqual(['Mon, 12 Oct']);
+    });
+
+    it('keeps Start program and Preview full schedule in the footer; the preview opens the schedule sheet', () => {
+      setup();
+      const footer = fixture.nativeElement.querySelector('ion-footer') as HTMLElement;
+      expect(footer.querySelector('.start-btn')!.textContent!.trim()).toBe('Start program');
+      (footer.querySelector('.preview-btn') as HTMLElement).click();
+      expect(component.showingSchedule).toBeTrue();
+      component.showingSchedule = false;
     });
   });
 });

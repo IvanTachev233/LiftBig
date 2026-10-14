@@ -38,6 +38,8 @@ export interface WorkoutCard {
   order: number;
   // Cards sharing a value form one superset
   supersetGroup: string | null;
+  // The coach's note for the athlete
+  notes?: string | null;
   sets: WorkoutSet[];
   // Single-workout view only: the heaviest entry (kg) per rep count before
   // this workout, not counting its own sets; null when there is none
@@ -55,6 +57,9 @@ export interface Workout {
   notes?: string | null;
   isTemplate?: boolean;
   status: WorkoutStatus;
+  // When the status first left PLANNED; null before that and on workouts
+  // started before the API stored it
+  startedAt?: string | null;
   totalWeightLifted: number;
   // The coach who assigned the workout; null for a self-made one
   assignedById: string | null;
@@ -94,9 +99,10 @@ export function sourceBadge(workout: Workout): string | null {
   }
 }
 
-/** A set write's answer: the set, plus the PB sets of its whole workout */
+/** A set write's answer: the set, plus the PB sets and start time of its whole workout */
 export type SetWriteResponse = WorkoutSet & {
   workoutPb?: { hasPb: boolean; pbSetIds: string[] };
+  workoutStartedAt?: string | null;
 };
 
 export interface CreateWorkoutRequest {
@@ -158,6 +164,9 @@ export interface Exercise {
   name: string;
   description?: string | null;
   bodyPart?: string | null;
+  // e.g. Olympic / Barbell; null for coach-made exercises, missing from older APIs
+  category?: string | null;
+  equipment?: string | null;
   videoUrl?: string | null;
   imageUrl?: string | null;
   // null = global (seeded) exercise; otherwise the coach who created it
@@ -170,6 +179,8 @@ export interface CreateExerciseDto {
   name: string;
   description?: string;
   videoUrl?: string;
+  /** One of CATEGORIES; left out for none */
+  category?: string;
 }
 
 @Injectable({

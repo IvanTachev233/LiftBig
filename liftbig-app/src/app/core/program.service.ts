@@ -101,6 +101,28 @@ export interface EnrollRequest {
   abandonCurrent?: boolean;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** A program workout's week from the start date and its place in that week, both from 1 */
+export function sessionPosition(
+  enrollment: Pick<Enrollment, 'startDate' | 'workouts'>,
+  workoutId: string,
+): { week: number; day: number } | null {
+  const start = Date.parse(enrollment.startDate);
+  const weekOf = (workout: Workout) =>
+    Math.floor(Math.round((Date.parse(workout.date.slice(0, 10)) - start) / DAY_MS) / 7) + 1;
+  const workout = enrollment.workouts.find((w) => w.id === workoutId);
+  if (!workout) return null;
+  const week = weekOf(workout);
+  const day =
+    enrollment.workouts
+      .filter((w) => weekOf(w) === week)
+      .map((w) => w.date.slice(0, 10))
+      .sort()
+      .indexOf(workout.date.slice(0, 10)) + 1;
+  return { week, day };
+}
+
 @Injectable({ providedIn: 'root' })
 export class ProgramService {
   private http = inject(HttpClient);

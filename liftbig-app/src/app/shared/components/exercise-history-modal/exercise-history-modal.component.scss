@@ -1,20 +1,21 @@
-.latest-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+ion-toolbar {
+  --background: var(--bg);
 }
 
-.latest-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 8px;
-  border: 1px solid var(--ion-border-color, #334155);
-  border-radius: 8px;
-  font-size: 0.8125rem;
+ion-title {
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+}
 
-  strong {
-    font-size: 1rem;
-  }
+// [fill] outranks the global clear-button accent colour
+.add-entry-btn[fill] {
+  --color: var(--text-soft);
+}
+
+.history-modal-content {
+  --padding-start: var(--gutter);
+  --padding-end: var(--gutter);
+  --padding-top: 18px;
+  --padding-bottom: 24px;
 }
