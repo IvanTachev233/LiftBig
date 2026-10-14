@@ -12,6 +12,7 @@
           <span class="profile-email">{{ p.email }}</span>
         }
       </span>
+      <button type="button" class="edit-btn" aria-label="Edit name" (click)="openEdit()">Edit</button>
     </div>
   } @else {
     <ion-spinner class="block mx-auto"></ion-spinner>
@@ -88,6 +89,10 @@
   <section class="profile-section" aria-labelledby="account-heading">
     <h2 class="eyebrow" id="account-heading">Account</h2>
     <div class="settings-group">
+      <button type="button" class="setting-row password-row" (click)="openChangePassword()">
+        <span class="setting-label">Change password</span>
+        <ion-icon name="chevron-forward" aria-hidden="true"></ion-icon>
+      </button>
       <button type="button" class="setting-row logout-btn danger" (click)="logout()">Log out</button>
     </div>
   </section>

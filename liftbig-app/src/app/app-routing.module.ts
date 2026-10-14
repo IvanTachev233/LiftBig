@@ -3,6 +3,7 @@ import { PreloadAllModules, RouterModule, Routes } from '@angular/router';
 
 import { AuthGuard } from './core/auth.guard';
 import { RoleGuard } from './core/role.guard';
+import { SignedOutGuard } from './core/signed-out.guard';
 import { clientDashboardGuard } from './core/client-dashboard.guard';
 
 export const routes: Routes = [
@@ -18,6 +19,7 @@ export const routes: Routes = [
   },
   {
     path: 'login',
+    canActivate: [SignedOutGuard],
     loadComponent: () =>
       import('./pages/login/login.page').then((m) => m.LoginPage),
   },

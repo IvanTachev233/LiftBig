@@ -12,6 +12,8 @@ export interface User {
   name?: string | null;
   role: 'COACH' | 'CLIENT';
   coachId?: string | null;
+  /** Expiry of the access token, in seconds since the epoch */
+  exp?: number;
 }
 
 export interface RegisterData {
@@ -70,9 +72,22 @@ export class AuthService {
   }
 
   logout() {
-    localStorage.removeItem('token');
-    this.tokenSignal.set(null);
+    this.clearSession();
     this.router.navigate(['/login']);
+  }
+
+  /** A stored token that hasn't expired; an expired one is signed out */
+  hasSession(): boolean {
+    const user = this.currentUser();
+    if (!user) {
+      if (this.tokenSignal()) this.clearSession();
+      return false;
+    }
+    if (user.exp !== undefined && user.exp * 1000 <= Date.now()) {
+      this.clearSession();
+      return false;
+    }
+    return true;
   }
 
   navigateToDashboard(extras?: NavigationBehaviorOptions) {
@@ -86,5 +101,10 @@ export class AuthService {
 
   getToken() {
     return this.tokenSignal();
+  }
+
+  private clearSession() {
+    localStorage.removeItem('token');
+    this.tokenSignal.set(null);
   }
 }

@@ -5,6 +5,8 @@ import {
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { environment } from '../../environments/environment';
+import { AuthService } from './auth.service';
+import { fakeToken } from './auth.testing';
 import { Profile, ProfileService } from './profile.service';
 import { RestTimeService } from './rest-time';
 import { WeightUnitService } from './weight-unit.service';
@@ -79,6 +81,36 @@ describe('ProfileService', () => {
       req.flush({ ...profile, restSeconds: 0 });
       expect(TestBed.inject(RestTimeService).seconds()).toBe(0);
       expect(units.unit()).toBe('lb');
+    });
+  });
+
+  describe('account', () => {
+    it('saves the name alone with PATCH /users/me and applies the answer', () => {
+      let saved: Profile | undefined;
+      service.updateName('Una Lifter').subscribe((p) => (saved = p));
+      const req = http.expectOne(url);
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body).toEqual({ name: 'Una Lifter' });
+      req.flush({ ...profile, name: 'Una Lifter', restSeconds: 60 });
+      expect(saved?.name).toBe('Una Lifter');
+      expect(TestBed.inject(RestTimeService).seconds()).toBe(60);
+    });
+
+    it('changes the password with POST /users/me/password and keeps this device signed in', () => {
+      let done = false;
+      service.changePassword('old-secret', 'new-secret').subscribe(() => (done = true));
+      const req = http.expectOne(`${url}/password`);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({
+        currentPassword: 'old-secret',
+        newPassword: 'new-secret',
+      });
+      const token = fakeToken('CLIENT', { id: 'u1' });
+      req.flush({ access_token: token });
+      expect(done).toBeTrue();
+      expect(TestBed.inject(AuthService).getToken()).toBe(token);
+      expect(localStorage.getItem('token')).toBe(token);
+      localStorage.removeItem('token');
     });
   });
 });

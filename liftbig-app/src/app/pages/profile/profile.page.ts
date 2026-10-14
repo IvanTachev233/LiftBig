@@ -12,12 +12,15 @@ import { WeightUnit } from '../../core/weight-unit.service';
 import { BottomSheetService } from '../../shared/ui/bottom-sheet.service';
 import { ConnectCoachSheetComponent } from './connect-coach-sheet.component';
 import { RestTimerSheetComponent } from './rest-timer-sheet.component';
+import { EditProfileSheetComponent } from './edit-profile-sheet.component';
+import { ChangePasswordSheetComponent } from './change-password-sheet.component';
 import { initialsOf } from '../../shared/initials';
 import { LargeTitleComponent } from '../../shared/ui/large-title.component';
 import { TabHeaderComponent } from '../../shared/ui/tab-header.component';
 
-// Profile for both roles: who you are, coach connection (clients), weight
-// unit, rest timer (clients), theme, My 1RMs (clients) and log out
+// Profile for both roles: who you are (editable name), coach connection
+// (clients), weight unit, rest timer (clients), theme, My 1RMs (clients),
+// change password and log out
 @Component({
   selector: 'app-profile',
   templateUrl: './profile.page.html',
@@ -95,6 +98,33 @@ export class ProfilePage implements ViewWillEnter {
         this.presentToast("Couldn't save the rest timer");
       },
     });
+  }
+
+  /** Edits the name in a sheet; a failed save puts the old one back */
+  async openEdit() {
+    if (!this.profile) return;
+    const previous = this.profile.name;
+    const { data, role } = await this.bottomSheet.open<string>(EditProfileSheetComponent, {
+      label: 'Edit profile',
+      props: { name: previous ?? '' },
+    });
+    if (role !== 'confirm' || !data || !this.profile) return;
+    this.profile = { ...this.profile, name: data };
+    this.profileService.updateName(data).subscribe({
+      next: (profile) => (this.profile = profile),
+      error: () => {
+        if (this.profile) this.profile = { ...this.profile, name: previous };
+        this.presentToast("Couldn't save your name");
+      },
+    });
+  }
+
+  /** The sheet saves the password itself and confirms once it is changed */
+  async openChangePassword() {
+    const { role } = await this.bottomSheet.open(ChangePasswordSheetComponent, {
+      label: 'Change password',
+    });
+    if (role === 'confirm') this.presentToast('Password changed', 'success');
   }
 
   changeTheme(setting: ThemeSetting) {

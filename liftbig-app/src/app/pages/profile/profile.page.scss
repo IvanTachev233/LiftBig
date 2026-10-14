@@ -77,7 +77,9 @@
   font-weight: 500;
 }
 
-.connect-btn {
+.connect-btn,
+.edit-btn {
+  flex-shrink: 0;
   height: 44px;
   padding: 0 14px;
   border: 0;
@@ -86,6 +88,13 @@
   color: var(--bg);
   font: 600 14px var(--font-ui);
   cursor: pointer;
+}
+
+.edit-btn {
+  border: 1px solid var(--line-strong);
+  background: none;
+  color: var(--text);
+  font-weight: 500;
 }
 
 .settings-group {

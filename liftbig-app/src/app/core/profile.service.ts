@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
-import { User } from './auth.service';
+import { AuthService, User } from './auth.service';
 import { RestTimeService } from './rest-time';
 import { WeightUnit, WeightUnitService } from './weight-unit.service';
 
@@ -21,6 +21,7 @@ export interface Profile {
 @Injectable({ providedIn: 'root' })
 export class ProfileService {
   private http = inject(HttpClient);
+  private auth = inject(AuthService);
   private units = inject(WeightUnitService);
   private restTime = inject(RestTimeService);
   private url = `${environment.apiUrl}/users/me`;
@@ -37,12 +38,27 @@ export class ProfileService {
     return this.update({ restSeconds });
   }
 
+  updateName(name: string) {
+    return this.update({ name });
+  }
+
+  /**
+   * 403 (with attemptsLeft) for a wrong current password, 429 (with
+   * retryAfterMinutes) while locked; on success the new token replaces the
+   * revoked one, so this device stays signed in
+   */
+  changePassword(currentPassword: string, newPassword: string) {
+    return this.http
+      .post<{ access_token: string }>(`${this.url}/password`, { currentPassword, newPassword })
+      .pipe(tap(({ access_token }) => this.auth.setSession(access_token)));
+  }
+
   /** Loads the settings in the background; a failure keeps the current ones */
   load() {
     this.getMe().subscribe({ error: () => undefined });
   }
 
-  private update(changes: Partial<Pick<Profile, 'weightUnit' | 'restSeconds'>>) {
+  private update(changes: Partial<Pick<Profile, 'name' | 'weightUnit' | 'restSeconds'>>) {
     return this.http.patch<Profile>(this.url, changes).pipe(tap((profile) => this.apply(profile)));
   }
 

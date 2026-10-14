@@ -164,6 +164,48 @@ describe('App navigation', () => {
     });
   }
 
+  // A cold start opens the root URL; a valid stored token skips Login
+  for (const [role, from, to] of [
+    ['CLIENT', '/', '/today'],
+    ['CLIENT', '/login', '/today'],
+    ['COACH', '/', '/coach/clients'],
+    ['COACH', '/login', '/coach/clients'],
+  ] as const) {
+    it(`takes a signed-in ${role} from ${from} to ${to}`, async () => {
+      expect((await open(role, from)).url).toBe(to);
+    });
+  }
+
+  it('shows Login for an expired token and clears it', async () => {
+    const exp = Math.floor(Date.now() / 1000) - 60;
+    TestBed.inject(AuthService).setSession(fakeToken('CLIENT', { exp }));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/');
+    await harness.fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/login');
+    await harness.navigateByUrl('/today');
+    await harness.fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/login');
+    expect(localStorage.getItem('token')).toBeNull();
+    expect(TestBed.inject(AuthService).isAuthenticated()).toBeFalse();
+  });
+
+  it('keeps a token that has not expired yet', async () => {
+    const exp = Math.floor(Date.now() / 1000) + 600;
+    TestBed.inject(AuthService).setSession(fakeToken('CLIENT', { exp }));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/');
+    await harness.fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/today');
+  });
+
+  it('shows Login at the root URL when signed out', async () => {
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/');
+    await harness.fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/login');
+  });
+
   it('sends a signed-out visitor to /login', async () => {
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/today');

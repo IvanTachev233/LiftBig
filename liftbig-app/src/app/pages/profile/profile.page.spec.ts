@@ -15,6 +15,8 @@ import { WeightUnitService } from '../../core/weight-unit.service';
 import { BottomSheetService } from '../../shared/ui/bottom-sheet.service';
 import { ProfilePage } from './profile.page';
 import { RestTimerSheetComponent } from './rest-timer-sheet.component';
+import { EditProfileSheetComponent } from './edit-profile-sheet.component';
+import { ChangePasswordSheetComponent } from './change-password-sheet.component';
 
 describe('ProfilePage', () => {
   let fixture: ComponentFixture<ProfilePage>;
@@ -279,9 +281,13 @@ describe('ProfilePage', () => {
       expect(text('.profile-name')).toBe('una@x.io');
     });
 
-    it('hides Edit and Change password until they exist', () => {
-      expect(fixture.nativeElement.textContent).not.toContain('Edit');
-      expect(fixture.nativeElement.textContent).not.toContain('Change password');
+    it('offers Edit and Change password to both roles', () => {
+      for (const role of ['CLIENT', 'COACH'] as const) {
+        TestBed.inject(AuthService).setSession(fakeToken(role));
+        fixture.detectChanges();
+        expect(text('.edit-btn')).toBe('Edit');
+        expect(text('.password-row .setting-label')).toBe('Change password');
+      }
     });
 
     it('My 1RMs opens the Lifts view of History for a client', () => {
@@ -298,6 +304,92 @@ describe('ProfilePage', () => {
       expect(fixture.nativeElement.querySelector('.coach-card')).toBeNull();
       expect(fixture.nativeElement.querySelector('.my-1rms')).toBeNull();
       expect(fixture.nativeElement.querySelector('.logout-btn')).toBeTruthy();
+    });
+  });
+
+  describe('Edit profile', () => {
+    const edit = () => fixture.nativeElement.querySelector('.edit-btn') as HTMLElement;
+
+    it('names the button for screen readers', () => {
+      expect(edit().getAttribute('aria-label')).toBe('Edit name');
+    });
+
+    it('opens the sheet with the current name and saves the new one', async () => {
+      sheet.open.and.resolveTo({ data: 'Una Lifter', role: 'confirm' });
+      edit().click();
+      await fixture.whenStable();
+
+      const [sheetComponent, options] = sheet.open.calls.mostRecent().args;
+      expect(sheetComponent).toBe(EditProfileSheetComponent);
+      expect(options).toEqual({ label: 'Edit profile', props: { name: 'Una' } });
+      const req = http.expectOne(url);
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body).toEqual({ name: 'Una Lifter' });
+      fixture.detectChanges();
+      expect(text('.profile-name')).toBe('Una Lifter');
+      req.flush({ ...profile, name: 'Una Lifter' });
+      fixture.detectChanges();
+      expect(text('.profile-name')).toBe('Una Lifter');
+      expect(text('.avatar')).toBe('UL');
+    });
+
+    it('starts from an empty field when there is no name', async () => {
+      component.profile = { ...component.profile!, name: null };
+      sheet.open.and.resolveTo({ role: 'cancel' });
+      await component.openEdit();
+      expect(sheet.open.calls.mostRecent().args[1]).toEqual({
+        label: 'Edit profile',
+        props: { name: '' },
+      });
+    });
+
+    it('saves nothing when the sheet is closed', async () => {
+      sheet.open.and.resolveTo({ role: 'cancel' });
+      await component.openEdit();
+      http.expectNone(url);
+      expect(text('.profile-name')).toBe('Una');
+    });
+
+    it('puts the old name back and shows a toast when saving fails', async () => {
+      sheet.open.and.resolveTo({ data: 'Una Lifter', role: 'confirm' });
+      await component.openEdit();
+      http.expectOne(url).flush('', { status: 500, statusText: 'Error' });
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(text('.profile-name')).toBe('Una');
+      expect(toastCtrl.create).toHaveBeenCalledWith(
+        jasmine.objectContaining({ message: "Couldn't save your name", color: 'danger' }),
+      );
+    });
+  });
+
+  describe('Change password', () => {
+    const row = () => fixture.nativeElement.querySelector('.password-row') as HTMLElement;
+
+    it('opens the password sheet and confirms a change with a toast', async () => {
+      sheet.open.and.resolveTo({ data: true, role: 'confirm' });
+      row().click();
+      await fixture.whenStable();
+      const [sheetComponent, options] = sheet.open.calls.mostRecent().args;
+      expect(sheetComponent).toBe(ChangePasswordSheetComponent);
+      expect(options).toEqual({ label: 'Change password' });
+      expect(toastCtrl.create).toHaveBeenCalledWith(
+        jasmine.objectContaining({ message: 'Password changed', color: 'success' }),
+      );
+    });
+
+    it('says nothing when the sheet is closed', async () => {
+      sheet.open.and.resolveTo({ role: 'cancel' });
+      await component.openChangePassword();
+      expect(toastCtrl.create).not.toHaveBeenCalled();
+    });
+
+    it('sits above Log out', () => {
+      const rows = Array.from<HTMLElement>(
+        fixture.nativeElement.querySelectorAll('#account-heading + .settings-group > *'),
+      );
+      expect(rows.map((r) => r.classList.contains('password-row') ? 'password' : r.textContent!.trim()))
+        .toEqual(['password', 'Log out']);
     });
   });
 });
