@@ -244,6 +244,25 @@ ion-item.set-item .set-row {
   }
 }
 
+// The coach's note for the athlete, under the card name
+.card-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 4px 0 0;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: pre-line;
+
+  ion-icon {
+    flex-shrink: 0;
+    margin-top: 2px;
+    font-size: 14px;
+    color: var(--accent-text);
+  }
+}
+
 .set-prescription,
 .set-notes {
   margin: -2px 8px 6px 46px;
@@ -294,6 +313,7 @@ ion-button.tick {
 }
 
 .add-set-btn,
+.note-btn,
 .add-exercise-btn {
   display: flex;
   align-items: center;
@@ -316,7 +336,8 @@ ion-button.tick {
   }
 }
 
-.add-set-btn {
+.add-set-btn,
+.note-btn {
   height: 44px;
 }
 
@@ -327,7 +348,7 @@ ion-button.tick {
 }
 
 /* ---------------------------------------------------------------------------
- * Coach workout editor: drag handle, set · reps · weight · result · note
+ * Coach workout editor: drag handle, set · reps · weight · result
  * ------------------------------------------------------------------------- */
 
 ion-reorder.drag-handle {
@@ -371,13 +392,13 @@ ion-reorder.drag-handle {
 
 .plan-grid {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) minmax(0, 1fr) 40px;
+  grid-template-columns: 30px minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
   align-items: center;
   padding: 4px;
 
   &.with-result {
-    grid-template-columns: 30px 56px 68px minmax(0, 1fr) 40px;
+    grid-template-columns: 30px 56px 68px minmax(0, 1fr);
   }
 }
 
@@ -394,10 +415,6 @@ ion-reorder.drag-handle {
 
   .center {
     text-align: center;
-  }
-
-  .head-wide {
-    grid-column: span 2;
   }
 }
 
@@ -458,10 +475,6 @@ ion-reorder.drag-handle {
   }
 }
 
-ion-button.note-toggle.has-note[fill] {
-  --color: var(--accent-text);
-}
-
 ion-input.set-note-input {
   --background: var(--surface-input);
   --color: var(--text);
@@ -478,8 +491,13 @@ ion-input.set-note-input {
 }
 
 .card-footer {
+  display: flex;
   margin-top: 4px;
   border-top: 1px solid var(--line);
+
+  .note-btn {
+    border-left: 1px solid var(--line);
+  }
 }
 
 .editor-content .add-exercise-btn {

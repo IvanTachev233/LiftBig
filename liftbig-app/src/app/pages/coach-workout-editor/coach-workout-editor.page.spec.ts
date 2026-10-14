@@ -20,6 +20,8 @@ import {
 import { environment } from '../../../environments/environment';
 import { WeightUnitService } from '../../core/weight-unit.service';
 import { OverflowMenuService } from '../../shared/ui/overflow-menu.service';
+import { BottomSheetService } from '../../shared/ui/bottom-sheet.service';
+import { CardNoteSheetComponent } from './card-note-sheet.component';
 
 describe('CoachWorkoutEditorPage', () => {
   let component: CoachWorkoutEditorPage;
@@ -31,6 +33,7 @@ describe('CoachWorkoutEditorPage', () => {
   let toastControllerSpy: jasmine.SpyObj<ToastController>;
   let navigateSpy: jasmine.Spy;
   let menuSpy: jasmine.SpyObj<OverflowMenuService>;
+  let sheetSpy: jasmine.SpyObj<BottomSheetService>;
 
   const exercisesUrl = `${environment.apiUrl}/workouts/exercises`;
   const workoutUrl = `${environment.apiUrl}/coach/workouts/w1`;
@@ -54,6 +57,8 @@ describe('CoachWorkoutEditorPage', () => {
     confirmSpy = jasmine.createSpyObj('ConfirmSheetService', ['confirm']);
     menuSpy = jasmine.createSpyObj('OverflowMenuService', ['open']);
     menuSpy.open.and.resolveTo(null);
+    sheetSpy = jasmine.createSpyObj('BottomSheetService', ['open']);
+    sheetSpy.open.and.resolveTo({ role: 'cancel' });
 
     const paramMap: Record<string, string> = {};
     if (params.id) paramMap['id'] = params.id;
@@ -72,6 +77,7 @@ describe('CoachWorkoutEditorPage', () => {
         { provide: ToastController, useValue: toastControllerSpy },
         { provide: ConfirmSheetService, useValue: confirmSpy },
         { provide: OverflowMenuService, useValue: menuSpy },
+        { provide: BottomSheetService, useValue: sheetSpy },
       ],
     });
     // IonicModule gives the standalone page its own ModalController, so a
@@ -1449,33 +1455,120 @@ describe('CoachWorkoutEditorPage', () => {
       const noteInputs = () =>
         Array.from(fixture.nativeElement.querySelectorAll('ion-input.set-note-input')) as HTMLElement[];
 
-      it('a set with a note shows it; others open theirs with the row\'s note toggle', () => {
+      it('a set loaded with a note keeps its note line; other sets have no note control', () => {
         setupWithWorkout([
           card('card1', 'ex3', 'Squat', 1, null, [set('s1', 1, { notes: 'belt' }), set('s2', 2)]),
         ]);
 
         expect(noteInputs().map((i) => i.getAttribute('aria-label'))).toEqual(['Note, set 1']);
-        const toggle = buttonsLabelled('Note for set 2')[0];
-        expect(toggle.getAttribute('aria-expanded')).toBe('false');
-        toggle.click();
-        fixture.detectChanges();
-        expect(noteInputs().map((i) => i.getAttribute('aria-label'))).toEqual([
-          'Note, set 1',
-          'Note, set 2',
-        ]);
-        expect(buttonsLabelled('Note for set 2')[0].getAttribute('aria-expanded')).toBe('true');
-
-        component.exerciseGroups[0].sets[1].notes = 'pause';
-        const body = saveAndGetPut();
-        expect(body.exercises[0].sets.map((x: any) => x.notes)).toEqual(['belt', 'pause']);
+        expect(buttonsLabelled('Note for set 1').length).toBe(0);
+        expect(buttonsLabelled('Note for set 2').length).toBe(0);
+        expect(saveAndGetPut().exercises[0].sets.map((x: any) => x.notes)).toEqual(['belt', null]);
       });
 
-      it('hiding a note keeps its text', () => {
-        setupWithWorkout([card('card1', 'ex3', 'Squat', 1, null, [set('s1', 1, { notes: 'belt' })])]);
-        buttonsLabelled('Note for set 1')[0].click();
+      it('a loaded set note can be changed or cleared', () => {
+        setupWithWorkout([
+          card('card1', 'ex3', 'Squat', 1, null, [
+            set('s1', 1, { notes: 'belt' }),
+            set('s2', 2, { notes: 'slow' }),
+          ]),
+        ]);
+        component.exerciseGroups[0].sets[0].notes = 'straps';
+        component.exerciseGroups[0].sets[1].notes = '';
         fixture.detectChanges();
-        expect(noteInputs().length).toBe(0);
-        expect(saveAndGetPut().exercises[0].sets[0].notes).toBe('belt');
+        expect(noteInputs().length).toBe(2);
+        expect(saveAndGetPut().exercises[0].sets.map((x: any) => x.notes)).toEqual(['straps', null]);
+      });
+    });
+
+    describe('note for athlete', () => {
+      const cardNotes = () =>
+        Array.from<HTMLElement>(fixture.nativeElement.querySelectorAll('.card-note')).map((n) =>
+          n.textContent!.replace(/\s+/g, ' ').trim(),
+        );
+      const noteButton = (name: string) =>
+        fixture.nativeElement.querySelector(
+          `button.note-btn[aria-label="Note for athlete, ${name}"]`,
+        ) as HTMLButtonElement;
+
+      async function writeNote(name: string, note: string | undefined, role = 'confirm') {
+        sheetSpy.open.and.resolveTo({ data: note, role });
+        noteButton(name).click();
+        await fixture.whenStable();
+        fixture.detectChanges();
+      }
+
+      it('shows a card\'s note under its name and sends no note while it is unchanged', () => {
+        setupWithWorkout([
+          { ...card('card1', 'ex3', 'Squat', 1, null), notes: 'Pause 2 s at the bottom' },
+          card('card2', 'ex1', 'Bench Press', 2, null),
+        ]);
+        expect(cardNotes()).toEqual(['Note for athlete: Pause 2 s at the bottom']);
+        const body = saveAndGetPut();
+        expect(body.exercises.map((c: any) => 'notes' in c)).toEqual([false, false]);
+      });
+
+      it('each card\'s footer opens the note sheet with its exercise and note; Save sends it', async () => {
+        setupWithWorkout([
+          { ...card('card1', 'ex3', 'Squat', 1, null), notes: 'Pause' },
+          card('card2', 'ex1', 'Bench Press', 2, null),
+        ]);
+        expect(noteButton('Squat').textContent!.trim()).toBe('Note for athlete');
+
+        await writeNote('Squat', 'Stay tight');
+        expect(sheetSpy.open).toHaveBeenCalledOnceWith(CardNoteSheetComponent, {
+          label: 'Note for athlete',
+          props: { exerciseName: 'Squat', note: 'Pause' },
+        });
+        await writeNote('Bench Press', 'Touch the chest');
+        expect(cardNotes()).toEqual([
+          'Note for athlete: Stay tight',
+          'Note for athlete: Touch the chest',
+        ]);
+
+        const body = saveAndGetPut();
+        expect(body.exercises.map((c: any) => c.notes)).toEqual(['Stay tight', 'Touch the chest']);
+      });
+
+      it('saving an empty note clears it; closing the sheet changes nothing', async () => {
+        setupWithWorkout([
+          { ...card('card1', 'ex3', 'Squat', 1, null), notes: 'Pause' },
+          { ...card('card2', 'ex1', 'Bench Press', 2, null), notes: 'Arch' },
+        ]);
+        await writeNote('Squat', '');
+        await writeNote('Bench Press', undefined, 'cancel');
+        expect(cardNotes()).toEqual(['Note for athlete: Arch']);
+
+        const body = saveAndGetPut();
+        expect(body.exercises[0].notes).toBeNull();
+        expect('notes' in body.exercises[1]).toBeFalse();
+      });
+
+      it('a note stays with its card when the cards are dragged', async () => {
+        setupWithWorkout([
+          card('card1', 'ex3', 'Squat', 1, null),
+          card('card2', 'ex1', 'Bench Press', 2, null),
+        ]);
+        await writeNote('Squat', 'Brace');
+        drag(0, 1);
+        const body = saveAndGetPut();
+        expect(body.exercises.map((c: any) => [c.id, c.notes])).toEqual([
+          ['card2', undefined],
+          ['card1', 'Brace'],
+        ]);
+      });
+
+      it('a new workout sends the note of a new card', async () => {
+        setup({ clientId: 'c1' });
+        component.workoutName = 'Week 2';
+        component.addExercises([{ id: 'ex1', name: 'Bench Press' }]);
+        fixture.detectChanges();
+        await writeNote('Bench Press', 'Pause on the chest');
+
+        component.save();
+        const req = httpTesting.expectOne((r) => r.method === 'POST' && r.url === createUrl);
+        expect(req.request.body.exercises[0].notes).toBe('Pause on the chest');
+        req.flush({});
       });
     });
 

@@ -41,6 +41,14 @@ ion-buttons[slot='end'] {
   white-space: nowrap;
 }
 
+.elapsed {
+  display: block;
+  color: var(--accent-text);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
 .workout-name-input {
   --padding-start: 4px;
   --padding-end: 4px;

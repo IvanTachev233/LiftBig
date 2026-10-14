@@ -23,7 +23,6 @@ import { addIcons } from 'ionicons';
 import {
   add,
   calendarOutline,
-  chatboxEllipses,
   chatboxEllipsesOutline,
   checkmarkCircle,
   chevronDown,
@@ -33,6 +32,8 @@ import {
   removeCircleOutline,
 } from 'ionicons/icons';
 import { OverflowAction, OverflowMenuService } from '../../shared/ui/overflow-menu.service';
+import { BottomSheetService } from '../../shared/ui/bottom-sheet.service';
+import { CardNoteSheetComponent } from './card-note-sheet.component';
 import { WeightUnitService } from '../../core/weight-unit.service';
 import {
   ExercisePickerComponent,
@@ -101,6 +102,7 @@ export class CoachWorkoutEditorPage implements OnInit {
   private modalCtrl = inject(ModalController);
   private confirmSheet = inject(ConfirmSheetService);
   private overflowMenu = inject(OverflowMenuService);
+  private bottomSheet = inject(BottomSheetService);
   readonly units = inject(WeightUnitService);
 
   exercises$: Observable<any[]> | undefined;
@@ -117,9 +119,13 @@ export class CoachWorkoutEditorPage implements OnInit {
   status: Workout['status'] | null = null;
   pickingDate = false;
 
-  // Collapsed cards (every member of a collapsed superset) and open set notes
+  // Collapsed cards (every member of a collapsed superset) and the sets
+  // loaded with a note, which keep their note line
   private collapsed = new Set<ExerciseGroup>();
   private notesOpen = new Set<SetRow>();
+  // Each card's note for the athlete; only notes changed here are sent
+  private cardNotes = new Map<ExerciseGroup, string>();
+  private cardNotesChanged = new Set<ExerciseGroup>();
 
   readonly idPrefix = `coach-workout-editor-${nextPageId++}`;
 
@@ -130,7 +136,6 @@ export class CoachWorkoutEditorPage implements OnInit {
     addIcons({
       add,
       calendarOutline,
-      chatboxEllipses,
       chatboxEllipsesOutline,
       checkmarkCircle,
       chevronDown,
@@ -178,21 +183,25 @@ export class CoachWorkoutEditorPage implements OnInit {
   }
 
   private buildGroups(cards: WorkoutCard[]) {
-    const groups: ExerciseGroup[] = cards.map((card) => ({
-      id: card.id,
-      exerciseId: card.exerciseId,
-      exerciseName: card.exercise?.name || 'Exercise',
-      supersetGroup: card.supersetGroup ?? null,
-      sets: card.sets.map((set) => ({
-        id: set.id,
-        reps: set.reps,
-        weight: this.units.toInput(set.weight),
-        notes: set.notes || '',
-        made: set.made ?? null,
-        actualReps: set.actualReps ?? null,
-        actualWeight: set.actualWeight ?? null,
-      })),
-    }));
+    const groups: ExerciseGroup[] = cards.map((card) => {
+      const group: ExerciseGroup = {
+        id: card.id,
+        exerciseId: card.exerciseId,
+        exerciseName: card.exercise?.name || 'Exercise',
+        supersetGroup: card.supersetGroup ?? null,
+        sets: card.sets.map((set) => ({
+          id: set.id,
+          reps: set.reps,
+          weight: this.units.toInput(set.weight),
+          notes: set.notes || '',
+          made: set.made ?? null,
+          actualReps: set.actualReps ?? null,
+          actualWeight: set.actualWeight ?? null,
+        })),
+      };
+      if (card.notes) this.cardNotes.set(group, card.notes);
+      return group;
+    });
     // Keeps superset members next to each other for the move arrows
     this.exerciseGroups = normalizeSupersets(groups);
   }
@@ -470,9 +479,20 @@ export class CoachWorkoutEditorPage implements OnInit {
     return this.notesOpen.has(set);
   }
 
-  /** Shows or hides a set's note; a hidden note keeps its text */
-  toggleNote(set: SetRow) {
-    if (!this.notesOpen.delete(set)) this.notesOpen.add(set);
+  cardNote(group: ExerciseGroup): string {
+    return this.cardNotes.get(group) ?? '';
+  }
+
+  /** Edits the card's note for the athlete in a sheet; an empty note clears it */
+  async editCardNote(group: ExerciseGroup) {
+    const { data, role } = await this.bottomSheet.open<string>(CardNoteSheetComponent, {
+      label: 'Note for athlete',
+      props: { exerciseName: group.exerciseName, note: this.cardNote(group) },
+    });
+    if (role !== 'confirm' || data === undefined) return;
+    if (data) this.cardNotes.set(group, data);
+    else this.cardNotes.delete(group);
+    this.cardNotesChanged.add(group);
   }
 
   /** e.g. "3 × 5 @ 100 kg" when every set is the same, else "3 sets" */
@@ -533,6 +553,7 @@ export class CoachWorkoutEditorPage implements OnInit {
         exerciseId: group.exerciseId,
         order: i + 1,
         supersetGroup: group.supersetGroup ?? null,
+        ...(this.cardNotesChanged.has(group) ? { notes: this.cardNote(group) || null } : {}),
         sets: group.sets.map((set, si) => ({
           ...(set.id ? { id: set.id } : {}),
           // The API takes whole reps; an emptied field stays empty

@@ -158,6 +158,12 @@
       }
       <div class="exercise-heading">
         <h2 class="exercise-title">{{ group.exerciseName }}</h2>
+        @if (cardNote(group); as note) {
+          <p class="card-note">
+            <ion-icon name="chatbox-ellipses-outline" aria-hidden="true"></ion-icon>
+            <span><span class="visually-hidden">Note for athlete: </span>{{ note }}</span>
+          </p>
+        }
       </div>
       <ion-button
         fill="clear"
@@ -181,14 +187,13 @@
     </div>
   </ng-template>
 
-  <!-- Set table: set · reps · weight · athlete result (edit mode) · note -->
+  <!-- Set table: set · reps · weight · athlete result (edit mode) -->
   <ng-template #setRows let-group>
     <div class="plan-grid plan-head" [class.with-result]="isEditMode" aria-hidden="true">
       <span>Set</span>
       <span class="center">Reps</span>
       <span class="center">{{ units.unit() }}</span>
-      <!-- Over the result and note columns, so it fits on one line -->
-      <span class="head-wide">{{ isEditMode ? 'Athlete result' : '' }}</span>
+      <span>{{ isEditMode ? 'Athlete result' : '' }}</span>
     </div>
     @for (set of group.sets; track set; let si = $index) {
       <!-- Swipe left to remove; a card keeps at least 1 set -->
@@ -241,20 +246,6 @@
                   }
                 </span>
               }
-              <ion-button
-                fill="clear"
-                class="icon-btn note-toggle"
-                [class.has-note]="!!set.notes"
-                [attr.aria-label]="'Note for set ' + (si + 1)"
-                [attr.aria-expanded]="isNoteOpen(set)"
-                (click)="toggleNote(set)"
-              >
-                <ion-icon
-                  slot="icon-only"
-                  aria-hidden="true"
-                  [name]="set.notes ? 'chatbox-ellipses' : 'chatbox-ellipses-outline'"
-                ></ion-icon>
-              </ion-button>
             </div>
             @if (isNoteOpen(set)) {
               <ion-input
@@ -282,6 +273,15 @@
       <button type="button" class="add-set-btn" (click)="addSet(group)">
         <ion-icon name="add" aria-hidden="true"></ion-icon>
         Add set
+      </button>
+      <button
+        type="button"
+        class="note-btn"
+        [attr.aria-label]="'Note for athlete, ' + group.exerciseName"
+        (click)="editCardNote(group)"
+      >
+        <ion-icon name="chatbox-ellipses-outline" aria-hidden="true"></ion-icon>
+        Note for athlete
       </button>
     </div>
   </ng-template>

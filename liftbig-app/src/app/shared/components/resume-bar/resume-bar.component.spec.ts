@@ -64,6 +64,22 @@ describe('ResumeBarComponent', () => {
     expect(bar()?.textContent).toContain('Resume');
   });
 
+  it('shows the start time of a workout started today', () => {
+    const start = new Date();
+    start.setHours(18, 5, 0, 0);
+    load([{ ...listed('w1', 'IN_PROGRESS', '2026-10-09T12:00:00'), startedAt: start.toISOString() }]);
+    expect(bar()?.querySelector('.resume-sub')?.textContent?.trim()).toBe('Started 18:05');
+  });
+
+  it('shows the day and time of a workout started on an earlier day', () => {
+    load([
+      { ...listed('w1', 'IN_PROGRESS', '2026-10-09T12:00:00'), startedAt: '2026-10-09T07:30:00' },
+    ]);
+    expect(bar()?.querySelector('.resume-sub')?.textContent?.trim()).toBe(
+      'Started Fri 9 Oct, 07:30',
+    );
+  });
+
   it('opens the workout in the logger', () => {
     const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
     load([listed('w1', 'IN_PROGRESS', '2026-10-09T12:00:00')]);

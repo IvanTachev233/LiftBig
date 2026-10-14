@@ -51,6 +51,7 @@ import { predictPb, PbLift } from '../../shared/pb-predict';
 import { ExerciseHistoryModalComponent } from '../../shared/components/exercise-history-modal/exercise-history-modal.component';
 import { WeightUnitService } from '../../core/weight-unit.service';
 import { RestTimer, RestTimeService, formatRest } from '../../core/rest-time';
+import { ElapsedClock, formatElapsed } from '../../core/elapsed-time';
 import { ProgramService, sessionPosition } from '../../core/program.service';
 import { OverflowAction, OverflowMenuService } from '../../shared/ui/overflow-menu.service';
 import { StatusPillComponent } from '../../shared/ui/status-pill.component';
@@ -92,6 +93,8 @@ interface LoggerCard {
   newReps: number | null;
   // Cards sharing a value form one superset; null when not in one
   supersetGroup: string | null;
+  // The coach's note for the athlete
+  notes: string | null;
   // Bars a set must beat to be a PB; unknown until the API sends them
   pbBars?: PbBars;
   // From the card's exercise; undefined falls back to the exercise list
@@ -103,6 +106,8 @@ interface LoggerWorkout {
   name: string;
   date: string;
   status: WorkoutStatus | 'DRAFT';
+  // When the API recorded the start; null before that or when it has none
+  startedAt: string | null;
   source: WorkoutSource;
   // A coach or program workout: only results, added sets and status can change
   assigned: boolean;
@@ -172,6 +177,9 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
 
   // Rest countdown, started when a set is logged
   readonly rest = new RestTimer();
+  // Time since the workout started, shown under its name
+  readonly elapsed = new ElapsedClock();
+  readonly formatElapsed = formatElapsed;
 
   dashboardUrl = this.authService.dashboardUrl;
 
@@ -257,6 +265,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
       this.toggled.clear();
       this.position = null;
       this.workoutSubject.next(w);
+      this.syncElapsed();
       this.workoutName = w.name;
       if (w.source === 'program') this.loadPosition(w);
     });
@@ -264,6 +273,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.rest.stop();
+    this.elapsed.stop();
     // Requests already queued still go out
     this.setWrites.complete();
     this.cardSaves.complete();
@@ -279,6 +289,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
       name: 'New Workout',
       date: new Date().toISOString(),
       status: 'DRAFT',
+      startedAt: null,
       source: 'manual',
       assigned: false,
       coachName: null,
@@ -311,6 +322,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
         newWeight: null,
         newReps: null,
         supersetGroup: card.supersetGroup ?? null,
+        notes: card.notes ?? null,
         pbBars: card.pbBars,
         isMaxTrackable: card.exercise?.isMaxTrackable,
       }),
@@ -320,6 +332,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
       name: w.name,
       date: w.date,
       status: w.status,
+      startedAt: w.startedAt ?? null,
       source: workoutSource(w),
       assigned: isPlanLocked(w),
       coachName: w.assignedBy?.name ?? null,
@@ -378,6 +391,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
         newWeight: null,
         newReps: null,
         supersetGroup,
+        notes: null,
         isMaxTrackable: ex.isMaxTrackable,
       });
     }
@@ -601,12 +615,14 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
                 tap({
                   next: (saved) => {
                     this.adoptIds(sent, saved, sentAt);
+                    this.adoptStart(draft, saved?.startedAt);
                     if (completing) {
                       draft._pendingComplete = false;
                       draft.status = 'COMPLETED';
                       this.activeWorkout.completed(created.id);
                       if (isCurrent) {
                         this.workoutSubject.next(draft);
+                        this.syncElapsed();
                         this.router.navigate([this.dashboardUrl()]);
                       }
                       return;
@@ -735,8 +751,9 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
 
   /** Sends the set's whole result, queued behind its earlier requests */
   private saveResult(set: LoggerSet) {
-    const workoutId = this.workoutSubject.value?.id;
-    if (!workoutId) return;
+    const workout = this.workoutSubject.value;
+    const workoutId = workout?.id;
+    if (!workout || !workoutId) return;
     // The API takes whole reps; an empty input means "as planned"
     set.actualReps = this.toNumber(set.actualReps, true);
     set.actualWeight = this.toNumber(set.actualWeight);
@@ -753,7 +770,10 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
       set.id
         ? this.workoutService.updateSetResult(workoutId, set.id, body).pipe(
             finalize(() => this.answered(sentAt)),
-            tap((saved) => this.adoptPbs(workoutId, set, saved, sentAt)),
+            tap((saved) => {
+              this.adoptPbs(workoutId, set, saved, sentAt);
+              this.adoptStart(workout, saved?.workoutStartedAt);
+            }),
           )
         : EMPTY,
     );
@@ -774,6 +794,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
             next: (saved) => {
               set.id = saved.id;
               this.adoptPbs(workoutId, set, saved, sentAt);
+              this.adoptStart(workout, saved?.workoutStartedAt);
             },
             error: () => {
               const i = card.sets.indexOf(set);
@@ -821,6 +842,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
         // Nothing to save
         currentWorkout.status = 'COMPLETED';
         this.workoutSubject.next(currentWorkout);
+        this.syncElapsed();
         this.router.navigate([this.dashboardUrl()]);
         return;
       }
@@ -844,6 +866,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
           currentWorkout.status = 'COMPLETED';
           this.activeWorkout.completed(currentWorkout.id!);
           this.workoutSubject.next(currentWorkout);
+          this.syncElapsed();
           this.router.navigate([this.dashboardUrl()]);
         },
         error: () => {
@@ -968,7 +991,10 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
         .pipe(
           finalize(() => this.answered(sentAt)),
           tap({
-            next: (saved) => this.adoptIds(sent, saved, sentAt),
+            next: (saved) => {
+              this.adoptIds(sent, saved, sentAt);
+              this.adoptStart(currentWorkout, saved?.startedAt);
+            },
             error: () => this.presentSaveErrorToast(),
           }),
         );
@@ -1084,6 +1110,23 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
   /** The server's trophy, unless the set changed after the request was sent */
   private adoptPb(set: LoggerSet, pb: boolean, sentAt: number) {
     if ((set.pbTouchedAt ?? 0) <= sentAt) set.pb = pb;
+  }
+
+  /** The start time from a save's answer; the first one stays */
+  private adoptStart(workout: LoggerWorkout, startedAt: string | null | undefined) {
+    if (!startedAt || workout.startedAt) return;
+    workout.startedAt = startedAt;
+    if (this.workoutSubject.value === workout) this.syncElapsed();
+  }
+
+  /** Runs the elapsed clock for the shown workout while it is started and not completed */
+  private syncElapsed() {
+    const workout = this.workoutSubject.value;
+    if (workout?.startedAt && workout.status !== 'COMPLETED') {
+      this.elapsed.start(workout.startedAt);
+    } else {
+      this.elapsed.stop();
+    }
   }
 
   private answered(sentAt: number) {

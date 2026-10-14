@@ -3577,4 +3577,180 @@ describe('WorkoutLoggerPage', () => {
       settle();
     }));
   });
+
+  describe('elapsed timer', () => {
+    const elapsed = () => el('.logger-header .elapsed');
+    const elapsedText = () => elapsed().textContent!.replace(/\s+/g, ' ').trim();
+    const ago = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString();
+
+    /** Lets Ionic's own pending work finish so fakeAsync ends with no timers */
+    function settle() {
+      flush();
+      discardPeriodicTasks();
+    }
+
+    function loadLockedPlanned(id: string) {
+      const squat = card('c1', 'ex1', 'Back Squat', [3, 3]);
+      squat.sets.forEach((s) => (s.made = null));
+      createComponentWithNoId();
+      loadResponse({
+        ...workoutResponse(id, [squat]),
+        status: 'PLANNED',
+        assignedById: 'coach1',
+        assignedBy: { id: 'coach1', name: 'Kim' },
+      });
+      return squat;
+    }
+
+    it('counts from the stored start time under the workout name', fakeAsync(() => {
+      createComponentWithNoId();
+      loadResponse({
+        ...workoutResponse('w301', [card('c1', 'ex1', 'Squat', [5])]),
+        startedAt: ago(1122),
+      });
+      expect(elapsedText()).toBe('Elapsed 18:42');
+      expect(elapsed().getAttribute('role')).toBe('timer');
+
+      tick(1000);
+      fixture.detectChanges();
+      expect(elapsedText()).toBe('Elapsed 18:43');
+      fixture.destroy();
+      settle();
+    }));
+
+    it('is hidden for a workout with no stored start time', () => {
+      createComponentWithNoId();
+      loadWorkout('w302', [card('c1', 'ex1', 'Squat', [5])]);
+      expect(elapsed()).toBeNull();
+    });
+
+    it('is hidden on a completed workout', () => {
+      createComponentWithNoId();
+      loadResponse({
+        ...workoutResponse('w303', [card('c1', 'ex1', 'Squat', [5])]),
+        status: 'COMPLETED',
+        startedAt: ago(600),
+      });
+      expect(elapsed()).toBeNull();
+    });
+
+    it('starts on a plan-locked workout when the first set result comes back', fakeAsync(() => {
+      const squat = loadLockedPlanned('a30');
+      expect(elapsed()).toBeNull();
+      const set = component.cards[0].sets[0];
+      const answer = (workoutStartedAt: string) =>
+        httpTesting
+          .expectOne((r) => r.method === 'PATCH' && r.url === `${workoutsUrl}/a30/sets/c1-s1`)
+          .flush({ ...squat.sets[0], made: set.made, workoutStartedAt });
+
+      component.toggleMade(set);
+      answer(ago(0));
+      fixture.detectChanges();
+      expect(elapsedText()).toBe('Elapsed 0:00');
+
+      tick(61_000);
+      fixture.detectChanges();
+      expect(elapsedText()).toBe('Elapsed 1:01');
+
+      // The first start stays
+      component.toggleMade(set);
+      answer(ago(3600));
+      fixture.detectChanges();
+      expect(elapsedText()).toBe('Elapsed 1:01');
+      fixture.destroy();
+      settle();
+    }));
+
+    it('stays hidden while set results come back without a start time', fakeAsync(() => {
+      const squat = loadLockedPlanned('a31');
+      const set = component.cards[0].sets[0];
+      component.toggleMade(set);
+      httpTesting
+        .expectOne((r) => r.method === 'PATCH' && r.url === `${workoutsUrl}/a31/sets/c1-s1`)
+        .flush({ ...squat.sets[0], made: true, workoutStartedAt: null });
+      fixture.detectChanges();
+      expect(elapsed()).toBeNull();
+      fixture.destroy();
+      settle();
+    }));
+
+    it('starts on a new workout when its first save comes back', fakeAsync(() => {
+      createComponentWithNoId();
+      component.addExercises([{ id: 'ex1', name: 'Bench Press' }]);
+      const c = component.cards[0];
+      c.newWeight = 100;
+      c.newReps = 5;
+      component.addSetToExercise(c);
+      httpTesting
+        .expectOne((req) => req.method === 'POST' && req.url === workoutsUrl)
+        .flush({ id: 'w304', name: 'New Workout', date: new Date().toISOString(), exercises: [] });
+      fixture.detectChanges();
+      expect(elapsed()).toBeNull();
+
+      httpTesting
+        .expectOne((req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w304`)
+        .flush({ ...workoutResponse('w304', []), startedAt: ago(0) });
+      fixture.detectChanges();
+      expect(elapsedText()).toBe('Elapsed 0:00');
+      fixture.destroy();
+      settle();
+    }));
+
+    it('stops when the workout is finished', fakeAsync(() => {
+      createComponentWithNoId();
+      loadResponse({
+        ...workoutResponse('w305', [card('c1', 'ex1', 'Squat', [5])]),
+        startedAt: ago(300),
+      });
+      component.completeWorkout();
+      httpTesting
+        .expectOne((req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w305`)
+        .flush({});
+      fixture.detectChanges();
+      expect(elapsed()).toBeNull();
+      expect(component.elapsed.seconds()).toBeNull();
+      settle();
+    }));
+  });
+
+  describe('note for athlete', () => {
+    const cardNotes = () =>
+      Array.from<HTMLElement>(fixture.nativeElement.querySelectorAll('.card-note')).map((n) =>
+        n.textContent!.replace(/\s+/g, ' ').trim(),
+      );
+
+    it('shows the coach\'s card note under the card title, next to readable set notes', () => {
+      const squat = { ...card('c1', 'ex1', 'Back Squat', [3, 3]), notes: 'Pause 2 s at the bottom' };
+      squat.sets[0].notes = 'Belt on';
+      createComponentWithNoId();
+      loadResponse({
+        ...workoutResponse('a40', [squat, card('c2', 'ex2', 'Row', [8])]),
+        assignedById: 'coach1',
+        assignedBy: { id: 'coach1', name: 'Kim' },
+      });
+
+      expect(cardNotes()).toEqual(['Coach note: Pause 2 s at the bottom']);
+      const heading = el('.exercise-heading');
+      expect(heading.querySelector('.card-note')).not.toBeNull();
+      expect(heading.querySelector('.exercise-title')!.textContent).toContain('Back Squat');
+      expect(el('.set-notes').textContent!.trim()).toBe('Belt on');
+    });
+
+    it('a collapsed card does not show it', () => {
+      const squat = card('c1', 'ex1', 'Back Squat', [3]);
+      squat.sets[0].made = null;
+      createComponentWithNoId();
+      loadResponse(
+        {
+          ...workoutResponse('a41', [squat, { ...card('c2', 'ex2', 'Row', [8]), notes: 'Strict' }]),
+          assignedById: 'coach1',
+          assignedBy: { id: 'coach1', name: 'Kim' },
+        },
+        false,
+      );
+      expect(cardNotes()).toEqual([]);
+      expandCards();
+      expect(cardNotes()).toEqual(['Coach note: Strict']);
+    });
+  });
 });
