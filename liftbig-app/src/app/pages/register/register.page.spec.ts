@@ -4,7 +4,7 @@ import {
   HttpTestingController,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { RegisterPage } from './register.page';
 
@@ -12,19 +12,24 @@ describe('RegisterPage', () => {
   let component: RegisterPage;
   let fixture: ComponentFixture<RegisterPage>;
   let http: HttpTestingController;
+  let navigate: jasmine.Spy;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [RegisterPage],
       providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     });
+    navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
     fixture = TestBed.createComponent(RegisterPage);
     component = fixture.componentInstance;
     http = TestBed.inject(HttpTestingController);
     fixture.detectChanges();
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    http.verify();
+    localStorage.removeItem('token');
+  });
 
   const el = (selector: string) => fixture.nativeElement.querySelector(selector) as HTMLElement;
   const submit = () => el('ion-button[type="submit"]') as HTMLIonButtonElement;
@@ -77,5 +82,15 @@ describe('RegisterPage', () => {
     component.register();
     const req = http.expectOne(`${environment.apiUrl}/auth/register`);
     expect(req.request.body).toEqual({ name: 'Jane', email: 'jane@x.io', password: 'secret', role: 'COACH' });
+  });
+
+  it('opens Check your email for the new account, without signing in', () => {
+    fill({ name: 'Jane', email: 'jane@x.io', password: 'secret', confirmPassword: 'secret' });
+    component.register();
+    http
+      .expectOne(`${environment.apiUrl}/auth/register`)
+      .flush({ verificationRequired: true, email: 'jane@x.io' }, { status: 201, statusText: 'Created' });
+    expect(localStorage.getItem('token')).toBeNull();
+    expect(navigate).toHaveBeenCalledWith(['/verify-email'], { queryParams: { email: 'jane@x.io' } });
   });
 });

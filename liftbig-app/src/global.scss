@@ -160,6 +160,19 @@ ion-input.set-input input {
   }
 }
 
+.auth-form .field-error {
+  margin: -10px 0 0;
+  font-size: 13px;
+  color: var(--danger-text);
+}
+
+// Mailed 6-digit codes (app-code-field)
+ion-input.code-input .native-input {
+  font-family: var(--font-num);
+  font-size: 26px;
+  letter-spacing: 0.35em;
+}
+
 // 44px target inside the password field
 .password-toggle {
   display: grid;
@@ -181,6 +194,31 @@ ion-input.set-input input {
     outline: 2px solid var(--accent-text);
     border-radius: 10px;
   }
+}
+
+// Screens that take a mailed code (Check your email, Reset password)
+.verify-address {
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.verify-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 24px;
+}
+
+.verify-notice {
+  margin: 0 0 4px;
+  text-align: center;
+}
+
+// The countdown stays readable while the button waits
+ion-button.resend-button.button-disabled {
+  --color: var(--text-2);
+  opacity: 1;
 }
 
 .auth-footer {
