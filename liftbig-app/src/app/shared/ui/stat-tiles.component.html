@@ -1,11 +1,18 @@
-@for (tile of tiles(); track tile.label) {
-  <div class="tile">
-    <span class="tile-label">{{ tile.label }}</span>
-    <span class="tile-figure">
-      <span class="tile-value num">{{ tile.value }}</span>
-      @if (tile.unit) {
-        <span class="tile-unit">{{ tile.unit }}</span>
+<div class="tiles" [class.strip]="strip()">
+  @for (tile of tiles(); track tile.label) {
+    <div class="tile">
+      @if (!strip()) {
+        <span class="tile-label">{{ tile.label }}</span>
       }
-    </span>
-  </div>
-}
+      <span class="tile-figure">
+        <span class="tile-value num">{{ tile.value }}</span>
+        @if (tile.unit) {
+          <span class="tile-unit">{{ tile.unit }}</span>
+        }
+      </span>
+      @if (strip()) {
+        <span class="tile-label">{{ tile.label }}</span>
+      }
+    </div>
+  }
+</div>

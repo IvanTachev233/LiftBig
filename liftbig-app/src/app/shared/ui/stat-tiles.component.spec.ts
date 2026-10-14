@@ -29,4 +29,19 @@ describe('StatTilesComponent', () => {
   it('sets the value in the number face', () => {
     expect(tiles()[0].querySelector('.tile-value')!.classList).toContain('num');
   });
+
+  it('as a strip, puts every tile in one row with the value before the label', () => {
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.tiles')!.classList).not.toContain('strip');
+    expect(tiles()[0].firstElementChild!.classList).toContain('tile-label');
+
+    fixture.componentRef.setInput('strip', true);
+    fixture.detectChanges();
+    expect(host.querySelector('.tiles')!.classList).toContain('strip');
+    expect(tiles().map((t) => Array.from(t.children).map((c) => c.className))).toEqual([
+      ['tile-figure', 'tile-label'],
+      ['tile-figure', 'tile-label'],
+      ['tile-figure', 'tile-label'],
+    ]);
+  });
 });

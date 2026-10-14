@@ -9,19 +9,31 @@ import { chevronForward, mailOutline, personAddOutline } from 'ionicons/icons';
 import { ClientService, Client, Invite } from '../../core/client.service';
 import { BottomSheetService } from '../../shared/ui/bottom-sheet.service';
 import { LargeTitleComponent } from '../../shared/ui/large-title.component';
+import { ProgressBarComponent } from '../../shared/ui/progress-bar.component';
+import { StatTile, StatTilesComponent } from '../../shared/ui/stat-tiles.component';
 import { StatusPillComponent } from '../../shared/ui/status-pill.component';
 import { TabHeaderComponent } from '../../shared/ui/tab-header.component';
 import { initialsOf } from '../../shared/initials';
 import { InviteSheetComponent } from './invite-sheet.component';
 
-// Coach Clients tab: search, client cards (→ Client workouts), pending
-// invites (tap shows the code) and the Invite sheet
+// Coach Clients tab: search, totals, client cards with their last workout and
+// progress (→ Client workouts), pending invites (tap shows the code) and the
+// Invite sheet
 @Component({
   selector: 'app-coach-dashboard',
   templateUrl: './coach-dashboard.page.html',
   styleUrls: ['./coach-dashboard.page.scss'],
   standalone: true,
-  imports: [CommonModule, IonicModule, RouterModule, TabHeaderComponent, LargeTitleComponent, StatusPillComponent],
+  imports: [
+    CommonModule,
+    IonicModule,
+    RouterModule,
+    TabHeaderComponent,
+    LargeTitleComponent,
+    ProgressBarComponent,
+    StatTilesComponent,
+    StatusPillComponent,
+  ],
 })
 export class CoachDashboardPage implements ViewWillEnter {
   private clientService = inject(ClientService);
@@ -44,6 +56,19 @@ export class CoachDashboardPage implements ViewWillEnter {
     return clients.filter((c) =>
       [c.name, c.email].some((v) => v?.toLowerCase().includes(q)),
     );
+  });
+
+  /** Totals over every client (not the search); null without counts from the API */
+  readonly tiles = computed<StatTile[] | null>(() => {
+    const clients = this.clients() ?? [];
+    if (!clients.length || clients.some((c) => c.assignedCount === undefined)) return null;
+    const sum = (count: (c: Client) => number | undefined) =>
+      clients.reduce((total, c) => total + (count(c) ?? 0), 0);
+    return [
+      { label: clients.length === 1 ? 'client' : 'clients', value: clients.length },
+      { label: 'assigned', value: sum((c) => c.assignedCount) },
+      { label: 'completed', value: sum((c) => c.completedCount) },
+    ];
   });
 
   readonly initials = initialsOf;

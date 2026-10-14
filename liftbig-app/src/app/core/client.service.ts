@@ -9,6 +9,11 @@ export interface Client {
   name?: string | null;
   email: string;
   role: string;
+  // Workouts this coach assigned the client, how many are completed, and the
+  // newest one started; absent from older API builds
+  assignedCount?: number;
+  completedCount?: number;
+  lastWorkout?: { date: string; name: string } | null;
 }
 
 export interface Invite {

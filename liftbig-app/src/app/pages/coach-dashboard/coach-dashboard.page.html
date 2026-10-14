@@ -20,6 +20,10 @@
         (ionInput)="onSearch($event)"
       ></ion-searchbar>
 
+      @if (tiles(); as tiles) {
+        <app-stat-tiles class="client-tiles" [tiles]="tiles" [strip]="true" />
+      }
+
       <section class="client-section" aria-labelledby="active-heading">
         <h2 class="eyebrow" id="active-heading">Active</h2>
         @for (client of shownClients(); track client.id) {
@@ -29,6 +33,28 @@
               <span class="client-title">{{ client.name || client.email }}</span>
               @if (client.name) {
                 <span class="client-sub">{{ client.email }}</span>
+              }
+              @if (client.assignedCount !== undefined) {
+                <span class="client-last">
+                  @if (client.lastWorkout; as last) {
+                    Last workout {{ last.date | date: 'EEE d MMM' : 'UTC' }} · {{ last.name }}
+                  } @else if (client.assignedCount) {
+                    No workout started yet
+                  } @else {
+                    No workouts assigned yet
+                  }
+                </span>
+                @if (client.assignedCount) {
+                  <span class="client-progress">
+                    <app-progress-bar
+                      aria-hidden="true"
+                      label="Assigned workouts completed"
+                      [value]="client.completedCount ?? 0"
+                      [max]="client.assignedCount"
+                    />
+                    <span class="client-done">{{ client.completedCount ?? 0 }} of {{ client.assignedCount }} done</span>
+                  </span>
+                }
               }
             </span>
             <ion-icon class="client-chevron" name="chevron-forward" aria-hidden="true"></ion-icon>

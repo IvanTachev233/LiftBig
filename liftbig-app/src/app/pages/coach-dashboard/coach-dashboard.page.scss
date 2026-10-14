@@ -16,7 +16,8 @@ ion-button.invite-btn {
   }
 }
 
-.client-search {
+.client-search,
+.client-tiles {
   margin-bottom: 20px;
 }
 
@@ -74,10 +75,28 @@ ion-button.invite-btn {
   white-space: nowrap;
 }
 
-.client-sub {
+.client-sub,
+.client-last {
   font-size: 12px;
   color: var(--text-2);
   overflow-wrap: anywhere;
+}
+
+.client-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+
+  app-progress-bar {
+    flex: 1;
+  }
+}
+
+.client-done {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-3);
 }
 
 .client-chevron {

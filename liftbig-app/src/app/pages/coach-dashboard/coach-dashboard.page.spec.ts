@@ -205,6 +205,73 @@ describe('CoachDashboardPage', () => {
     );
   });
 
+  describe('workout summary', () => {
+    const withSummary = (
+      id: string,
+      name: string,
+      assignedCount: number,
+      completedCount: number,
+      lastWorkout: Client['lastWorkout'] = null,
+    ): Client => ({ ...client(id, name), assignedCount, completedCount, lastWorkout });
+
+    const tiles = () =>
+      Array.from(fixture.nativeElement.querySelectorAll('app-stat-tiles .tile') as NodeListOf<HTMLElement>).map(
+        (t) => `${t.querySelector('.tile-value')!.textContent!.trim()} ${t.querySelector('.tile-label')!.textContent!.trim()}`,
+      );
+
+    it('shows tiles for clients, assigned and completed over every client, whatever the search', () => {
+      enterAndFlush([withSummary('c1', 'Alice', 4, 1), withSummary('c2', 'Bob', 2, 2)]);
+      expect(tiles()).toEqual(['2 clients', '6 assigned', '3 completed']);
+
+      const bar = fixture.nativeElement.querySelector('ion-searchbar') as HTMLElement;
+      bar.dispatchEvent(new CustomEvent('ionInput', { detail: { value: 'alice' } }));
+      fixture.detectChanges();
+      expect(cards().length).toBe(1);
+      expect(tiles()).toEqual(['2 clients', '6 assigned', '3 completed']);
+    });
+
+    it('says "client" for one client', () => {
+      enterAndFlush([withSummary('c1', 'Alice', 0, 0)]);
+      expect(tiles()).toEqual(['1 client', '0 assigned', '0 completed']);
+    });
+
+    it('shows the last workout and an "x of y done" bar on each card', () => {
+      enterAndFlush([
+        withSummary('c1', 'Alice', 4, 1, { date: '2026-10-07T00:00:00.000Z', name: 'Day 1' }),
+      ]);
+
+      const [card] = cards();
+      expect(card.querySelector('.client-last')!.textContent!.trim()).toBe(
+        'Last workout Wed 7 Oct · Day 1',
+      );
+      const progress = card.querySelector('[role="progressbar"]')!;
+      expect(progress.getAttribute('aria-valuenow')).toBe('1');
+      expect(progress.getAttribute('aria-valuemax')).toBe('4');
+      expect(card.querySelector('.client-done')!.textContent!.trim()).toBe('1 of 4 done');
+      // The text says the same, so the bar is hidden from screen readers
+      expect(card.querySelector('app-progress-bar')!.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('says when nothing was started yet, and shows no bar without assigned workouts', () => {
+      enterAndFlush([withSummary('c1', 'Alice', 3, 0), withSummary('c2', 'Bob', 0, 0)]);
+
+      const [alice, bob] = cards();
+      expect(alice.querySelector('.client-last')!.textContent!.trim()).toBe('No workout started yet');
+      expect(alice.querySelector('.client-done')!.textContent!.trim()).toBe('0 of 3 done');
+      expect(bob.querySelector('.client-last')!.textContent!.trim()).toBe('No workouts assigned yet');
+      expect(bob.querySelector('app-progress-bar')).toBeNull();
+      expect(bob.querySelector('.client-done')).toBeNull();
+    });
+
+    it('shows no tiles, last workout or bar when the API sends no counts', () => {
+      enterAndFlush([client('c1', 'Alice')]);
+
+      expect(fixture.nativeElement.querySelector('app-stat-tiles')).toBeNull();
+      expect(cards()[0].querySelector('.client-last')).toBeNull();
+      expect(cards()[0].querySelector('app-progress-bar')).toBeNull();
+    });
+  });
+
   it('has no floating action button', () => {
     enterAndFlush([]);
     expect(fixture.nativeElement.querySelector('ion-fab')).toBeNull();
