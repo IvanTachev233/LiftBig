@@ -20,6 +20,7 @@ import {
 import { localDay } from '../../../core/local-date';
 import { WeightUnitService } from '../../../core/weight-unit.service';
 import { WeightPipe } from '../../pipes/weight.pipe';
+import { dateAxis } from '../../chart-axis';
 import { e1rmPoints } from '../../e1rm';
 import { BottomSheetService } from '../../ui/bottom-sheet.service';
 import { ConfirmSheetService } from '../../ui/confirm-sheet.component';
@@ -163,9 +164,8 @@ export class ExerciseHistoryComponent implements OnInit {
       points.length > 1 && this.hero !== null
         ? { kg: this.hero - points[0].y, since: (sameMonth ? dayLabel : monthLabel)(points[0].x) }
         : null;
-    // Ticks name days when the points span under two months
-    const span = points.length ? points[points.length - 1].x - points[0].x : 0;
-    const tickLabel = span < 60 * 24 * 60 * 60 * 1000 ? dayLabel : monthLabel;
+    // Ticks on the points' days (months from two months on) so labels sit under them
+    const axis = dateAxis(points.map((p) => p.x));
 
     // The canvas can't read CSS variables, so take the tokens' values
     const css = getComputedStyle(document.documentElement);
@@ -194,7 +194,12 @@ export class ExerciseHistoryComponent implements OnInit {
           type: 'linear',
           grid: { display: false },
           border: { display: false },
-          ticks: { color: text, maxTicksLimit: 5, callback: (value) => tickLabel(Number(value)) },
+          min: axis?.min,
+          max: axis?.max,
+          afterBuildTicks: (scale) => {
+            if (axis) scale.ticks = axis.ticks.map((value) => ({ value }));
+          },
+          ticks: { color: text, callback: (value) => (axis ? axis.label(Number(value)) : '') },
         },
         y: {
           grid: { color: line },

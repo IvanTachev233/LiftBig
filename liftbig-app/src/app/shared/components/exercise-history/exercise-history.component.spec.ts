@@ -113,6 +113,19 @@ describe('ExerciseHistoryComponent', () => {
     ]);
   });
 
+  it('puts the date axis ticks on the days of the points, also for a single date', () => {
+    open([entry('e1', 1, 100, '2026-10-14'), entry('e2', 1, 140, '2026-10-14')]);
+    const x = component.chartOptions!.scales!['x'] as any;
+    const scale = { ticks: [] as { value: number }[] };
+    x.afterBuildTicks(scale);
+    const values = scale.ticks.map((t) => t.value);
+    expect(values).toContain(Date.UTC(2026, 9, 14));
+    for (const v of values) expect(v % (24 * 60 * 60 * 1000)).toBe(0);
+    expect(x.min).toBeLessThan(Date.UTC(2026, 9, 14));
+    expect(x.max).toBeGreaterThan(Date.UTC(2026, 9, 14));
+    expect(x.ticks.callback(Date.UTC(2026, 9, 14))).toContain('14');
+  });
+
   it('shows the chart and latest maxes in pounds for lb users', () => {
     open([entry('e1', 1, 100, '2026-09-01')], { unit: 'lb' });
     expect(component.chartData.datasets[0].data).toEqual([
