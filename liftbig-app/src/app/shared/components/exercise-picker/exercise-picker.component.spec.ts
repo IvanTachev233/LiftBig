@@ -260,6 +260,100 @@ describe('ExercisePickerComponent', () => {
     });
   });
 
+  describe('category chips', () => {
+    const tagged: Exercise[] = [
+      { id: 'c1', name: 'Back Squat', bodyPart: 'LG', category: 'Squat', equipment: 'Barbell' },
+      { id: 'c2', name: 'Bench Press', bodyPart: 'CH', category: 'Press', equipment: 'Barbell' },
+      { id: 'c3', name: 'Clean', bodyPart: 'FB', category: 'Olympic', equipment: 'Barbell' },
+      { id: 'c4', name: 'Deadlift', bodyPart: 'BK', category: 'Pull', equipment: 'Barbell' },
+      { id: 'c5', name: 'Front Squat', bodyPart: 'LG', category: 'Squat', equipment: null },
+      { id: 'c6', name: 'Sled Push', bodyPart: 'LG', category: null, equipment: null, createdById: 'coach-1' },
+      { id: 'c7', name: 'Wall Ball', bodyPart: null, category: null, equipment: null, createdById: 'coach-1' },
+      { id: 'c8', name: 'Sled Drag', bodyPart: 'LG', category: null, equipment: null, createdById: null },
+      { id: 'c9', name: 'Zercher Squat', bodyPart: 'LG', category: 'Squat', equipment: null, createdById: 'coach-1' },
+    ];
+
+    function chips(): HTMLElement[] {
+      return Array.from(el().querySelectorAll<HTMLElement>('.filter-chips .chip'));
+    }
+
+    function pick(label: string) {
+      chips()
+        .find((c) => c.textContent?.trim() === label)!
+        .click();
+      fixture.detectChanges();
+    }
+
+    const sub = (name: string) => row(name).querySelector('.exercise-row-sub')?.textContent?.trim() ?? null;
+
+    it('offers All, the categories present in design order, then Coach and Other', () => {
+      setup({ exercises: tagged });
+      expect(chips().map((c) => c.textContent?.trim())).toEqual([
+        'All', 'Olympic', 'Squat', 'Press', 'Pull', 'Coach', 'Other',
+      ]);
+      expect(chips()[0].getAttribute('aria-checked')).toBe('true');
+      expect(el().querySelector('.filter-chips [role="radiogroup"]')?.getAttribute('aria-label')).toBe('Category');
+    });
+
+    it('leaves out categories with no exercise, and Coach and Other when every exercise has one', () => {
+      setup({ exercises: tagged.filter((e) => e.category && e.category !== 'Pull') });
+      expect(chips().map((c) => c.textContent?.trim())).toEqual(['All', 'Olympic', 'Squat', 'Press']);
+    });
+
+    it('puts a category it does not know after the known ones', () => {
+      setup({
+        exercises: [...tagged, { id: 'c10', name: 'Farmer Carry', category: 'Carry', equipment: 'Dumbbell' }],
+      });
+      expect(chips().map((c) => c.textContent?.trim())).toEqual([
+        'All', 'Olympic', 'Squat', 'Press', 'Pull', 'Carry', 'Coach', 'Other',
+      ]);
+    });
+
+    it('a chip filters by category; Coach and Other hold the ones without, combined with the search', () => {
+      setup({ exercises: tagged });
+      pick('Squat');
+      expect(rowNames()).toEqual(['Back Squat', 'Front Squat', 'Zercher Squat']);
+      pick('Coach');
+      expect(rowNames()).toEqual(['Sled Push', 'Wall Ball']);
+      pick('Other');
+      expect(rowNames()).toEqual(['Sled Drag']);
+      pick('Coach');
+      search('wall');
+      expect(rowNames()).toEqual(['Wall Ball']);
+      pick('All');
+      expect(rowNames()).toEqual(['Wall Ball']);
+    });
+
+    it('shows category · equipment under the name; a coach exercise without a category says so', () => {
+      setup({ exercises: tagged });
+      expect(sub('Clean')).toBe('Olympic · Barbell');
+      expect(sub('Front Squat')).toBe('Squat');
+      expect(sub('Zercher Squat')).toBe('Squat');
+      expect(sub('Sled Push')).toBe('Coach exercise');
+      expect(sub('Wall Ball')).toBe('Coach exercise');
+      expect(sub('Sled Drag')).toBe('Legs');
+    });
+
+    it('falls back to body part chips when no exercise has a category', () => {
+      setup({ exercises: tagged.map((e) => ({ ...e, category: null, equipment: null })) });
+      expect(chips().map((c) => c.textContent?.trim())).toEqual(['All', 'Chest', 'Back', 'Legs', 'Full body']);
+      expect(el().querySelector('.filter-chips [role="radiogroup"]')?.getAttribute('aria-label')).toBe('Body part');
+      pick('Legs');
+      expect(rowNames()).toEqual(['Back Squat', 'Front Squat', 'Sled Push', 'Sled Drag', 'Zercher Squat']);
+    });
+
+    it('resets a category chip that would hide a created exercise', async () => {
+      setup({ user: coach, exercises: tagged });
+      pick('Squat');
+      const created: Exercise = { id: 'new-3', name: 'Box Jump', category: null, createdById: 'coach-1' };
+      childModalSpy.onWillDismiss.and.resolveTo({ data: created, role: 'confirm' });
+      await component.openCreate();
+      fixture.detectChanges();
+      expect(rowNames()).toContain('Box Jump');
+      expect(chips()[0].getAttribute('aria-checked')).toBe('true');
+    });
+  });
+
   describe('selection and header buttons', () => {
     beforeEach(() => setup());
 

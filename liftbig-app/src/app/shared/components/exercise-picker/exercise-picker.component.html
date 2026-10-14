@@ -17,12 +17,12 @@
       [value]="query()"
       (ionInput)="onSearch($event)"
     ></ion-searchbar>
-    @if (bodyPartChips().length > 2) {
+    @if (filterChips().length > 2) {
       <app-chip-group
         class="filter-chips"
-        label="Body part"
-        [options]="bodyPartChips()"
-        [(value)]="bodyPart"
+        [label]="chipLabel()"
+        [options]="filterChips()"
+        [(value)]="filter"
       />
     }
   </ion-toolbar>
@@ -64,8 +64,8 @@
           }
           <ion-label class="exercise-row-label">
             <span class="exercise-row-name">{{ exercise.name }}</span>
-            @if (bodyPartName(exercise.bodyPart); as part) {
-              <span class="exercise-row-sub">{{ part }}</span>
+            @if (subtitle(exercise); as sub) {
+              <span class="exercise-row-sub">{{ sub }}</span>
             }
           </ion-label>
           <ion-button
@@ -79,7 +79,7 @@
           </ion-button>
         </ion-item>
       } @empty {
-        @if (query().trim() || bodyPart() !== 'all') {
+        @if (query().trim() || filter() !== 'all') {
           <p class="state-message empty-state">No exercises match</p>
         } @else {
           <p class="state-message empty-state">No exercises yet</p>

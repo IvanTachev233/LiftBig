@@ -4,13 +4,15 @@ import { FormsModule } from '@angular/forms';
 import { IonicModule, ModalController, ToastController } from '@ionic/angular';
 import { CreateExerciseDto, WorkoutService } from '../../../core/workout.service';
 import { isHttpsUrl } from '../exercise-detail-modal/video-url';
+import { CATEGORIES } from '../../exercise-category';
+import { ChipGroupComponent, ChipOption } from '../../ui/chip-group.component';
 
 @Component({
   selector: 'app-create-exercise-modal',
   templateUrl: './create-exercise-modal.component.html',
   styleUrls: ['./create-exercise-modal.component.scss'],
   standalone: true,
-  imports: [IonicModule, FormsModule],
+  imports: [IonicModule, FormsModule, ChipGroupComponent],
 })
 export class CreateExerciseModalComponent {
   private modalCtrl = inject(ModalController);
@@ -20,6 +22,12 @@ export class CreateExerciseModalComponent {
   name = '';
   description = '';
   videoUrl = '';
+  /** '' for none */
+  category: string | null = '';
+  readonly categoryOptions: ChipOption[] = [
+    { value: '', label: 'None' },
+    ...CATEGORIES.map((c) => ({ value: c, label: c })),
+  ];
 
   nameError = '';
   videoUrlError = '';
@@ -56,6 +64,7 @@ export class CreateExerciseModalComponent {
     const body: CreateExerciseDto = { name };
     if (description) body.description = description;
     if (videoUrl) body.videoUrl = videoUrl;
+    if (this.category) body.category = this.category;
 
     this.saving = true;
     this.nameError = '';

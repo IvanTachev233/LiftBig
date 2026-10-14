@@ -164,6 +164,9 @@ export interface Exercise {
   name: string;
   description?: string | null;
   bodyPart?: string | null;
+  // e.g. Olympic / Barbell; null for coach-made exercises, missing from older APIs
+  category?: string | null;
+  equipment?: string | null;
   videoUrl?: string | null;
   imageUrl?: string | null;
   // null = global (seeded) exercise; otherwise the coach who created it
@@ -176,6 +179,8 @@ export interface CreateExerciseDto {
   name: string;
   description?: string;
   videoUrl?: string;
+  /** One of CATEGORIES; left out for none */
+  category?: string;
 }
 
 @Injectable({

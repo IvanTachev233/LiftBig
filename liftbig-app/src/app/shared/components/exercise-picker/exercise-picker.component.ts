@@ -10,7 +10,8 @@ import { Exercise, WorkoutService } from '../../../core/workout.service';
 import { ExerciseDetailModalComponent } from '../exercise-detail-modal/exercise-detail-modal.component';
 import { CreateExerciseModalComponent } from '../create-exercise-modal/create-exercise-modal.component';
 import { ChipGroupComponent, ChipOption } from '../../ui/chip-group.component';
-import { BODY_PARTS, bodyPartName } from '../../body-part';
+import { BODY_PARTS } from '../../body-part';
+import { exerciseSubtitle, sortCategories } from '../../exercise-category';
 
 /** Data the picker dismisses with (role 'confirm'). Back dismisses with null and role 'cancel'. */
 export interface ExercisePickerResult {
@@ -19,6 +20,10 @@ export interface ExercisePickerResult {
   /** true when the user tapped Superset (at least 2 exercises) */
   superset: boolean;
 }
+
+/** Chip values for exercises without a category: a coach's own, or global */
+const COACH = '__coach';
+const NO_CATEGORY = '__none';
 
 function byName(a: Exercise, b: Exercise): number {
   return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
@@ -45,8 +50,8 @@ export class ExercisePickerComponent implements OnInit {
 
   readonly allExercises = signal<Exercise[]>([]);
   readonly query = signal('');
-  /** Body part code of the selected chip; 'all' shows every exercise */
-  readonly bodyPart = signal<string | null>('all');
+  /** Value of the selected chip; 'all' shows every exercise */
+  readonly filter = signal<string | null>('all');
   readonly selectedIds = signal<string[]>([]);
   readonly loading = signal(false);
   readonly loadError = signal(false);
@@ -58,23 +63,34 @@ export class ExercisePickerComponent implements OnInit {
     const excluded = new Set(this.excludeIds);
     return this.allExercises().filter((e) => !excluded.has(e.id));
   });
-  /** "All", then the body parts of the listed exercises */
-  readonly bodyPartChips = computed<ChipOption[]>(() => {
-    const present = new Set(this.listed().map((e) => e.bodyPart));
-    return [
-      { value: 'all', label: 'All' },
-      ...BODY_PARTS.filter((p) => present.has(p.code)).map((p) => ({
+  /** Chips by category; by body part when no exercise has one (older APIs) */
+  readonly byCategory = computed(() => this.listed().some((e) => !!e.category));
+  readonly chipLabel = computed(() => (this.byCategory() ? 'Category' : 'Body part'));
+  /** "All", then the categories (or body parts) of the listed exercises */
+  readonly filterChips = computed<ChipOption[]>(() => {
+    const listed = this.listed();
+    let chips: ChipOption[];
+    if (this.byCategory()) {
+      const categories = listed.map((e) => e.category).filter((c): c is string => !!c);
+      chips = sortCategories(categories).map((c) => ({ value: c, label: c }));
+      const without = new Set(listed.filter((e) => !e.category).map((e) => this.chipOf(e)));
+      if (without.has(COACH)) chips.push({ value: COACH, label: 'Coach' });
+      if (without.has(NO_CATEGORY)) chips.push({ value: NO_CATEGORY, label: 'Other' });
+    } else {
+      const present = new Set(listed.map((e) => e.bodyPart));
+      chips = BODY_PARTS.filter((p) => present.has(p.code)).map((p) => ({
         value: p.code,
         label: p.name,
-      })),
-    ];
+      }));
+    }
+    return [{ value: 'all', label: 'All' }, ...chips];
   });
   readonly filteredExercises = computed(() => {
     const q = this.query().trim().toLowerCase();
-    const part = this.bodyPart();
+    const chip = this.filter();
     return this.listed().filter(
       (e) =>
-        (!part || part === 'all' || e.bodyPart === part) &&
+        (!chip || chip === 'all' || this.chipOf(e) === chip) &&
         (!q || e.name.toLowerCase().includes(q)),
     );
   });
@@ -88,7 +104,7 @@ export class ExercisePickerComponent implements OnInit {
     return count === 1 ? 'Add 1 exercise' : `Add ${count} exercises`;
   });
 
-  readonly bodyPartName = bodyPartName;
+  readonly subtitle = exerciseSubtitle;
 
   // Prevents a double tap from stacking two child modals
   private childModalOpen = false;
@@ -114,6 +130,12 @@ export class ExercisePickerComponent implements OnInit {
         this.loading.set(false);
       },
     });
+  }
+
+  /** The chip value an exercise falls under */
+  private chipOf(exercise: Exercise): string | null | undefined {
+    if (!this.byCategory()) return exercise.bodyPart;
+    return exercise.category || (exercise.createdById ? COACH : NO_CATEGORY);
   }
 
   onSearch(event: CustomEvent<SearchbarInputEventDetail>) {
@@ -225,9 +247,9 @@ export class ExercisePickerComponent implements OnInit {
     if (q && !exercise.name.toLowerCase().includes(q)) {
       this.query.set('');
     }
-    const part = this.bodyPart();
-    if (part !== 'all' && exercise.bodyPart !== part) {
-      this.bodyPart.set('all');
+    const chip = this.filter();
+    if (chip !== 'all' && this.chipOf(exercise) !== chip) {
+      this.filter.set('all');
     }
     this.setSelected(exercise, true);
   }

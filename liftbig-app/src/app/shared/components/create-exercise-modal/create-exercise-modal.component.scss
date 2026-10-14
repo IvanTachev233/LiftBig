@@ -10,6 +10,12 @@ ion-textarea {
   --placeholder-color: var(--text-muted);
 }
 
+.field-label {
+  margin: 0 4px 8px;
+  font-size: 0.8rem;
+  color: var(--text-2);
+}
+
 .field-error,
 .field-hint {
   margin: 6px 4px 0;
