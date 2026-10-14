@@ -1,0 +1,11 @@
+# Only package*.json, the sources and configs are needed to build the web app
+node_modules
+.angular
+www
+android
+ios
+.git
+.harness
+.claude
+coverage
+*.keystore
