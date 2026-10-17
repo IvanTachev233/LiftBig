@@ -129,9 +129,50 @@ npx cap open android    # or: npx cap open ios
 
 `npx cap run android` (or `ios`) syncs, builds and deploys to a connected device or emulator in one step.
 
+## Release build
+
+Google Play takes a signed Android App Bundle (`.aab`), built against the production API. The signing values come from `android/keystore.properties`, which is gitignored. Release builds stop with a message naming what is missing (the file, a value or the keystore); debug builds don't need the file.
+
+1. Create `android/keystore.properties`. `storeFile` is relative to `android/` (use forward slashes; an absolute path also works):
+
+   ```properties
+   storeFile=../liftbig-release.keystore
+   storePassword=...
+   keyAlias=...
+   keyPassword=...
+   ```
+
+2. Raise `versionCode` by 1 in `android/app/build.gradle` (`defaultConfig`) before every upload; Play rejects a versionCode it has already seen. `versionName` is the version users see; change it when you want a new one.
+
+3. Build:
+
+   ```bash
+   npm run build
+   npx cap sync android
+   cd android && ./gradlew bundleRelease
+   ```
+
+   The bundle is `android/app/build/outputs/bundle/release/app-release.aab`.
+
+4. Check it. `jarsigner -verify` should print `jar verified.`, and `bundletool validate` should exit without errors (bundletool: `brew install bundletool`, or the jar from its GitHub releases):
+
+   ```bash
+   jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab
+   bundletool validate --bundle=android/app/build/outputs/bundle/release/app-release.aab
+   ```
+
+5. Optional: install the bundle on an emulator. bundletool signs the APKs with your debug key, so first uninstall any copy of the app signed with a different key:
+
+   ```bash
+   bundletool build-apks --bundle=android/app/build/outputs/bundle/release/app-release.aab --output=app.apks --connected-device
+   bundletool install-apks --apks=app.apks
+   ```
+
+The keystore is the app's upload key for Play App Signing. Keep an offline backup of the keystore file and both passwords. Without them, every update needs an upload key reset from Google.
+
 ## Secrets
 
-Never commit release signing material. `*.keystore` is gitignored; keep `liftbig-release.keystore` out of the repo and out of chat and screenshots.
+Never commit release signing material. `*.keystore` and `android/keystore.properties` are gitignored; keep `liftbig-release.keystore` and its passwords out of the repo and out of chat and screenshots.
 
 ## Related
 
