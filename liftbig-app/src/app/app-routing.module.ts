@@ -28,6 +28,24 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./pages/register/register.page').then((m) => m.RegisterPage),
   },
+  // Check your email (?email=), after Sign up or a login before confirming
+  {
+    path: 'verify-email',
+    canActivate: [SignedOutGuard],
+    loadComponent: () =>
+      import('./pages/verify-email/verify-email.page').then(
+        (m) => m.VerifyEmailPage,
+      ),
+  },
+  // Reset password (?email= prefills it), from Login's "Forgot password?"
+  {
+    path: 'forgot-password',
+    canActivate: [SignedOutGuard],
+    loadComponent: () =>
+      import('./pages/forgot-password/forgot-password.page').then(
+        (m) => m.ForgotPasswordPage,
+      ),
+  },
   // Old URLs
   { path: 'dashboard', redirectTo: 'today', pathMatch: 'full' },
   { path: 'stats', redirectTo: 'history', pathMatch: 'full' },

@@ -2,10 +2,11 @@ import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonicModule, ToastController } from '@ionic/angular';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 
-// Sign up: name, email, password twice (one show toggle) and Client/Coach
+// Sign up: name, email, password twice (one show toggle) and Client/Coach;
+// then Check your email
 @Component({
   selector: 'app-register',
   templateUrl: './register.page.html',
@@ -16,6 +17,7 @@ import { AuthService } from '../../core/auth.service';
 export class RegisterPage {
   private authService = inject(AuthService);
   private toastController = inject(ToastController);
+  private router = inject(Router);
 
   form = {
     name: '',
@@ -67,9 +69,9 @@ export class RegisterPage {
         role: this.form.role,
       })
       .subscribe({
-        next: () => {
-          this.presentToast('Welcome to LiftBig!', 'success');
-          this.authService.navigateToDashboard({ replaceUrl: true });
+        next: ({ email }) => {
+          this.submitting = false;
+          this.router.navigate(['/verify-email'], { queryParams: { email } });
         },
         error: (err) => {
           this.submitting = false;

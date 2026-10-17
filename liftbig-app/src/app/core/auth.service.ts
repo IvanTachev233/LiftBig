@@ -61,14 +61,31 @@ export class AuthService {
       );
   }
 
+  /** Creates the account; the API mails a code and signs in only on verifyEmail */
   register(data: RegisterData) {
+    return this.http.post<{ verificationRequired: true; email: string }>(`${this.apiUrl}/register`, data);
+  }
+
+  /** Confirms the email with the mailed code and stores the session */
+  verifyEmail(email: string, code: string) {
     return this.http
-      .post<{ user: User; token: string }>(`${this.apiUrl}/register`, data)
-      .pipe(
-        tap((response) => {
-          this.setSession(response.token);
-        }),
-      );
+      .post<{ access_token: string }>(`${this.apiUrl}/verify-email`, { email, code })
+      .pipe(tap((response) => this.setSession(response.access_token)));
+  }
+
+  /** Asks for a new code; 429 carries retryAfterSeconds */
+  resendVerification(email: string) {
+    return this.http.post<void>(`${this.apiUrl}/resend-verification`, { email });
+  }
+
+  /** Asks for a password reset code; the API answers the same for any email */
+  forgotPassword(email: string) {
+    return this.http.post<void>(`${this.apiUrl}/forgot-password`, { email });
+  }
+
+  /** Sets a new password with the mailed code; signs out every device and doesn't sign in */
+  resetPassword(email: string, code: string, newPassword: string) {
+    return this.http.post<void>(`${this.apiUrl}/reset-password`, { email, code, newPassword });
   }
 
   logout() {

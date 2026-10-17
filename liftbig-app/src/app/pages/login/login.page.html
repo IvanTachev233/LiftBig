@@ -6,6 +6,13 @@
     </div>
 
     <form class="auth-form" (ngSubmit)="login()">
+      @if (notice) {
+        <p class="auth-notice" role="status">
+          <ion-icon name="checkmark-circle" aria-hidden="true"></ion-icon>
+          {{ notice }}
+        </p>
+      }
+
       <ion-input
         class="input-field"
         label="Email"
@@ -18,28 +25,32 @@
         required
       ></ion-input>
 
-      <ion-input
-        class="input-field password-input"
-        label="Password"
-        labelPlacement="stacked"
-        name="password"
-        autocomplete="current-password"
-        [type]="showPassword ? 'text' : 'password'"
-        [(ngModel)]="credentials.password"
-        placeholder="Your password"
-        required
-      >
-        <button
-          slot="end"
-          type="button"
-          class="password-toggle"
-          [attr.aria-pressed]="showPassword"
-          [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
-          (click)="showPassword = !showPassword"
+      <div class="password-field">
+        <ion-input
+          class="input-field password-input"
+          label="Password"
+          labelPlacement="stacked"
+          name="password"
+          autocomplete="current-password"
+          [type]="showPassword ? 'text' : 'password'"
+          [(ngModel)]="credentials.password"
+          placeholder="Your password"
+          required
         >
-          <ion-icon [name]="showPassword ? 'eye-off-outline' : 'eye-outline'" aria-hidden="true"></ion-icon>
-        </button>
-      </ion-input>
+          <button
+            slot="end"
+            type="button"
+            class="password-toggle"
+            [attr.aria-pressed]="showPassword"
+            [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+            (click)="showPassword = !showPassword"
+          >
+            <ion-icon [name]="showPassword ? 'eye-off-outline' : 'eye-outline'" aria-hidden="true"></ion-icon>
+          </button>
+        </ion-input>
+        <!-- After the field in tab order; shown at the right of its label -->
+        <a class="forgot-link" routerLink="/forgot-password" [queryParams]="forgotParams">Forgot password?</a>
+      </div>
 
       <ion-button
         class="btn-primary"

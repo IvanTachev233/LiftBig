@@ -1,0 +1,42 @@
+// "Forgot password?" sits at the right end of the Password label row
+.password-field {
+  position: relative;
+}
+
+.forgot-link {
+  position: absolute;
+  top: 0;
+  right: 0;
+  // Above ion-input (z-index 2), whose label spans the row
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding-left: 12px;
+  color: var(--text-2);
+  font-size: 13px;
+  text-decoration: none;
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    border-radius: 8px;
+  }
+}
+
+.auth-notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--success-tint);
+  color: var(--success-text);
+  font-size: 14px;
+  line-height: 1.4;
+
+  ion-icon {
+    flex: none;
+    font-size: 20px;
+  }
+}

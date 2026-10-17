@@ -9,6 +9,9 @@ import { fakeToken } from './core/auth.testing';
 import { RoleGuard } from './core/role.guard';
 import { AthleteTabsPage } from './pages/tabs/athlete-tabs.page';
 import { CoachTabsPage } from './pages/tabs/coach-tabs.page';
+import { SignedOutGuard } from './core/signed-out.guard';
+import { VerifyEmailPage } from './pages/verify-email/verify-email.page';
+import { ForgotPasswordPage } from './pages/forgot-password/forgot-password.page';
 
 /** Every route with its full path, parents before children */
 function flatten(rs: Routes, prefix = ''): { path: string; route: Route }[] {
@@ -96,6 +99,24 @@ describe('Tab shells', () => {
     expect(shell('coach').children!.map((r) => r.path)).toEqual(
       jasmine.arrayContaining(['clients', 'clients/:clientId/workouts', 'profile']),
     );
+  });
+});
+
+describe('Check your email route', () => {
+  const route = () => flatten(routes).find((r) => r.path === 'verify-email')!.route;
+
+  it('loads the Check your email screen for signed-out visitors only', async () => {
+    expect(await route().loadComponent!()).toBe(VerifyEmailPage);
+    expect(route().canActivate).toEqual([SignedOutGuard]);
+  });
+});
+
+describe('Reset password route', () => {
+  const route = () => flatten(routes).find((r) => r.path === 'forgot-password')!.route;
+
+  it('loads the Reset password screen for signed-out visitors only', async () => {
+    expect(await route().loadComponent!()).toBe(ForgotPasswordPage);
+    expect(route().canActivate).toEqual([SignedOutGuard]);
   });
 });
 
@@ -204,6 +225,28 @@ describe('App navigation', () => {
     await harness.navigateByUrl('/');
     await harness.fixture.whenStable();
     expect(TestBed.inject(Router).url).toBe('/login');
+  });
+
+  it('opens Check your email for a signed-out visitor, keeping the address', async () => {
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/verify-email?email=a%40b.io');
+    await harness.fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/verify-email?email=a@b.io');
+  });
+
+  it('takes a signed-in user from Check your email to their tab', async () => {
+    expect((await open('COACH', '/verify-email?email=a%40b.io')).url).toBe('/coach/clients');
+  });
+
+  it('opens Reset password for a signed-out visitor, keeping the address', async () => {
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/forgot-password?email=a%40b.io');
+    await harness.fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/forgot-password?email=a@b.io');
+  });
+
+  it('takes a signed-in user from Reset password to their tab', async () => {
+    expect((await open('CLIENT', '/forgot-password')).url).toBe('/today');
   });
 
   it('sends a signed-out visitor to /login', async () => {

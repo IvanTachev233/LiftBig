@@ -1,5 +1,12 @@
 apply plugin: 'com.android.application'
 
+// Release signing values live in android/keystore.properties (git-ignored); see README "Release build"
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
 android {
     namespace = "com.liftbig.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +14,9 @@ android {
         applicationId "com.liftbig.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // The app's only version source: versionCode +1 for every upload to Play, versionName is what users see
+        versionCode 2
+        versionName "0.1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +24,20 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (keystoreProperties['storeFile']) {
+                // Relative paths resolve from android/
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+            }
+            storePassword keystoreProperties['storePassword']
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -43,6 +63,29 @@ dependencies {
 }
 
 apply from: 'capacitor.build.gradle'
+
+// Stops release builds (debug builds are unaffected) before anything compiles when signing isn't set up,
+// so an unsigned bundle is never produced
+def checkReleaseSigning = tasks.register('checkReleaseSigning') {
+    doLast {
+        if (!keystorePropertiesFile.exists()) {
+            throw new GradleException("Release signing: ${keystorePropertiesFile} is missing. Create it with storeFile, storePassword, keyAlias and keyPassword (see README \"Release build\").")
+        }
+        def missing = ['storeFile', 'storePassword', 'keyAlias', 'keyPassword'].findAll { !keystoreProperties.getProperty(it)?.trim() }
+        if (missing) {
+            throw new GradleException("Release signing: ${keystorePropertiesFile} has no value for ${missing.join(', ')}.")
+        }
+        def keystore = rootProject.file(keystoreProperties['storeFile'])
+        if (!keystore.isFile()) {
+            throw new GradleException("Release signing: keystore not found at ${keystore} (storeFile in ${keystorePropertiesFile.name}, relative to android/).")
+        }
+    }
+}
+tasks.configureEach { task ->
+    if (task.name == 'preReleaseBuild') {
+        task.dependsOn checkReleaseSigning
+    }
+}
 
 try {
     def servicesJSON = file('google-services.json')

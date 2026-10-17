@@ -53,6 +53,14 @@ export class ProfileService {
       .pipe(tap(({ access_token }) => this.auth.setSession(access_token)));
   }
 
+  /**
+   * Deletes the account (a coach's is anonymised); 403 and 429 as for
+   * changePassword. Signing out is left to the caller
+   */
+  deleteAccount(password: string) {
+    return this.http.delete<void>(this.url, { body: { password } });
+  }
+
   /** Loads the settings in the background; a failure keeps the current ones */
   load() {
     this.getMe().subscribe({ error: () => undefined });

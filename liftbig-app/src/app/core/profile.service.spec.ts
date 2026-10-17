@@ -112,5 +112,15 @@ describe('ProfileService', () => {
       expect(localStorage.getItem('token')).toBe(token);
       localStorage.removeItem('token');
     });
+
+    it('deletes the account with DELETE /users/me and the password in the body', () => {
+      let done = false;
+      service.deleteAccount('my-secret').subscribe(() => (done = true));
+      const req = http.expectOne(url);
+      expect(req.request.method).toBe('DELETE');
+      expect(req.request.body).toEqual({ password: 'my-secret' });
+      req.flush(null, { status: 204, statusText: 'No Content' });
+      expect(done).toBeTrue();
+    });
   });
 });
