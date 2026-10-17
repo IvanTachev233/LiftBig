@@ -220,6 +220,19 @@ ion-item.set-item .set-row {
   font-weight: 600;
 }
 
+// Ionic's wrapper inherits the host's height, which overflows the bordered
+// host and paints over its top and bottom border; fit it inside and clip its
+// fill to the rounded corners
+.set-grid ion-input.set-input,
+.plan-grid ion-input.set-input {
+  overflow: hidden;
+
+  .input-wrapper {
+    height: 100%;
+    min-height: 0;
+  }
+}
+
 // Rows after the one to log next show their plan dimmed
 .set-row:not(.done, .active) ion-input.set-input {
   --placeholder-color: var(--icon-muted);
