@@ -49,6 +49,8 @@ describe('VerifyEmailPage', () => {
     jasmine.clock().uninstall();
     http.verify();
     localStorage.removeItem('token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
   });
 
   const tick = (ms: number) => jasmine.clock().tick(ms);
@@ -89,7 +91,7 @@ describe('VerifyEmailPage', () => {
     const token = fakeToken('CLIENT');
     req.flush({ access_token: token });
     await fixture.whenStable();
-    expect(localStorage.getItem('token')).toBe(token);
+    expect(localStorage.getItem('access_token')).toBe(token);
     expect(navigateByUrl).toHaveBeenCalledWith('/today', { replaceUrl: true });
   });
 

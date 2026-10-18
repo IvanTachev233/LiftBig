@@ -12,6 +12,7 @@ import { CreateExerciseModalComponent } from '../create-exercise-modal/create-ex
 import { ChipGroupComponent, ChipOption } from '../../ui/chip-group.component';
 import { BODY_PARTS } from '../../body-part';
 import { exerciseSubtitle, sortCategories } from '../../exercise-category';
+import { ReadCacheService } from '../../../core/read-cache.service';
 
 /** Data the picker dismisses with (role 'confirm'). Back dismisses with null and role 'cancel'. */
 export interface ExercisePickerResult {
@@ -40,6 +41,7 @@ export class ExercisePickerComponent implements OnInit {
   private modalCtrl = inject(ModalController);
   private workoutService = inject(WorkoutService);
   private auth = inject(AuthService);
+  private cache = inject(ReadCacheService);
 
   /** Optional preloaded list (componentProps); otherwise the picker loads it */
   @Input() exercises?: Exercise[];
@@ -120,7 +122,8 @@ export class ExercisePickerComponent implements OnInit {
   load() {
     this.loading.set(true);
     this.loadError.set(false);
-    this.workoutService.getExercises().subscribe({
+    // Without a connection, the list last loaded on this phone
+    this.cache.read('exercises', this.workoutService.getExercises()).subscribe({
       next: (list) => {
         this.allExercises.set(list);
         this.loading.set(false);

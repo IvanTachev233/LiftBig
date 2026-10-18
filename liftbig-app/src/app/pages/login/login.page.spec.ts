@@ -43,6 +43,8 @@ describe('LoginPage', () => {
   afterEach(() => {
     http.verify();
     localStorage.removeItem('token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
   });
 
   function logIn() {
@@ -113,7 +115,7 @@ describe('LoginPage', () => {
     const token = fakeToken('COACH');
     logIn().flush({ access_token: token });
     await fixture.whenStable();
-    expect(localStorage.getItem('token')).toBe(token);
+    expect(localStorage.getItem('access_token')).toBe(token);
     expect(navigateByUrl).toHaveBeenCalledWith('/coach/clients', { replaceUrl: true });
   });
 

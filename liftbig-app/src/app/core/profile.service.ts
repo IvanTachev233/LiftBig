@@ -49,8 +49,11 @@ export class ProfileService {
    */
   changePassword(currentPassword: string, newPassword: string) {
     return this.http
-      .post<{ access_token: string }>(`${this.url}/password`, { currentPassword, newPassword })
-      .pipe(tap(({ access_token }) => this.auth.setSession(access_token)));
+      .post<{ access_token: string; refresh_token?: string }>(`${this.url}/password`, {
+        currentPassword,
+        newPassword,
+      })
+      .pipe(tap(({ access_token, refresh_token }) => this.auth.setSession(access_token, refresh_token)));
   }
 
   /**

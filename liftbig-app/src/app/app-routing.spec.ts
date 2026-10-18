@@ -44,7 +44,11 @@ function stubbed(rs: Routes): Routes {
 }
 
 describe('Premade Programs routes', () => {
-  afterEach(() => localStorage.removeItem('token'));
+  afterEach(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+  });
 
   const programRoutes = flatten(routes).filter(({ path }) => path.startsWith('programs'));
 
@@ -127,7 +131,11 @@ describe('App navigation', () => {
     });
   });
 
-  afterEach(() => localStorage.removeItem('token'));
+  afterEach(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+  });
 
   /** Final URL and whether a tab bar is shown */
   async function open(role: 'COACH' | 'CLIENT', url: string) {
@@ -207,7 +215,7 @@ describe('App navigation', () => {
     await harness.navigateByUrl('/today');
     await harness.fixture.whenStable();
     expect(TestBed.inject(Router).url).toBe('/login');
-    expect(localStorage.getItem('token')).toBeNull();
+    expect(TestBed.inject(AuthService).getToken()).toBeNull();
     expect(TestBed.inject(AuthService).isAuthenticated()).toBeFalse();
   });
 

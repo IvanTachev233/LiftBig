@@ -15,6 +15,7 @@ import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { ModalController, ToastController } from '@ionic/angular';
 import { ConfirmSheetService } from '../../shared/ui/confirm-sheet.component';
+import { LOGGER_IONIC_TAGS, loadIonicElements } from '../../shared/ionic.testing';
 import { WorkoutLoggerPage } from './workout-logger.page';
 import {
   ExercisePickerComponent,
@@ -29,6 +30,8 @@ import { WeightUnitService } from '../../core/weight-unit.service';
 import { RestTimeService } from '../../core/rest-time';
 import { ExerciseHistoryModalComponent } from '../../shared/components/exercise-history-modal/exercise-history-modal.component';
 import { OverflowMenuService } from '../../shared/ui/overflow-menu.service';
+import { OUTBOX_PLATFORM, OutboxService } from '../../core/outbox.service';
+import { FakeOutboxPlatform, InstantOutbox } from '../../core/outbox.testing';
 
 describe('WorkoutLoggerPage', () => {
   let component: WorkoutLoggerPage;
@@ -44,6 +47,11 @@ describe('WorkoutLoggerPage', () => {
 
   const workoutsUrl = `${environment.apiUrl}/workouts`;
   const enrollmentUrl = `${environment.apiUrl}/program-enrollments/active`;
+  // An id the app makes for a new workout, card or set
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+  // Ionic must not load element code inside the fakeAsync tests below
+  beforeEach(() => loadIonicElements(LOGGER_IONIC_TAGS));
 
   beforeEach(() => {
     queryParamsSubject = new BehaviorSubject<any>({});
@@ -70,6 +78,10 @@ describe('WorkoutLoggerPage', () => {
         { provide: ToastController, useValue: toastControllerSpy },
         { provide: ConfirmSheetService, useValue: confirmSpy },
         { provide: OverflowMenuService, useValue: menuSpy },
+        // Writes go out at once through the outbox; its own spec and
+        // workout-logger.outbox.spec.ts cover storage and replay
+        { provide: OutboxService, useClass: InstantOutbox },
+        { provide: OUTBOX_PLATFORM, useValue: new FakeOutboxPlatform() },
       ],
     });
     // IonicModule gives the standalone page its own ModalController (which
@@ -92,6 +104,10 @@ describe('WorkoutLoggerPage', () => {
     component = fixture.componentInstance;
     fixture.detectChanges();
     httpTesting.expectOne(`${workoutsUrl}/exercises`).flush([]);
+  }
+
+  function outbox() {
+    return TestBed.inject(OutboxService) as unknown as InstantOutbox;
   }
 
   function current() {
@@ -301,7 +317,24 @@ describe('WorkoutLoggerPage', () => {
     expect(current().date).toBe('2026-01-01T00:00:00.000Z');
   });
 
-  it('adding the first set sends exactly 1 POST, then PATCHes with the typed name, date, the card with its set and IN_PROGRESS status', () => {
+  /** The draft's create: answers the POST and returns its id */
+  function answerCreate(): string {
+    const id = current().id!;
+    const post = httpTesting.expectOne((req) => req.method === 'POST' && req.url === workoutsUrl);
+    expect(post.request.body.id).toBe(id);
+    post.flush({ id, name: post.request.body.name, date: post.request.body.date, exercises: [] });
+    return id;
+  }
+
+  /** Adds a set to the nth card of a new draft */
+  function logSet(n: number, weight: number, reps: number) {
+    const c = component.cards[n];
+    c.newWeight = weight;
+    c.newReps = reps;
+    component.addSetToExercise(c);
+  }
+
+  it('adding the first set queues 1 POST with the id the app made, then a PATCH with the typed name, date, the card with its set and IN_PROGRESS status', () => {
     createComponentWithNoId();
 
     component.exercisesList = [{ id: 'ex1', name: 'Bench Press' }];
@@ -310,48 +343,44 @@ describe('WorkoutLoggerPage', () => {
 
     const draftDate = current().date;
     const c = component.cards[0];
-    c.newWeight = 100;
-    c.newReps = 5;
-
-    component.addSetToExercise(c);
+    logSet(0, 100, 5);
+    const id = current().id!;
+    expect(id).toMatch(uuid);
+    // The address shows the id at once, so a reload opens it
+    expect(router.navigate).toHaveBeenCalledWith(
+      [],
+      jasmine.objectContaining({ queryParams: { id }, replaceUrl: true }),
+    );
 
     const postReq = httpTesting.expectOne(
       (req) => req.method === 'POST' && req.url === workoutsUrl,
     );
-    expect(postReq.request.body.name).toBe('Push Day');
-    expect(postReq.request.body.date).toBe(draftDate);
-    postReq.flush({ id: 'w1', name: 'Push Day', date: draftDate, exercises: [] });
+    expect(postReq.request.body).toEqual({ id, name: 'Push Day', date: draftDate });
+    postReq.flush({ id, name: 'Push Day', date: draftDate, exercises: [] });
 
     const patchReq = httpTesting.expectOne(
-      (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w1`,
+      (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/${id}`,
     );
     const body = JSON.parse(JSON.stringify(patchReq.request.body));
     expect(body.name).toBe('Push Day');
     expect(body.date).toBe(draftDate);
     expect(body.status).toBe('IN_PROGRESS');
-    // New card and set: no ids, positions from 1, no per-set exercise data
+    // The card and set carry the ids the app made; positions from 1
     expect(body.exercises).toEqual([
       {
+        id: c.id,
         exerciseId: 'ex1',
         order: 1,
         supersetGroup: null,
-        sets: [{ reps: 5, weight: 100, order: 1, made: true }],
+        sets: [{ id: c.sets[0].id, reps: 5, weight: 100, order: 1, made: true }],
       },
     ]);
     patchReq.flush({});
 
-    expect(router.navigate).toHaveBeenCalledWith(
-      [],
-      jasmine.objectContaining({
-        queryParams: { id: 'w1' },
-        replaceUrl: true,
-      }),
-    );
-
     // Re-emitted id after replaceUrl does not refetch
-    queryParamsSubject.next({ id: 'w1' });
+    queryParamsSubject.next({ id });
     httpTesting.expectNone(
-      (req) => req.method === 'GET' && req.url === `${workoutsUrl}/w1`,
+      (req) => req.method === 'GET' && req.url === `${workoutsUrl}/${id}`,
     );
   });
 
@@ -361,51 +390,25 @@ describe('WorkoutLoggerPage', () => {
     component.exercisesList = [{ id: 'ex1', name: 'Bench Press' }];
     component.addExercises([{ id: 'ex1', name: 'Bench Press' }]);
 
-    const c = component.cards[0];
-    c.newWeight = 100;
-    c.newReps = 5;
-    component.addSetToExercise(c);
-
-    // Double tap: a second set is added before the first create resolves.
-    c.newWeight = 90;
-    c.newReps = 8;
-    component.addSetToExercise(c);
+    logSet(0, 100, 5);
+    // Double tap: a second set is added before the create is answered
+    logSet(0, 90, 8);
 
     const postReqs = httpTesting.match(
       (req) => req.method === 'POST' && req.url === workoutsUrl,
     );
     expect(postReqs.length).toBe(1);
+    const id = current().id!;
+    postReqs[0].flush({ id });
 
-    const draftDate = current().date;
-    postReqs[0].flush({
-      id: 'w1',
-      name: 'New Workout',
-      date: draftDate,
-      exercises: [],
-    });
-
-    const patchReq = httpTesting.expectOne(
-      (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w1`,
-    );
-    expect(patchReq.request.body.exercises.length).toBe(1);
-    expect(
-      patchReq.request.body.exercises[0].sets.map((s: any) => [s.reps, s.order]),
-    ).toEqual([
+    expect(patchBody(id).exercises[0].sets.map((s: any) => [s.reps, s.order])).toEqual([[5, 1]]);
+    expect(patchBody(id).exercises[0].sets.map((s: any) => [s.reps, s.order])).toEqual([
       [5, 1],
       [8, 2],
     ]);
-    patchReq.flush({});
 
-    // Once saved, new sets PATCH instead of POST
-    c.newWeight = 80;
-    c.newReps = 3;
-    component.addSetToExercise(c);
-
-    const patchReq2 = httpTesting.expectOne(
-      (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w1`,
-    );
-    expect(patchReq2.request.body.exercises[0].sets.length).toBe(3);
-    patchReq2.flush({});
+    logSet(0, 80, 3);
+    expect(patchBody(id).exercises[0].sets.length).toBe(3);
 
     httpTesting.expectNone(
       (req) => req.method === 'POST' && req.url === workoutsUrl,
@@ -429,28 +432,21 @@ describe('WorkoutLoggerPage', () => {
         supersetGroup: null,
         sets: [
           { id: 'c1-s1', reps: 5, weight: 100, order: 1, made: true },
-          { reps: 9, weight: 102.5, order: 2, made: true },
+          { id: bench.sets[1].id, reps: 9, weight: 102.5, order: 2, made: true },
         ],
       },
     ]);
   });
 
-  it('a stale create for draft A does not hijack draft B once the view has moved on', () => {
+  it('a draft left before its create is answered is still saved, and the new draft B stays as it was', () => {
     createComponentWithNoId();
 
     component.exercisesList = [{ id: 'ex1', name: 'Bench Press' }];
     component.addExercises([{ id: 'ex1', name: 'Bench Press' }]);
+    logSet(0, 100, 5);
+    const idA = current().id!;
 
-    const cardA = component.cards[0];
-    cardA.newWeight = 100;
-    cardA.newReps = 5;
-    component.addSetToExercise(cardA);
-
-    const postReq = httpTesting.expectOne(
-      (req) => req.method === 'POST' && req.url === workoutsUrl,
-    );
-
-    // User opens a new draft (B) before A's create resolves
+    // User opens a new draft (B) before A's create is answered
     (router.navigate as jasmine.Spy).calls.reset();
     queryParamsSubject.next({});
 
@@ -458,23 +454,19 @@ describe('WorkoutLoggerPage', () => {
     expect(current().name).toBe('New Workout');
     expect(component.cards.length).toBe(0);
 
-    postReq.flush({ id: 'a1', name: 'New Workout', date: new Date().toISOString(), exercises: [] });
-
-    const patchReq = httpTesting.expectOne(
-      (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/a1`,
-    );
-    patchReq.flush({});
+    httpTesting.expectOne((req) => req.method === 'POST' && req.url === workoutsUrl).flush({ id: idA });
+    patchBody(idA);
 
     expect(router.navigate).not.toHaveBeenCalled();
     httpTesting.expectNone(
-      (req) => req.method === 'GET' && req.url === `${workoutsUrl}/a1`,
+      (req) => req.method === 'GET' && req.url === `${workoutsUrl}/${idA}`,
     );
     expect(current().id).toBeUndefined();
     expect(current().name).toBe('New Workout');
     expect(component.cards.length).toBe(0);
   });
 
-  it('a stale create saves the left draft\'s own cards in card order with their superset, not logging order', () => {
+  it('a left draft\'s saves keep its own cards in card order with their superset, not logging order', () => {
     createComponentWithNoId();
     component.addExercises([{ id: 'ex3', name: 'Curl' }]);
     component.addExercises(
@@ -484,231 +476,144 @@ describe('WorkoutLoggerPage', () => {
       ],
       true,
     );
-    const [curl, bench, row] = component.cards;
-    const sg = bench.supersetGroup;
+    const sg = component.cards[1].supersetGroup;
 
     // Logged last card first
-    for (const [c, reps] of [[row, 8], [bench, 5], [curl, 10]] as const) {
-      c.newWeight = 50;
-      c.newReps = reps;
-      component.addSetToExercise(c);
-    }
-    const postReq = httpTesting.expectOne(
-      (req) => req.method === 'POST' && req.url === workoutsUrl,
-    );
+    logSet(2, 50, 8);
+    logSet(1, 50, 5);
+    logSet(0, 50, 10);
+    const id = answerCreate();
 
-    // Leave for a new draft before the create resolves
+    // Leave for a new draft before the saves are answered
     queryParamsSubject.next({});
     expect(component.cards.length).toBe(0);
 
-    postReq.flush({ id: 'a2', name: 'New Workout', date: new Date().toISOString(), exercises: [] });
-
-    expect(cardSummary(patchBody('a2'))).toEqual([
+    patchBody(id);
+    patchBody(id);
+    expect(cardSummary(patchBody(id))).toEqual([
       ['ex3', 1, null, [10]],
       ['ex1', 2, sg, [5]],
       ['ex2', 3, sg, [8]],
     ]);
   });
 
-  it('completing the workout while its create is still in flight completes it as COMPLETED once created, and navigates only after that', () => {
+  it('completing the workout while its create is still in flight queues COMPLETED after its cards, and navigates only once it is saved', () => {
     createComponentWithNoId();
 
     component.exercisesList = [{ id: 'ex1', name: 'Bench Press' }];
     component.addExercises([{ id: 'ex1', name: 'Bench Press' }]);
-
-    const c = component.cards[0];
-    c.newWeight = 100;
-    c.newReps = 5;
-    component.addSetToExercise(c);
-
-    const postReq = httpTesting.expectOne(
-      (req) => req.method === 'POST' && req.url === workoutsUrl,
-    );
+    logSet(0, 100, 5);
 
     component.completeWorkout();
+    fixture.detectChanges();
+    const id = answerCreate();
 
     // Stays on the page until the workout is saved
-    expect(router.navigate).not.toHaveBeenCalled();
+    expect(router.navigate).not.toHaveBeenCalledWith(['/today']);
 
-    postReq.flush({ id: 'w2', name: 'New Workout', date: new Date().toISOString(), exercises: [] });
+    expect(patchBody(id).exercises.length).toBe(1);
+    expect(router.navigate).not.toHaveBeenCalledWith(['/today']);
 
-    const patchReq = httpTesting.expectOne(
-      (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w2`,
+    const done = httpTesting.expectOne(
+      (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/${id}`,
     );
-    expect(patchReq.request.body.status).toBe('COMPLETED');
-    expect(patchReq.request.body.exercises.length).toBe(1);
-    patchReq.flush({});
+    expect(done.request.body).toEqual({ status: 'COMPLETED' });
+    done.flush({});
 
     expect(router.navigate).toHaveBeenCalledWith(['/today']);
   });
 
-  it('shows a toast when saving a set fails, and retries the POST on the next set after a failed create', () => {
+  it('a failed create keeps the draft and its sets without a connection toast, and goes again with the same id before the next save', () => {
     createComponentWithNoId();
 
     component.exercisesList = [{ id: 'ex1', name: 'Bench Press' }];
     component.addExercises([{ id: 'ex1', name: 'Bench Press' }]);
+    logSet(0, 100, 5);
+    const id = current().id!;
 
-    const c = component.cards[0];
-    c.newWeight = 100;
-    c.newReps = 5;
-    component.addSetToExercise(c);
+    httpTesting
+      .expectOne((req) => req.method === 'POST' && req.url === workoutsUrl)
+      .flush('failed', { status: 500, statusText: 'Server Error' });
+    expect(toastControllerSpy.create).not.toHaveBeenCalled();
 
-    const postReq = httpTesting.expectOne(
-      (req) => req.method === 'POST' && req.url === workoutsUrl,
-    );
-    postReq.flush('failed', { status: 500, statusText: 'Server Error' });
+    // Another set waits behind the create
+    logSet(0, 90, 8);
+    httpTesting.expectNone(() => true);
+    expect(component.cards[0].sets.length).toBe(2);
 
-    expect(toastControllerSpy.create).toHaveBeenCalled();
-
-    // Adding another set retries the create POST (no id yet).
-    c.newWeight = 90;
-    c.newReps = 8;
-    component.addSetToExercise(c);
-
-    const retryReq = httpTesting.expectOne(
-      (req) => req.method === 'POST' && req.url === workoutsUrl,
-    );
-    retryReq.flush({ id: 'w3', name: 'New Workout', date: new Date().toISOString(), exercises: [] });
-
-    const patchReq = httpTesting.expectOne(
-      (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w3`,
-    );
-    expect(patchReq.request.body.exercises[0].sets.length).toBe(2);
-    patchReq.flush({});
+    void outbox().replay();
+    expect(answerCreate()).toBe(id);
+    patchBody(id);
+    expect(patchBody(id).exercises[0].sets.length).toBe(2);
   });
 
-  it('shows a toast when a set update PATCH fails', () => {
+  it('a failed set save shows no connection toast and is sent again as it was', () => {
     createComponentWithNoId();
 
     component.exercisesList = [{ id: 'ex1', name: 'Bench Press' }];
     component.addExercises([{ id: 'ex1', name: 'Bench Press' }]);
+    logSet(0, 100, 5);
+    const id = answerCreate();
+    patchBody(id);
 
-    const c = component.cards[0];
-    c.newWeight = 100;
-    c.newReps = 5;
-    component.addSetToExercise(c);
-
-    const postReq = httpTesting.expectOne(
-      (req) => req.method === 'POST' && req.url === workoutsUrl,
+    logSet(0, 80, 3);
+    const failed = httpTesting.expectOne(
+      (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/${id}`,
     );
-    postReq.flush({ id: 'w4', name: 'New Workout', date: new Date().toISOString(), exercises: [] });
+    const body = JSON.parse(JSON.stringify(failed.request.body));
+    failed.flush('failed', { status: 500, statusText: 'Server Error' });
 
-    const createPatchReq = httpTesting.expectOne(
-      (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w4`,
-    );
-    createPatchReq.flush({});
-
-    toastControllerSpy.create.calls.reset();
-
-    c.newWeight = 80;
-    c.newReps = 3;
-    component.addSetToExercise(c);
-
-    const patchReq = httpTesting.expectOne(
-      (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w4`,
-    );
-    patchReq.flush('failed', { status: 500, statusText: 'Server Error' });
-
-    expect(toastControllerSpy.create).toHaveBeenCalled();
+    expect(toastControllerSpy.create).not.toHaveBeenCalled();
+    void outbox().replay();
+    expect(patchBody(id)).toEqual(body);
   });
 
-  it('completing after a failed create (not retried) creates the draft, then PATCHes COMPLETED, and navigates only after that', () => {
+  it('completing after a failed create closes with the sync message, and the create, cards and completion go in order later', () => {
     createComponentWithNoId();
 
     component.exercisesList = [{ id: 'ex1', name: 'Bench Press' }];
     component.addExercises([{ id: 'ex1', name: 'Bench Press' }]);
+    logSet(0, 100, 5);
+    const id = current().id!;
+    httpTesting
+      .expectOne((req) => req.method === 'POST' && req.url === workoutsUrl)
+      .flush('failed', { status: 500, statusText: 'Server Error' });
 
-    const c = component.cards[0];
-    c.newWeight = 100;
-    c.newReps = 5;
-    component.addSetToExercise(c);
-
-    const firstPostReq = httpTesting.expectOne(
-      (req) => req.method === 'POST' && req.url === workoutsUrl,
-    );
-    firstPostReq.flush('failed', { status: 500, statusText: 'Server Error' });
-
-    expect(toastControllerSpy.create).toHaveBeenCalled();
-
-    // Complete after a failed create retries the create first
     component.completeWorkout();
+    fixture.detectChanges();
 
-    expect(router.navigate).not.toHaveBeenCalled();
-
-    const retryPostReqs = httpTesting.match(
-      (req) => req.method === 'POST' && req.url === workoutsUrl,
+    expect(toastControllerSpy.create).toHaveBeenCalledOnceWith(
+      jasmine.objectContaining({ message: "Finished. It'll sync when you're back online." }),
     );
-    expect(retryPostReqs.length).toBe(1);
-
-    retryPostReqs[0].flush({
-      id: 'w6',
-      name: 'New Workout',
-      date: new Date().toISOString(),
-      exercises: [],
-    });
-
-    const patchReq = httpTesting.expectOne(
-      (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w6`,
-    );
-    expect(patchReq.request.body.status).toBe('COMPLETED');
-    expect(router.navigate).not.toHaveBeenCalled();
-
-    patchReq.flush({});
-
     expect(router.navigate).toHaveBeenCalledWith(['/today']);
+    expect(current().status).toBe('COMPLETED');
+
+    void outbox().replay();
+    expect(answerCreate()).toBe(id);
+    expect(patchBody(id).status).toBe('IN_PROGRESS');
+    expect(patchBody(id)).toEqual({ status: 'COMPLETED' });
   });
 
-  it('completing during an in-flight create whose follow-up PATCH fails does not navigate, re-enables completion, and a retry PATCHes the created id', () => {
+  it('a completion the API turns away (4xx) keeps the logger open and Finish can be tapped again', () => {
     createComponentWithNoId();
-
-    component.exercisesList = [{ id: 'ex1', name: 'Bench Press' }];
-    component.addExercises([{ id: 'ex1', name: 'Bench Press' }]);
-
-    const c = component.cards[0];
-    c.newWeight = 100;
-    c.newReps = 5;
-    component.addSetToExercise(c);
-
-    const postReq = httpTesting.expectOne(
-      (req) => req.method === 'POST' && req.url === workoutsUrl,
-    );
+    loadWorkout('w7', [card('c1', 'ex1', 'Bench Press', [5])]);
 
     component.completeWorkout();
+    expect(current()._pendingComplete).toBeTrue();
+    httpTesting
+      .expectOne((req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w7`)
+      .flush('gone', { status: 404, statusText: 'Not Found' });
 
     expect(router.navigate).not.toHaveBeenCalled();
-    expect(current().status).not.toBe('COMPLETED');
-
-    postReq.flush({
-      id: 'w7',
-      name: 'New Workout',
-      date: new Date().toISOString(),
-      exercises: [],
-    });
-
-    const patchReq = httpTesting.expectOne(
-      (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w7`,
-    );
-    expect(patchReq.request.body.status).toBe('COMPLETED');
-    patchReq.flush('failed', { status: 500, statusText: 'Server Error' });
-
-    expect(router.navigate).not.toHaveBeenCalled();
-    expect(toastControllerSpy.create).toHaveBeenCalled();
     expect(current().status).not.toBe('COMPLETED');
     expect(current()._pendingComplete).toBeFalsy();
 
-    // Retry uses PATCH now that the workout has an id
     component.completeWorkout();
-
-    const retryPatchReq = httpTesting.expectOne(
-      (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w7`,
-    );
-    expect(retryPatchReq.request.body.status).toBe('COMPLETED');
-    retryPatchReq.flush({});
-
+    expect(patchBody('w7')).toEqual({ status: 'COMPLETED' });
     expect(router.navigate).toHaveBeenCalledWith(['/today']);
   });
 
-  it('completing a saved workout whose PATCH fails does not navigate and leaves completion available', () => {
+  it('completing a saved workout whose save fails closes with the sync message and keeps the completion queued', () => {
     createComponentWithNoId();
     loadWorkout('w8', [card('c1', 'ex1', 'Bench Press', [5])]);
 
@@ -720,23 +625,18 @@ describe('WorkoutLoggerPage', () => {
     expect(patchReq.request.body.status).toBe('COMPLETED');
     // Completing leaves the cards as they are
     expect(patchReq.request.body.exercises).toBeUndefined();
-    patchReq.flush('failed', { status: 500, statusText: 'Server Error' });
-
     expect(router.navigate).not.toHaveBeenCalled();
-    expect(toastControllerSpy.create).toHaveBeenCalled();
-    expect(current().status).not.toBe('COMPLETED');
-    expect(current()._pendingComplete).toBeFalsy();
+    patchReq.flush('failed', { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
 
-    // Complete is still available: tapping again re-sends the PATCH.
-    component.completeWorkout();
-
-    const retryPatchReq = httpTesting.expectOne(
-      (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w8`,
+    expect(toastControllerSpy.create).toHaveBeenCalledOnceWith(
+      jasmine.objectContaining({ message: "Finished. It'll sync when you're back online." }),
     );
-    expect(retryPatchReq.request.body.status).toBe('COMPLETED');
-    retryPatchReq.flush({});
-
     expect(router.navigate).toHaveBeenCalledWith(['/today']);
+    expect(outbox().pendingCount()).toBe(1);
+
+    void outbox().replay();
+    expect(patchBody('w8')).toEqual({ status: 'COMPLETED' });
   });
 
   it('re-emitting queryParams for the already-loaded workout does not rebuild cards or drop empty cards', () => {
@@ -751,29 +651,17 @@ describe('WorkoutLoggerPage', () => {
     component.addExercises([{ id: 'ex2', name: 'Squat' }]);
 
     expect(component.cards.length).toBe(2);
+    logSet(0, 100, 5);
+    const id = answerCreate();
 
-    const cardA = component.cards[0];
-    cardA.newWeight = 100;
-    cardA.newReps = 5;
-    component.addSetToExercise(cardA);
-
-    const postReq = httpTesting.expectOne(
-      (req) => req.method === 'POST' && req.url === workoutsUrl,
-    );
-    postReq.flush({ id: 'w5', name: 'New Workout', date: new Date().toISOString(), exercises: [] });
-
-    const patchReq = httpTesting.expectOne(
-      (req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w5`,
-    );
     // A card with no sets yet is not saved
-    expect(patchReq.request.body.exercises.map((c: any) => c.exerciseId)).toEqual(['ex1']);
-    patchReq.flush({});
+    expect(patchBody(id).exercises.map((c: any) => c.exerciseId)).toEqual(['ex1']);
 
     // Re-emit the id set by replaceUrl
-    queryParamsSubject.next({ id: 'w5' });
+    queryParamsSubject.next({ id });
 
     httpTesting.expectNone(
-      (req) => req.method === 'GET' && req.url === `${workoutsUrl}/w5`,
+      (req) => req.method === 'GET' && req.url === `${workoutsUrl}/${id}`,
     );
     expect(component.cards.length).toBe(2);
   });
@@ -805,7 +693,7 @@ describe('WorkoutLoggerPage', () => {
       expect(memberTitles()).toEqual(['Bench Press', 'Row']);
     });
 
-    it('new cards and sets in a saved workout go without ids, and the next save sends the ids the response gave them', () => {
+    it('new cards and sets in a saved workout go with the ids the app made, and the next save sends the same ids', () => {
       createComponentWithNoId();
       loadWorkout('w61', [card('c1', 'ex1', 'Bench Press', [5])]);
       component.addExercises([{ id: 'ex2', name: 'Row' }]);
@@ -827,12 +715,15 @@ describe('WorkoutLoggerPage', () => {
           sets: [{ id: 'c1-s1', reps: 5, weight: 100, order: 1, made: true }],
         },
         {
+          id: row.id,
           exerciseId: 'ex2',
           order: 2,
           supersetGroup: null,
-          sets: [{ reps: 8, weight: 60, order: 1, made: true }],
+          sets: [{ id: row.sets[0].id, reps: 8, weight: 60, order: 1, made: true }],
         },
       ]);
+      expect(row.id).toMatch(uuid);
+      expect(row.sets[0].id).toMatch(uuid);
       patch.flush(savedResponse('w61', body, { ex1: 'Bench Press', ex2: 'Row' }));
 
       bench.newWeight = 100;
@@ -840,13 +731,13 @@ describe('WorkoutLoggerPage', () => {
       component.addSetToExercise(bench);
       const next = patchBody('w61');
       expect(next.exercises[0].id).toBe('c1');
-      expect(next.exercises[0].sets.map((s: any) => s.id)).toEqual(['c1-s1', undefined]);
-      expect(next.exercises[1].id).toBe('w61-new2');
-      expect(next.exercises[1].sets[0].id).toBe('w61-new2-new1');
+      expect(next.exercises[0].sets.map((s: any) => s.id)).toEqual(['c1-s1', bench.sets[1].id]);
+      expect(next.exercises[1].id).toBe(row.id);
+      expect(next.exercises[1].sets[0].id).toBe(row.sets[0].id);
     });
   });
 
-  describe('ids returned by a save', () => {
+  describe('ids made by the app', () => {
     const names = { ex1: 'Back Squat', ex2: 'Row', ex3: 'Curl' };
 
     function pendingPatch(id: string) {
@@ -861,27 +752,25 @@ describe('WorkoutLoggerPage', () => {
       component.addSetToExercise(c);
     }
 
-    it('a set added to a saved manual workout gets its API id and is sent with that id on the next save', () => {
+    it('a set added to a saved manual workout is sent with its own id, and later saves send the same id', () => {
       createComponentWithNoId();
       loadWorkout('w80', [card('c1', 'ex1', 'Back Squat', [5])]);
       const [squat] = component.cards;
 
       addSet(squat, 120, 1);
+      const added = squat.sets[1].id;
+      expect(added).toMatch(uuid);
       const patch = pendingPatch('w80');
       const body = JSON.parse(JSON.stringify(patch.request.body));
+      expect(body.exercises[0].sets.map((s: any) => s.id)).toEqual(['c1-s1', added]);
       patch.flush(savedResponse('w80', body, names));
 
-      expect(squat.sets.map((s) => s.id)).toEqual(['c1-s1', 'c1-new2']);
-
       addSet(squat, 100, 3);
-      expect(patchBody('w80').exercises[0].sets.map((s: any) => s.id)).toEqual([
-        'c1-s1',
-        'c1-new2',
-        undefined,
-      ]);
+      const next = patchBody('w80').exercises[0].sets.map((s: any) => s.id);
+      expect(next).toEqual(['c1-s1', added, squat.sets[2].id]);
     });
 
-    it("a draft's first save gives every saved card and set an id; a card without sets gets none", () => {
+    it("a draft's create carries its own id, and its cards and sets go with theirs; a card without sets isn't sent", () => {
       createComponentWithNoId();
       component.addExercises([
         { id: 'ex1', name: 'Back Squat' },
@@ -893,31 +782,28 @@ describe('WorkoutLoggerPage', () => {
       addSet(squat, 110, 3);
       addSet(curl, 20, 10);
 
-      httpTesting
-        .expectOne((req) => req.method === 'POST' && req.url === workoutsUrl)
-        .flush({ id: 'w81', name: 'New Workout', date: new Date().toISOString(), exercises: [] });
-      const patch = pendingPatch('w81');
+      const id = current().id!;
+      expect(id).toMatch(uuid);
+      const post = httpTesting.expectOne((req) => req.method === 'POST' && req.url === workoutsUrl);
+      expect(post.request.body.id).toBe(id);
+      post.flush({ id });
+      // The create's cards, then one save per later set; the last has them all
+      patchBody(id);
+      patchBody(id);
+      const patch = pendingPatch(id);
       const body = JSON.parse(JSON.stringify(patch.request.body));
-      patch.flush(savedResponse('w81', body, names));
+      patch.flush(savedResponse(id, body, names));
 
-      expect(component.cards.map((c) => [c.id, c.sets.map((s) => s.id)])).toEqual([
-        ['w81-new1', ['w81-new1-new1', 'w81-new1-new2']],
-        [undefined, []],
-        ['w81-new2', ['w81-new2-new1']],
-      ]);
+      expect(body.exercises.map((c: any) => c.id)).toEqual([squat.id, curl.id]);
+      expect(body.exercises[0].sets.map((s: any) => s.id)).toEqual(squat.sets.map((s) => s.id));
+      expect(row.id).toMatch(uuid);
 
       addSet(row, 60, 8);
-      const next = patchBody('w81');
-      expect(next.exercises.map((c: any) => c.id)).toEqual(['w81-new1', undefined, 'w81-new2']);
-      expect(next.exercises[0].sets.map((s: any) => s.id)).toEqual([
-        'w81-new1-new1',
-        'w81-new1-new2',
-      ]);
-      expect(squat.id).toBe('w81-new1');
-      expect(row.id).toBeUndefined();
+      const next = patchBody(id);
+      expect(next.exercises.map((c: any) => c.id)).toEqual([squat.id, row.id, curl.id]);
     });
 
-    it('a set added while a save is in flight gets no id from that response and gets its own from the next save', () => {
+    it('a set added while a save is in flight goes in the next save, sent after the answer', () => {
       createComponentWithNoId();
       loadWorkout('w82', [card('c1', 'ex1', 'Back Squat', [5])]);
       const [squat] = component.cards;
@@ -927,24 +813,21 @@ describe('WorkoutLoggerPage', () => {
       const firstBody = JSON.parse(JSON.stringify(first.request.body));
 
       addSet(squat, 125, 1);
-      // Waits for the first save, so it can send the id that save returns
+      // One write at a time, in order
       httpTesting.expectNone((req) => req.method === 'PATCH');
 
       first.flush(savedResponse('w82', firstBody, names));
-      expect(squat.sets.map((s) => s.id)).toEqual(['c1-s1', 'c1-new2', undefined]);
-
       const second = pendingPatch('w82');
       const secondBody = JSON.parse(JSON.stringify(second.request.body));
       expect(secondBody.exercises[0].sets.map((s: any) => [s.id, s.weight])).toEqual([
         ['c1-s1', 100],
-        ['c1-new2', 120],
-        [undefined, 125],
+        [squat.sets[1].id, 120],
+        [squat.sets[2].id, 125],
       ]);
       second.flush(savedResponse('w82', secondBody, names));
-      expect(squat.sets.map((s) => s.id)).toEqual(['c1-s1', 'c1-new2', 'c1-new3']);
     });
 
-    it('ids go to the sets the request sent, by their position in it, not by the current list', () => {
+    it('removing a set while a save is in flight sends the others with their own ids', () => {
       createComponentWithNoId();
       loadWorkout('w83', [card('c1', 'ex1', 'Back Squat', [5])]);
       const [squat] = component.cards;
@@ -954,34 +837,28 @@ describe('WorkoutLoggerPage', () => {
       const first = pendingPatch('w83');
       const firstBody = JSON.parse(JSON.stringify(first.request.body));
 
-      // The loaded set is removed before the response arrives
       component.removeSet(loaded);
       first.flush(savedResponse('w83', firstBody, names));
 
-      expect(added.id).toBe('c1-new2');
-      expect(patchBody('w83').exercises[0].sets.map((s: any) => s.id)).toEqual(['c1-new2']);
+      expect(patchBody('w83').exercises[0].sets.map((s: any) => s.id)).toEqual([added.id]);
     });
 
-    it('a failed save leaves ids unchanged and the next save still goes out', () => {
+    it('a failed save keeps the change and its ids, with no connection toast, and sends the same body again', () => {
       createComponentWithNoId();
       loadWorkout('w84', [card('c1', 'ex1', 'Back Squat', [5])]);
       component.addExercises([{ id: 'ex2', name: 'Row' }]);
-      const [squat, row] = component.cards;
+      const [, row] = component.cards;
 
       addSet(row, 60, 8);
-      pendingPatch('w84').flush('failed', { status: 500, statusText: 'Server Error' });
+      const failed = pendingPatch('w84');
+      const body = JSON.parse(JSON.stringify(failed.request.body));
+      failed.flush('failed', { status: 500, statusText: 'Server Error' });
 
-      expect(toastControllerSpy.create).toHaveBeenCalled();
-      expect(squat.id).toBe('c1');
-      expect(squat.sets.map((s) => s.id)).toEqual(['c1-s1']);
-      expect(row.id).toBeUndefined();
-      expect(row.sets.map((s) => s.id)).toEqual([undefined]);
+      expect(toastControllerSpy.create).not.toHaveBeenCalled();
+      expect(row.sets.length).toBe(1);
 
-      addSet(squat, 100, 3);
-      const next = patchBody('w84');
-      expect(next.exercises[0].sets.map((s: any) => s.id)).toEqual(['c1-s1', undefined]);
-      expect('id' in next.exercises[1]).toBeFalse();
-      expect('id' in next.exercises[1].sets[0]).toBeFalse();
+      void outbox().replay();
+      expect(patchBody('w84')).toEqual(body);
     });
   });
 
@@ -1017,7 +894,9 @@ describe('WorkoutLoggerPage', () => {
         'Bench Press',
       ]);
       expect(component.cards.every((c) => c.supersetGroup === null)).toBeTrue();
-      expect(component.cards.every((c) => c.id === undefined)).toBeTrue();
+      // Each card has its own id from the start; nothing is sent until a set
+      expect(component.cards.every((c) => uuid.test(c.id))).toBeTrue();
+      expect(component.cards[0].id).not.toBe(component.cards[1].id);
       httpTesting.expectNone(
         (req) => req.url === workoutsUrl || req.url.startsWith(`${workoutsUrl}/`),
       );
@@ -1112,15 +991,13 @@ describe('WorkoutLoggerPage', () => {
       a.newWeight = 100;
       a.newReps = 5;
       component.addSetToExercise(a);
-      httpTesting
-        .expectOne((req) => req.method === 'POST' && req.url === workoutsUrl)
-        .flush({ id: 'w9', name: 'New Workout', date: new Date().toISOString(), exercises: [] });
-      expect(cardSummary(patchBody('w9'))).toEqual([['ex1', 1, id, [5]]]);
+      const w9 = answerCreate();
+      expect(cardSummary(patchBody(w9))).toEqual([['ex1', 1, id, [5]]]);
 
       b.newWeight = 60;
       b.newReps = 10;
       component.addSetToExercise(b);
-      expect(cardSummary(patchBody('w9'))).toEqual([
+      expect(cardSummary(patchBody(w9))).toEqual([
         ['ex1', 1, id, [5]],
         ['ex2', 2, id, [10]],
       ]);
@@ -1317,7 +1194,7 @@ describe('WorkoutLoggerPage', () => {
         ]);
         expect(body.exercises[0].sets.map((s: any) => [s.id, s.order])).toEqual([
           ['c1-s1', 1],
-          [undefined, 2],
+          [bench.sets[1].id, 2],
         ]);
       });
 
@@ -1333,7 +1210,8 @@ describe('WorkoutLoggerPage', () => {
         );
         const [curl, , row] = component.cards;
 
-        // The later card gets its set first, then the earlier one while the POST is pending
+        // The later card gets its set first, then the earlier one while the POST is pending;
+        // each save sends the cards with sets by position
         row.newWeight = 60;
         row.newReps = 8;
         component.addSetToExercise(row);
@@ -1341,10 +1219,9 @@ describe('WorkoutLoggerPage', () => {
         curl.newReps = 10;
         component.addSetToExercise(curl);
 
-        httpTesting
-          .expectOne((req) => req.method === 'POST' && req.url === workoutsUrl)
-          .flush({ id: 'w44', name: 'New Workout', date: new Date().toISOString(), exercises: [] });
-        expect(cardSummary(patchBody('w44'))).toEqual([
+        const w44 = answerCreate();
+        expect(cardSummary(patchBody(w44))).toEqual([['ex2', 1, row.supersetGroup, [8]]]);
+        expect(cardSummary(patchBody(w44))).toEqual([
           ['ex3', 1, null, [10]],
           ['ex2', 2, row.supersetGroup, [8]],
         ]);
@@ -2075,15 +1952,17 @@ describe('WorkoutLoggerPage', () => {
       expect(resultBody('a1', 's4')).toEqual({ made: true, actualReps: null, actualWeight: null });
     });
 
-    it('a failed result save shows a toast, keeps the value and still sends the next queued save', () => {
+    it('a failed result save keeps the value with no connection toast, and sends it again before the next queued save', () => {
       loadAssigned();
 
       madeButtons()[2].click();
       madeButtons()[2].click();
       resultRequests('a1', 's3')[0].flush('failed', { status: 500, statusText: 'Server Error' });
 
-      expect(toastControllerSpy.create).toHaveBeenCalled();
+      expect(toastControllerSpy.create).not.toHaveBeenCalled();
       expect(component.cards[0].sets[2].made).toBeFalse();
+      void outbox().replay();
+      expect(resultBody('a1', 's3')).toEqual({ made: true, actualReps: null, actualWeight: null });
       expect(resultBody('a1', 's3')).toEqual({ made: false, actualReps: null, actualWeight: null });
     });
 
@@ -2113,18 +1992,20 @@ describe('WorkoutLoggerPage', () => {
       const req = httpTesting.expectOne(
         (r) => r.method === 'POST' && r.url === `${workoutsUrl}/a1/cards/c2/sets`,
       );
-      expect(req.request.body).toEqual({ reps: 7, weight: 90, made: true });
+      const added = squat2.sets[1].id;
+      expect(added).toMatch(uuid);
+      expect(req.request.body).toEqual({ id: added, reps: 7, weight: 90, made: true });
       expect(squat2.sets.length).toBe(2);
       expect(squat2.newWeight).toBeNull();
-      req.flush({ ...plannedSet('s7', 7, 90, true), order: 2, workoutExerciseId: 'c2' });
+      req.flush({ ...plannedSet(added, 7, 90, true), order: 2, workoutExerciseId: 'c2' });
 
-      expect(squat2.sets[1].id).toBe('s7');
+      expect(squat2.sets[1].id).toBe(added);
       fixture.detectChanges();
       expect(setRows().length).toBe(7);
       httpTesting.expectNone((r) => r.url === `${workoutsUrl}/a1`);
     });
 
-    it('a result tapped on a set whose add is still pending waits for the POST, then PATCHes the new id', () => {
+    it('a result tapped on a set whose add is still pending waits for the POST, then PATCHes the same id', () => {
       loadAssigned();
       const squat2 = component.cards[1];
       squat2.newWeight = 90;
@@ -2135,26 +2016,38 @@ describe('WorkoutLoggerPage', () => {
       madeButtons()[4].click(); // the new set: made -> missed
       httpTesting.expectNone((r) => r.method === 'PATCH');
 
+      const added = squat2.sets[1].id;
       httpTesting
         .expectOne((r) => r.method === 'POST' && r.url === `${workoutsUrl}/a1/cards/c2/sets`)
-        .flush({ ...plannedSet('s7', 7, 90, true), order: 2 });
+        .flush({ ...plannedSet(added, 7, 90, true), order: 2 });
 
-      expect(resultBody('a1', 's7')).toEqual({ made: false, actualReps: null, actualWeight: null });
+      expect(resultBody('a1', added)).toEqual({ made: false, actualReps: null, actualWeight: null });
     });
 
-    it('a failed Add set removes the set and shows a toast', () => {
+    it('a failed Add set keeps the set, shows no connection toast, and posts it again with the same id', () => {
       loadAssigned();
       const squat2 = component.cards[1];
       squat2.newWeight = 90;
       squat2.newReps = 7;
       component.addSetToExercise(squat2);
+      const added = squat2.sets[1].id;
 
-      httpTesting
-        .expectOne((r) => r.method === 'POST' && r.url === `${workoutsUrl}/a1/cards/c2/sets`)
-        .flush('failed', { status: 500, statusText: 'Server Error' });
+      const failed = httpTesting.expectOne(
+        (r) => r.method === 'POST' && r.url === `${workoutsUrl}/a1/cards/c2/sets`,
+      );
+      const body = JSON.parse(JSON.stringify(failed.request.body));
+      failed.flush('failed', { status: 500, statusText: 'Server Error' });
 
-      expect(squat2.sets.map((s) => s.id)).toEqual(['s4']);
-      expect(toastControllerSpy.create).toHaveBeenCalled();
+      expect(squat2.sets.map((s) => s.id)).toEqual(['s4', added]);
+      expect(toastControllerSpy.create).not.toHaveBeenCalled();
+
+      void outbox().replay();
+      const retry = httpTesting.expectOne(
+        (r) => r.method === 'POST' && r.url === `${workoutsUrl}/a1/cards/c2/sets`,
+      );
+      expect(retry.request.body).toEqual(body);
+      expect(body.id).toBe(added);
+      retry.flush({ ...plannedSet(added, 7, 90, true), order: 2 });
     });
 
     it('Finish sends a PATCH with only status COMPLETED, then goes to the dashboard', () => {
@@ -2195,8 +2088,8 @@ describe('WorkoutLoggerPage', () => {
       const req = httpTesting.expectOne(
         (r) => r.method === 'POST' && r.url === `${workoutsUrl}/a1/cards/c2/sets`,
       );
-      expect(req.request.body).toEqual({ reps: 5, weight: 102.06, made: true });
-      req.flush({ id: 's-new' });
+      expect(req.request.body).toEqual({ id: squat.sets[1].id, reps: 5, weight: 102.06, made: true });
+      req.flush({ id: squat.sets[1].id });
     });
   });
 
@@ -2316,7 +2209,7 @@ describe('WorkoutLoggerPage', () => {
       squat.newWeight = 120;
       squat.newReps = 1;
       component.addSetToExercise(squat);
-      flushSave('w91', ['c1-new2']);
+      flushSave('w91', [squat.sets[1].id]);
       expect(trophies()).toEqual([false, true]);
 
       component.toggleSetCompletion(squat.sets[1]);
@@ -2332,10 +2225,8 @@ describe('WorkoutLoggerPage', () => {
       squat.newReps = 1;
       component.addSetToExercise(squat);
 
-      httpTesting
-        .expectOne((r) => r.method === 'POST' && r.url === workoutsUrl)
-        .flush({ id: 'w92', name: 'New Workout', date: new Date().toISOString(), exercises: [] });
-      flushSave('w92', ['w92-new1-new1']);
+      const w92 = answerCreate();
+      flushSave(w92, [squat.sets[0].id]);
 
       expect(trophies()).toEqual([true]);
     });
@@ -2429,10 +2320,9 @@ describe('WorkoutLoggerPage', () => {
         component.addSetToExercise(squat);
         httpTesting
           .expectOne((r) => r.method === 'POST' && r.url === `${workoutsUrl}/a9/cards/c1/sets`)
-          .flush({ ...assignedSet('s3', { made: true, weight: 125, pb: true }), order: 3 });
+          .flush({ ...assignedSet(squat.sets[2].id, { made: true, weight: 125, pb: true }), order: 3 });
         fixture.detectChanges();
 
-        expect(squat.sets[2].id).toBe('s3');
         expect(trophies()).toEqual([false, false, true]);
       });
 
@@ -2475,14 +2365,13 @@ describe('WorkoutLoggerPage', () => {
         httpTesting
           .expectOne((r) => r.method === 'POST' && r.url === `${workoutsUrl}/a9/cards/c1/sets`)
           .flush({
-            ...assignedSet('s3', { made: true, weight: 125 }),
+            ...assignedSet(loggerCard.sets[2].id, { made: true, weight: 125 }),
             order: 3,
             pb: true,
-            workoutPb: { hasPb: true, pbSetIds: ['s2', 's3'] },
+            workoutPb: { hasPb: true, pbSetIds: ['s2', loggerCard.sets[2].id] },
           });
         fixture.detectChanges();
 
-        expect(loggerCard.sets[2].id).toBe('s3');
         expect(trophies()).toEqual([false, true, true]);
       });
     });
@@ -2852,6 +2741,8 @@ describe('WorkoutLoggerPage', () => {
   describe('leaving to the dashboard', () => {
     afterEach(() => {
       localStorage.removeItem('token');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
     });
 
     const cases = [
@@ -2885,10 +2776,10 @@ describe('WorkoutLoggerPage', () => {
           component.addSetToExercise(c);
           component.completeWorkout();
 
-          httpTesting
-            .expectOne((req) => req.method === 'POST' && req.url === workoutsUrl)
-            .flush({ id: 'w2', name: 'New Workout', date: new Date().toISOString(), exercises: [] });
-          expect(patchBody('w2').status).toBe('COMPLETED');
+          const w2 = answerCreate();
+          expect(patchBody(w2).status).toBe('IN_PROGRESS');
+          expect(router.navigate).not.toHaveBeenCalledWith([url]);
+          expect(patchBody(w2).status).toBe('COMPLETED');
 
           expect(router.navigate).toHaveBeenCalledWith([url]);
         });
@@ -2941,27 +2832,24 @@ describe('WorkoutLoggerPage', () => {
       c.newWeight = 100;
       c.newReps = 5;
       component.addSetToExercise(c);
-      const postReq = httpTesting.expectOne(
-        (req) => req.method === 'POST' && req.url === workoutsUrl,
-      );
-
       component.completeWorkout();
-      postReq.flush({ id: 'w10', name: 'New Workout', date: new Date().toISOString(), exercises: [] });
-      httpTesting
-        .expectOne((req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w10`)
-        .flush({});
+      const w10 = answerCreate();
+      patchBody(w10);
+      expect(completed).not.toHaveBeenCalled();
+      patchBody(w10);
 
-      expect(completed).toHaveBeenCalledOnceWith('w10');
+      expect(completed).toHaveBeenCalledOnceWith(w10);
     });
 
-    it('keeps the workout when completing fails', () => {
+    it('keeps the workout when the API turns the completion away', () => {
       createComponentWithNoId();
       loadWorkout('w11', [card('c1', 'ex1', 'Bench Press', [5])]);
 
       component.completeWorkout();
       httpTesting
         .expectOne((req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w11`)
-        .flush('failed', { status: 500, statusText: 'Server Error' });
+        .flush('gone', { status: 404, statusText: 'Not Found' });
+      fixture.detectChanges();
 
       expect(completed).not.toHaveBeenCalled();
     });
@@ -3313,7 +3201,7 @@ describe('WorkoutLoggerPage', () => {
         expect(patchBody('w132').exercises[0].sets).toEqual([
           { id: 'c1-s1', reps: 5, weight: 90, order: 1, made: true },
           { id: 'c1-s2', reps: 3, weight: 90, order: 2, made: true },
-          { reps: 3, weight: 90, order: 3, made: null },
+          { id: component.cards[0].sets[2].id, reps: 3, weight: 90, order: 3, made: null },
         ]);
         fixture.detectChanges();
         expect(rows().length).toBe(3);
@@ -3332,9 +3220,11 @@ describe('WorkoutLoggerPage', () => {
         const post = httpTesting.expectOne(
           (r) => r.method === 'POST' && r.url === `${workoutsUrl}/a130/cards/c1/sets`,
         );
-        expect(post.request.body).toEqual({ reps: 5, weight: 100, made: null });
-        post.flush({ ...setOf('s2', 5, 100, null), order: 2 });
-        expect(component.cards[0].sets.map((s) => s.id)).toEqual(['s1', 's2']);
+        const added = component.cards[0].sets[1].id;
+        expect(added).toMatch(uuid);
+        expect(post.request.body).toEqual({ id: added, reps: 5, weight: 100, made: null });
+        post.flush({ ...setOf(added, 5, 100, null), order: 2 });
+        expect(component.cards[0].sets.map((s) => s.id)).toEqual(['s1', added]);
       });
 
       it("a card without sets shows an entry row whose tick logs the first set", () => {
@@ -3681,15 +3571,13 @@ describe('WorkoutLoggerPage', () => {
       c.newWeight = 100;
       c.newReps = 5;
       component.addSetToExercise(c);
-      httpTesting
-        .expectOne((req) => req.method === 'POST' && req.url === workoutsUrl)
-        .flush({ id: 'w304', name: 'New Workout', date: new Date().toISOString(), exercises: [] });
+      const w304 = answerCreate();
       fixture.detectChanges();
       expect(elapsed()).toBeNull();
 
       httpTesting
-        .expectOne((req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/w304`)
-        .flush({ ...workoutResponse('w304', []), startedAt: ago(0) });
+        .expectOne((req) => req.method === 'PATCH' && req.url === `${workoutsUrl}/${w304}`)
+        .flush({ ...workoutResponse(w304, []), startedAt: ago(0) });
       fixture.detectChanges();
       expect(elapsedText()).toBe('Elapsed 0:00');
       fixture.destroy();

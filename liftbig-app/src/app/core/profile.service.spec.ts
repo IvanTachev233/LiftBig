@@ -106,11 +106,13 @@ describe('ProfileService', () => {
         newPassword: 'new-secret',
       });
       const token = fakeToken('CLIENT', { id: 'u1' });
-      req.flush({ access_token: token });
+      req.flush({ access_token: token, refresh_token: 'r1' });
       expect(done).toBeTrue();
       expect(TestBed.inject(AuthService).getToken()).toBe(token);
-      expect(localStorage.getItem('token')).toBe(token);
-      localStorage.removeItem('token');
+      expect(localStorage.getItem('access_token')).toBe(token);
+      expect(localStorage.getItem('refresh_token')).toBe('r1');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
     });
 
     it('deletes the account with DELETE /users/me and the password in the body', () => {

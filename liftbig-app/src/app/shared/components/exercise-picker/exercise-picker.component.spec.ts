@@ -11,6 +11,9 @@ import { CreateExerciseModalComponent } from '../create-exercise-modal/create-ex
 import { AuthService, User } from '../../../core/auth.service';
 import { Exercise } from '../../../core/workout.service';
 import { environment } from '../../../../environments/environment';
+import { OUTBOX_PLATFORM } from '../../../core/outbox.service';
+import { FakeOutboxPlatform } from '../../../core/outbox.testing';
+import { ReadCacheService } from '../../../core/read-cache.service';
 
 describe('ExercisePickerComponent', () => {
   let component: ExercisePickerComponent;
@@ -116,6 +119,7 @@ describe('ExercisePickerComponent', () => {
         provideHttpClientTesting(),
         { provide: ModalController, useValue: modalCtrlSpy },
         { provide: AuthService, useValue: { currentUser: () => currentUser } },
+        { provide: OUTBOX_PLATFORM, useValue: new FakeOutboxPlatform() },
       ],
     })
       // IonicModule provides its own ModalController to standalone components,
@@ -142,6 +146,19 @@ describe('ExercisePickerComponent', () => {
       const req = httpMock.expectOne(`${environment.apiUrl}/workouts/exercises`);
       expect(req.request.method).toBe('GET');
       req.flush(exercises.slice(0, 2));
+      expect(rowNames()).toEqual(['Back Squat', 'Bench Press']);
+    });
+
+    it('lists the exercises last loaded on this phone when there is no connection', async () => {
+      await TestBed.inject(ReadCacheService).start();
+      setup({ exercises: undefined });
+      httpMock.expectOne(`${environment.apiUrl}/workouts/exercises`).flush(exercises.slice(0, 2));
+
+      setup({ exercises: undefined });
+      httpMock
+        .expectOne(`${environment.apiUrl}/workouts/exercises`)
+        .error(new ProgressEvent('error'), { status: 0, statusText: '' });
+      expect(el().querySelector('.load-error')).toBeNull();
       expect(rowNames()).toEqual(['Back Squat', 'Bench Press']);
     });
 

@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   IonicModule,
@@ -11,9 +11,13 @@ import { ActivatedRoute } from '@angular/router';
 import { addIcons } from 'ionicons';
 import { trophy } from 'ionicons/icons';
 import {
+  AddSetRequest,
+  CreateWorkoutRequest,
   Exercise,
   PbBars,
+  SetResultRequest,
   SetWriteResponse,
+  UpdateWorkoutRequest,
   Workout,
   WorkoutCardInput,
   WorkoutService,
@@ -24,17 +28,14 @@ import {
 } from '../../core/workout.service';
 import {
   Observable,
-  Subject,
+  Subscription,
   switchMap,
   BehaviorSubject,
   of,
   EMPTY,
   shareReplay,
   map,
-  concatMap,
   catchError,
-  tap,
-  finalize,
 } from 'rxjs';
 import {
   ExercisePickerComponent,
@@ -47,6 +48,10 @@ import {
 } from '../../shared/superset';
 import { ActiveWorkoutService } from '../../core/active-workout.service';
 import { AuthService } from '../../core/auth.service';
+import { newClientId } from '../../core/client-id';
+import { OutboxEntry, OutboxResult, OutboxService } from '../../core/outbox.service';
+import { WorkoutCopyService } from '../../core/workout-copy.service';
+import { ReadCacheService } from '../../core/read-cache.service';
 import { predictPb, PbLift } from '../../shared/pb-predict';
 import { ExerciseHistoryModalComponent } from '../../shared/components/exercise-history-modal/exercise-history-modal.component';
 import { WeightUnitService } from '../../core/weight-unit.service';
@@ -62,8 +67,8 @@ import { RestBarComponent } from './rest-bar.component';
 let nextPageId = 0;
 
 interface LoggerSet {
-  // From the API; absent until the save that creates the set returns
-  id?: string;
+  // From the API, or made by the app for a new set
+  id: string;
   // Planned reps and weight
   reps: number;
   weight: number | null;
@@ -84,8 +89,8 @@ interface LoggerSet {
 }
 
 interface LoggerCard {
-  // From the API; absent until the save that creates the card returns
-  id?: string;
+  // From the API, or made by the app for a new card
+  id: string;
   exerciseId: string;
   exerciseName: string;
   sets: LoggerSet[];
@@ -102,6 +107,7 @@ interface LoggerCard {
 }
 
 interface LoggerWorkout {
+  // Made by the app when a draft gets its first set
   id?: string;
   name: string;
   date: string;
@@ -117,12 +123,6 @@ interface LoggerWorkout {
   // In display order
   cards: LoggerCard[];
   _pendingComplete?: boolean;
-}
-
-// A card as a save sent it, with its sets at that moment
-interface SentCard {
-  card: LoggerCard;
-  sets: LoggerSet[];
 }
 
 const MADE_STATES = {
@@ -142,8 +142,6 @@ const MADE_STATES = {
     label: 'No result. Tap to mark as made',
   },
 };
-
-type QueuedRequest = () => Observable<unknown>;
 
 import { ConfirmSheetService } from '../../shared/ui/confirm-sheet.component';
 @Component({
@@ -174,6 +172,9 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
   private overflowMenu = inject(OverflowMenuService);
   readonly units = inject(WeightUnitService);
   private restTime = inject(RestTimeService);
+  private outbox = inject(OutboxService);
+  private copies = inject(WorkoutCopyService);
+  private cache = inject(ReadCacheService);
 
   // Rest countdown, started when a set is logged
   readonly rest = new RestTimer();
@@ -193,8 +194,18 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
 
   workoutSubject = new BehaviorSubject<LoggerWorkout | null>(null);
 
-  // Drafts whose create request is pending; prevents duplicate creates
-  private inFlightCreates = new Set<LoggerWorkout>();
+  // Whose changes the header counts, also after the session ends
+  private userId = this.authService.currentUser()?.id;
+
+  /** The outbox's state for the header */
+  readonly saveState = computed(() => {
+    const state = this.outbox.state();
+    if (state === 'saving') return 'Saving…';
+    // Signed out, e.g. the session ended: the changes still wait here
+    const n = Math.max(this.outbox.pendingCount(), this.userId ? this.outbox.countFor(this.userId) : 0);
+    if (state === 'idle' && n === 0) return 'Saved';
+    return `Offline · ${n} ${n === 1 ? 'change' : 'changes'} on this phone`;
+  });
 
   // Prevents a double tap from opening two pickers
   private pickerOpen = false;
@@ -205,44 +216,39 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
   // Cards opened or closed by a tap; the others follow the first unlogged set
   private toggled = new Map<LoggerCard, boolean>();
 
-  // Set results and added sets of an assigned workout run one at a time, so
-  // responses apply in the order the server saved them
-  private setWrites = new Subject<QueuedRequest>();
-
   // Ticks on every local change to a set's result, values or trophy
   private pbClock = 0;
   // pbClock as of the newest write that has finished
   private pbAnsweredAt = 0;
+  // pbClock when each body this page queued was built; bodies queued before
+  // the app restarted count as built before any change
+  private bodyClock = new WeakMap<object, number>();
 
-  // Card saves run one at a time, so each sends the ids the previous one
-  // returned; each request handles its own errors
-  private cardSaves = new Subject<QueuedRequest>();
+  // The workout whose Finish waits for its save
+  private finishing = signal<string | null>(null);
+  private results: Subscription;
 
   constructor() {
     // Bundled so a new PB's trophy shows without fetching its SVG
     addIcons({ trophy });
-    this.cardSaves
-      .pipe(concatMap((send) => send().pipe(catchError(() => EMPTY))))
-      .subscribe();
-    this.setWrites
-      .pipe(
-        concatMap((send) =>
-          send().pipe(
-            catchError(() => {
-              this.presentSaveErrorToast();
-              return EMPTY;
-            }),
-          ),
-        ),
-      )
-      .subscribe();
+    this.results = this.outbox.completed$.subscribe((result) => this.onResult(result));
+    // Without a connection Finish doesn't wait: the change is on the phone
+    effect(() => {
+      const id = this.finishing();
+      if (id && this.outbox.state() === 'offline') untracked(() => this.finishedOffline(id));
+    });
   }
 
   ngOnInit() {
-    this.exercises$ = this.workoutService
-      .getExercises()
+    // Without a connection, the lists and workouts last loaded on this phone
+    this.exercises$ = this.cache
+      .read('exercises', this.workoutService.getExercises())
       .pipe(shareReplay(1));
-    this.exercises$.subscribe((exs) => (this.exercisesList = exs));
+    this.exercises$.subscribe({
+      next: (exs) => (this.exercisesList = exs),
+      // Left empty; the picker then loads the list itself and can retry
+      error: () => undefined,
+    });
 
     this.workout$ = this.route.queryParams.pipe(
       switchMap((params) => {
@@ -253,9 +259,18 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
             // Already loaded; keep local cards and inputs
             return EMPTY;
           }
-          return this.workoutService
-            .getWorkout(id)
-            .pipe(map((w) => this.toLoggerWorkout(w)));
+          // While changes wait on this phone, its copy is the newer one
+          const local = this.copies.get(id);
+          if (local) return of(this.toLoggerWorkout(local));
+          const listed = () => this.cache.get<Workout[]>('workouts')?.find((w) => w.id === id);
+          return this.cache.read(`workout:${id}`, this.workoutService.getWorkout(id), listed).pipe(
+            // The request may have signed in a user whose copy now shows
+            map((w) => this.toLoggerWorkout(this.copies.get(id) ?? w)),
+            catchError(() => {
+              const copy = this.copies.get(id);
+              return copy ? of(this.toLoggerWorkout(copy)) : EMPTY;
+            }),
+          );
         }
         return of(this.buildDraftWorkout());
       }),
@@ -274,9 +289,8 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.rest.stop();
     this.elapsed.stop();
-    // Requests already queued still go out
-    this.setWrites.complete();
-    this.cardSaves.complete();
+    // Queued changes still go out
+    this.results.unsubscribe();
   }
 
   /** Exercise cards of the shown workout, in display order */
@@ -385,6 +399,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
         this.exercisesList = [...this.exercisesList, ex];
       }
       currentWorkout.cards.push({
+        id: newClientId(),
         exerciseId: ex.id,
         exerciseName: ex.name || 'Exercise',
         sets: [],
@@ -506,6 +521,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     if (!currentWorkout) return;
 
     const set: LoggerSet = {
+      id: newClientId(),
       weight: this.units.toKg(card.newWeight),
       // The API takes whole reps
       reps: Math.max(1, Math.round(Number(card.newReps))),
@@ -529,6 +545,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     const last = card.sets[card.sets.length - 1];
     if (!currentWorkout || !last) return;
     const set: LoggerSet = {
+      id: newClientId(),
       reps: last.reps,
       weight: last.weight,
       made: null,
@@ -549,9 +566,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     }
 
     if (!workout.id) {
-      if (!this.inFlightCreates.has(workout)) {
-        this.createDraftWorkout(workout);
-      }
+      this.createWorkout(workout);
       return;
     }
 
@@ -583,82 +598,28 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     this.saveCards();
   }
 
-  private createDraftWorkout(draft: LoggerWorkout) {
-    this.inFlightCreates.add(draft);
-    this.workoutService
-      .createWorkout({
-        name: this.workoutName,
-        date: draft.date,
-      })
-      .subscribe({
-        next: (created) => {
-          draft.id = created.id;
-          this.inFlightCreates.delete(draft);
-
-          // Always save the draft; only update the view if it's still shown
-          const isCurrent = this.workoutSubject.value === draft;
-          const completing = !!draft._pendingComplete;
-          const patchName = isCurrent ? this.workoutName : draft.name;
-
-          this.cardSaves.next(() => {
-            const sent = this.sentCards(draft.cards);
-            const sentAt = this.pbClock;
-            return this.workoutService
-              .updateWorkout(created.id, {
-                name: patchName,
-                date: draft.date,
-                exercises: this.cardsBody(sent),
-                status: completing ? 'COMPLETED' : 'IN_PROGRESS',
-              })
-              .pipe(
-                finalize(() => this.answered(sentAt)),
-                tap({
-                  next: (saved) => {
-                    this.adoptIds(sent, saved, sentAt);
-                    this.adoptStart(draft, saved?.startedAt);
-                    if (completing) {
-                      draft._pendingComplete = false;
-                      draft.status = 'COMPLETED';
-                      this.activeWorkout.completed(created.id);
-                      if (isCurrent) {
-                        this.workoutSubject.next(draft);
-                        this.syncElapsed();
-                        this.router.navigate([this.dashboardUrl()]);
-                      }
-                      return;
-                    }
-                    if (isCurrent) {
-                      this.router.navigate([], {
-                        relativeTo: this.route,
-                        queryParams: { id: created.id },
-                        replaceUrl: true,
-                      });
-                    }
-                  },
-                  error: () => {
-                    if (completing) {
-                      draft._pendingComplete = false;
-                      if (isCurrent) {
-                        this.workoutSubject.next(draft);
-                      }
-                    }
-                    this.presentSaveErrorToast();
-                  },
-                }),
-              );
-          });
-        },
-        error: () => {
-          this.inFlightCreates.delete(draft);
-          if (draft._pendingComplete) {
-            draft._pendingComplete = false;
-            if (this.workoutSubject.value === draft) {
-              this.workoutSubject.next(draft);
-            }
-          }
-          this.presentSaveErrorToast();
-        },
-      });
+  /**
+   * Gives a draft its id and queues its create, then its name, date, cards
+   * and IN_PROGRESS; the address shows the id so a reload opens it
+   */
+  private createWorkout(draft: LoggerWorkout) {
+    const id = newClientId();
+    draft.id = id;
+    draft.name = this.workoutName;
+    const create: CreateWorkoutRequest = { id, name: draft.name, date: draft.date };
+    this.send(draft, 'POST', '/workouts', create);
+    const first: UpdateWorkoutRequest = {
+      name: draft.name,
+      date: draft.date,
+      exercises: this.cardsBody(draft.cards),
+      status: 'IN_PROGRESS',
+    };
+    this.send(draft, 'PATCH', `/workouts/${id}`, first);
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { id },
+      replaceUrl: true,
+    });
   }
 
   removeSet(set: LoggerSet) {
@@ -749,60 +710,26 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     return this.units.format(weight);
   }
 
-  /** Sends the set's whole result, queued behind its earlier requests */
+  /** Queues the set's whole result behind the workout's earlier changes */
   private saveResult(set: LoggerSet) {
     const workout = this.workoutSubject.value;
-    const workoutId = workout?.id;
-    if (!workout || !workoutId) return;
+    if (!workout?.id) return;
     // The API takes whole reps; an empty input means "as planned"
     set.actualReps = this.toNumber(set.actualReps, true);
     set.actualWeight = this.toNumber(set.actualWeight);
     this.predictPb(set);
-    const body = {
+    const body: SetResultRequest = {
       made: set.made,
       actualReps: set.actualReps,
       actualWeight: this.units.toKg(set.actualWeight),
     };
-    // Set writes go in order, so the server has every change made before this one
-    const sentAt = this.pbClock;
-    // The id is read when the request runs: a pending add sets it first
-    this.setWrites.next(() =>
-      set.id
-        ? this.workoutService.updateSetResult(workoutId, set.id, body).pipe(
-            finalize(() => this.answered(sentAt)),
-            tap((saved) => {
-              this.adoptPbs(workoutId, set, saved, sentAt);
-              this.adoptStart(workout, saved?.workoutStartedAt);
-            }),
-          )
-        : EMPTY,
-    );
+    this.send(workout, 'PATCH', `/workouts/${workout.id}/sets/${set.id}`, body);
   }
 
   private addAssignedSet(workout: LoggerWorkout, card: LoggerCard, set: LoggerSet) {
-    if (!workout.id || !card.id) return;
-    const { id: workoutId } = workout;
-    const cardId = card.id;
-    // Built when it runs, so the body and sentAt see the same changes
-    this.setWrites.next(() => {
-      const sentAt = this.pbClock;
-      return this.workoutService
-        .addSet(workoutId, cardId, { reps: set.reps, weight: set.weight, made: set.made })
-        .pipe(
-          finalize(() => this.answered(sentAt)),
-          tap({
-            next: (saved) => {
-              set.id = saved.id;
-              this.adoptPbs(workoutId, set, saved, sentAt);
-              this.adoptStart(workout, saved?.workoutStartedAt);
-            },
-            error: () => {
-              const i = card.sets.indexOf(set);
-              if (i >= 0) card.sets.splice(i, 1);
-            },
-          }),
-        );
-    });
+    if (!workout.id) return;
+    const body: AddSetRequest = { id: set.id, reps: set.reps, weight: set.weight, made: set.made };
+    this.send(workout, 'POST', `/workouts/${workout.id}/cards/${card.id}/sets`, body);
   }
 
   private toNumber(value: unknown, whole = false): number | null {
@@ -817,9 +744,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     if (!currentWorkout || this.workoutName === currentWorkout.name) return;
     currentWorkout.name = this.workoutName;
     if (!currentWorkout.id) return;
-    this.workoutService
-      .updateWorkout(currentWorkout.id, { name: this.workoutName })
-      .subscribe({ error: () => this.presentSaveErrorToast() });
+    this.send(currentWorkout, 'PATCH', `/workouts/${currentWorkout.id}`, { name: this.workoutName });
   }
 
   updateWorkoutDate(event: any) {
@@ -828,11 +753,13 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     if (!currentWorkout) return;
     currentWorkout.date = newDate;
     if (!currentWorkout.id) return;
-    this.workoutService
-      .updateWorkout(currentWorkout.id, { date: newDate })
-      .subscribe({ error: () => this.presentSaveErrorToast() });
+    this.send(currentWorkout, 'PATCH', `/workouts/${currentWorkout.id}`, { date: newDate });
   }
 
+  /**
+   * Queues the completion. Online, the logger closes once it is saved;
+   * without a connection it closes at once and the change syncs later.
+   */
   completeWorkout() {
     const currentWorkout = this.workoutSubject.value;
     if (!currentWorkout || currentWorkout._pendingComplete) return;
@@ -846,35 +773,32 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
         this.router.navigate([this.dashboardUrl()]);
         return;
       }
-
-      // Unsaved draft with sets: create it, then mark it completed
-      currentWorkout._pendingComplete = true;
-      this.workoutSubject.next(currentWorkout);
-      if (!this.inFlightCreates.has(currentWorkout)) {
-        this.createDraftWorkout(currentWorkout);
-      }
-      return;
+      this.createWorkout(currentWorkout);
     }
 
     currentWorkout._pendingComplete = true;
     this.workoutSubject.next(currentWorkout);
-    this.workoutService
-      .updateWorkout(currentWorkout.id, { status: 'COMPLETED' })
-      .subscribe({
-        next: () => {
-          currentWorkout._pendingComplete = false;
-          currentWorkout.status = 'COMPLETED';
-          this.activeWorkout.completed(currentWorkout.id!);
-          this.workoutSubject.next(currentWorkout);
-          this.syncElapsed();
-          this.router.navigate([this.dashboardUrl()]);
-        },
-        error: () => {
-          currentWorkout._pendingComplete = false;
-          this.workoutSubject.next(currentWorkout);
-          this.presentSaveErrorToast();
-        },
-      });
+    this.finishing.set(currentWorkout.id!);
+    const body: UpdateWorkoutRequest = { status: 'COMPLETED' };
+    this.send(currentWorkout, 'PATCH', `/workouts/${currentWorkout.id}`, body);
+  }
+
+  /** The completion was saved, or is waiting on the phone: shows it done and closes */
+  private finished(workout: LoggerWorkout) {
+    workout._pendingComplete = false;
+    workout.status = 'COMPLETED';
+    this.activeWorkout.completed(workout.id!);
+    this.workoutSubject.next(workout);
+    this.syncElapsed();
+    this.router.navigate([this.dashboardUrl()]);
+  }
+
+  private finishedOffline(id: string) {
+    this.finishing.set(null);
+    const workout = this.workoutSubject.value;
+    if (workout?.id !== id) return;
+    this.finished(workout);
+    void this.showToast("Finished. It'll sync when you're back online.");
   }
 
   /** Sets with a result, made or missed */
@@ -980,52 +904,126 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     const currentWorkout = this.workoutSubject.value;
     // An assigned workout's cards can't be changed by the client
     if (!currentWorkout || !currentWorkout.id || currentWorkout.assigned) return;
-    const workoutId = currentWorkout.id;
-    // Built when it runs, so it has the cards and ids as they are then
-    this.cardSaves.next(() => {
-      const sent = this.sentCards(currentWorkout.cards);
-      // The body has every change made so far
-      const sentAt = this.pbClock;
-      return this.workoutService
-        .updateWorkout(workoutId, { exercises: this.cardsBody(sent) })
-        .pipe(
-          finalize(() => this.answered(sentAt)),
-          tap({
-            next: (saved) => {
-              this.adoptIds(sent, saved, sentAt);
-              this.adoptStart(currentWorkout, saved?.startedAt);
-            },
-            error: () => this.presentSaveErrorToast(),
-          }),
-        );
-    });
-  }
-
-  /** Cards with sets in display order, as a save sends them */
-  private sentCards(cards: LoggerCard[]): SentCard[] {
-    return cards
-      .filter((card) => card.sets.length > 0)
-      .map((card) => ({ card, sets: [...card.sets] }));
+    const body: UpdateWorkoutRequest = { exercises: this.cardsBody(currentWorkout.cards) };
+    this.send(currentWorkout, 'PATCH', `/workouts/${currentWorkout.id}`, body);
   }
 
   /**
-   * Positions from 1. Cards and sets without an id are created by the API.
-   * Actual values are left out, so the API keeps them.
+   * Cards with sets, positions from 1. Every card and set carries its id, so
+   * the same body sent again lands on the same rows. Actual values are left
+   * out, so the API keeps them.
    */
-  private cardsBody(sent: SentCard[]): WorkoutCardInput[] {
-    return sent.map(({ card, sets }, i) => ({
-      ...(card.id ? { id: card.id } : {}),
-      exerciseId: card.exerciseId,
-      order: i + 1,
-      supersetGroup: card.supersetGroup,
-      sets: sets.map((set, j) => ({
-        ...(set.id ? { id: set.id } : {}),
-        reps: set.reps,
-        weight: set.weight,
-        order: j + 1,
-        made: set.made,
+  private cardsBody(cards: LoggerCard[]): WorkoutCardInput[] {
+    return cards
+      .filter((card) => card.sets.length > 0)
+      .map((card, i) => ({
+        id: card.id,
+        exerciseId: card.exerciseId,
+        order: i + 1,
+        supersetGroup: card.supersetGroup,
+        sets: card.sets.map((set, j) => ({
+          id: set.id,
+          reps: set.reps,
+          weight: set.weight,
+          order: j + 1,
+          made: set.made,
+        })),
+      }));
+  }
+
+  /**
+   * Stores the workout as it now is on the phone, then queues the write in
+   * the outbox, which sends it in order once it can
+   */
+  private send(workout: LoggerWorkout, method: OutboxEntry['method'], path: string, body: object) {
+    if (!workout.id) return;
+    this.bodyClock.set(body, this.pbClock);
+    this.copies.save(this.toWorkout(workout));
+    // Fails only with nobody signed in, when the session-ended alert is up
+    this.outbox
+      .enqueue({ method, path, body, workoutId: workout.id, label: workout.name })
+      .catch(() => undefined);
+  }
+
+  /** Applies an answered write to the shown workout */
+  private onResult(result: OutboxResult) {
+    const { entry } = result;
+    const body = (entry.body ?? {}) as Record<string, unknown>;
+    const sentAt = this.bodyClock.get(body) ?? 0;
+    this.answered(sentAt);
+    const workout = this.workoutSubject.value;
+    const workoutPath = `/workouts/${entry.workoutId}`;
+
+    if (entry.method === 'PATCH' && entry.path === workoutPath && body['status'] === 'COMPLETED') {
+      if (this.finishing() !== entry.workoutId) return;
+      this.finishing.set(null);
+      if (workout?.id !== entry.workoutId) return;
+      if (result.outcome === 'saved') {
+        this.finished(workout);
+      } else {
+        workout._pendingComplete = false;
+        this.workoutSubject.next(workout);
+      }
+      return;
+    }
+    const workoutId = workout?.id;
+    if (result.outcome !== 'saved' || !workout || !workoutId || workoutId !== entry.workoutId) return;
+
+    if (entry.path === workoutPath) {
+      const saved = result.response as Workout | null;
+      if (body['exercises']) this.adoptSaved(saved, sentAt);
+      this.adoptStart(workout, saved?.startedAt);
+      return;
+    }
+    if (entry.path.startsWith(`${workoutPath}/`) && entry.path.includes('/sets')) {
+      const saved = result.response as SetWriteResponse | null;
+      const setId = entry.method === 'POST' ? body['id'] : entry.path.split('/').pop();
+      const set = this.cards.reduce<LoggerSet[]>((all, c) => all.concat(c.sets), []).find((s) => s.id === setId);
+      if (set) this.adoptPbs(workoutId, set, saved, sentAt);
+      this.adoptStart(workout, saved?.workoutStartedAt);
+    }
+  }
+
+  /** The workout as the API shapes it, for the device copy */
+  private toWorkout(w: LoggerWorkout): Workout {
+    return {
+      id: w.id!,
+      name: w.name,
+      date: w.date,
+      // Changes are waiting, so it has started
+      status: w.status === 'COMPLETED' || w._pendingComplete ? 'COMPLETED' : 'IN_PROGRESS',
+      startedAt: w.startedAt,
+      totalWeightLifted: 0,
+      assignedById: null,
+      assignedBy: w.coachName ? { id: '', name: w.coachName } : null,
+      source: w.source,
+      program:
+        w.programName !== null || w.enrollmentId !== null
+          ? { enrollmentId: w.enrollmentId ?? '', name: w.programName ?? '' }
+          : null,
+      exercises: w.cards.map((card, i) => ({
+        id: card.id,
+        exerciseId: card.exerciseId,
+        exercise: { id: card.exerciseId, name: card.exerciseName, isMaxTrackable: card.isMaxTrackable },
+        order: i + 1,
+        supersetGroup: card.supersetGroup,
+        notes: card.notes,
+        pbBars: card.pbBars,
+        sets: card.sets.map((set, j) => ({
+          id: set.id,
+          reps: set.reps,
+          weight: set.weight,
+          order: j + 1,
+          made: set.made,
+          actualReps: set.actualReps,
+          actualWeight: this.units.toKg(set.actualWeight),
+          notes: set.notes,
+          prescribedPercent: set.prescribedPercent ?? null,
+          referenceExerciseId: set.referenceExerciseId ?? null,
+          pb: set.pb,
+        })),
       })),
-    }));
+    };
   }
 
   /**
@@ -1059,28 +1057,20 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     };
   }
 
-  /**
-   * Gives the cards and sets a save sent the ids the API saved them under,
-   * matched by the positions they were sent at. Cards and sets added since
-   * get theirs from the next save.
-   */
-  private adoptIds(sent: SentCard[], saved: Workout | null, sentAt: number) {
-    const savedCards = saved?.exercises ?? [];
-    sent.forEach(({ card, sets }, i) => {
-      const savedCard = savedCards.find((c) => c.order === i + 1);
-      if (!savedCard) return;
-      card.id = savedCard.id;
+  /** Bars and trophies from a cards save's answer, matched by id */
+  private adoptSaved(saved: Workout | null, sentAt: number) {
+    for (const savedCard of saved?.exercises ?? []) {
+      const card = this.cards.find((c) => c.id === savedCard.id);
+      if (!card) continue;
       // A save sent before the exercise was replaced has the old bars
       if (savedCard.pbBars && savedCard.exerciseId === card.exerciseId) {
         card.pbBars = savedCard.pbBars;
       }
-      sets.forEach((set, j) => {
-        const savedSet = savedCard.sets?.find((s) => s.order === j + 1);
-        if (!savedSet) return;
-        set.id = savedSet.id;
-        this.adoptPb(set, !!savedSet.pb, sentAt);
-      });
-    });
+      for (const savedSet of savedCard.sets ?? []) {
+        const set = card.sets.find((s) => s.id === savedSet.id);
+        if (set) this.adoptPb(set, !!savedSet.pb, sentAt);
+      }
+    }
   }
 
   /**
@@ -1102,7 +1092,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     if (this.workoutSubject.value?.id !== workoutId) return;
     for (const card of this.cards) {
       for (const s of card.sets) {
-        if (s.id) this.adoptPb(s, pbSetIds.includes(s.id), sentAt);
+        this.adoptPb(s, pbSetIds.includes(s.id), sentAt);
       }
     }
   }
@@ -1133,12 +1123,12 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     this.pbAnsweredAt = Math.max(this.pbAnsweredAt, sentAt);
   }
 
-  private async presentSaveErrorToast() {
-    const toast = await this.toastController.create({
-      message: "Couldn't save workout. Check your connection.",
-      duration: 2500,
-      color: 'danger',
-    });
-    await toast.present();
+  private async showToast(message: string) {
+    try {
+      const toast = await this.toastController.create({ message, duration: 2500 });
+      await toast.present();
+    } catch {
+      // Nothing more to do if the toast can't be shown
+    }
   }
 }
