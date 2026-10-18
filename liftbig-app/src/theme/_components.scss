@@ -23,20 +23,20 @@
 
 // Tab root screens
 .title-screen {
-  font-size: 28px;
+  font-size: var(--fs-title-screen);
   line-height: 1.15;
   letter-spacing: -0.02em;
 }
 
 // Pushed screens
 .title-detail {
-  font-size: 26px;
+  font-size: var(--fs-title-detail);
   line-height: 1.15;
   letter-spacing: -0.02em;
 }
 
 .title-card {
-  font-size: 22px;
+  font-size: var(--fs-title-card);
   line-height: 1.2;
   letter-spacing: -0.01em;
 }

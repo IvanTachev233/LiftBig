@@ -15,8 +15,8 @@ ol {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 8px 0;
+  gap: clamp(3px, 3px + 3 * var(--fluid-h), 6px);
+  padding: clamp(4px, 4px + 4 * var(--fluid-h), 8px) 0;
   border-radius: 12px;
 
   span {

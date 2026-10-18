@@ -37,7 +37,7 @@
               @if (client.assignedCount !== undefined) {
                 <span class="client-last">
                   @if (client.lastWorkout; as last) {
-                    Last workout {{ last.date | date: 'EEE d MMM' : 'UTC' }} · {{ last.name }}
+                    Last workout {{ last.date | date: 'EEE d MMM' : 'UTC' }} · <span class="client-last-name">{{ last.name }}</span>
                   } @else if (client.assignedCount) {
                     No workout started yet
                   } @else {

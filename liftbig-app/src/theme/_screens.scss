@@ -61,7 +61,7 @@ ion-header.tab-header .tab-header-filters {
 }
 
 ion-header.large-title {
-  margin-bottom: 18px;
+  margin-bottom: var(--gap-section);
 
   ion-toolbar {
     --background: var(--bg);
@@ -74,7 +74,7 @@ ion-header.large-title {
 
   ion-title {
     padding: 0;
-    font-size: 28px;
+    font-size: var(--fs-title-screen);
     font-weight: 600;
     line-height: 1.15;
     letter-spacing: -0.02em;
@@ -136,6 +136,12 @@ ion-header.screen-header ion-title {
 // [fill] outranks the global clear-button accent colour
 ion-header.screen-header :is(ion-back-button, ion-button[fill]) {
   --color: var(--text-soft);
+}
+
+// Workout names in the logger and editor headers: a long name ends in an
+// ellipsis instead of being cut off (Ionic's input inherits text-overflow)
+ion-input.workout-name-input input.native-input {
+  text-overflow: ellipsis;
 }
 
 // A plain <button> laid out by its content: rows, cards, banners

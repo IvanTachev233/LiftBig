@@ -31,7 +31,7 @@ ion-input.workout-name-input {
   --placeholder-color: var(--placeholder);
   --placeholder-opacity: 1;
   min-height: 44px;
-  font-size: 26px;
+  font-size: var(--fs-title-detail);
   font-weight: 600;
   letter-spacing: -0.02em;
 }

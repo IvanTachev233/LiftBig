@@ -52,7 +52,7 @@
 }
 
 .session-row {
-  padding: 0 14px;
+  padding: 0 clamp(10px, 10px + 4 * var(--fluid), 14px);
   border: 1px solid transparent;
   border-radius: 16px;
   background: var(--surface);
