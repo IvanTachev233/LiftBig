@@ -32,6 +32,8 @@ describe('AppComponent', () => {
 
   afterEach(() => {
     localStorage.removeItem('token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
   });
 
   it('should create the app', () => {

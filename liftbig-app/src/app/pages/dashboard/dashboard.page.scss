@@ -5,15 +5,16 @@
   color: var(--text-2);
 }
 
+// Spacing shrinks on short and narrow phones so Up next stays in view
 app-week-strip {
-  margin-bottom: 18px;
+  margin-bottom: var(--gap-section);
 }
 
 .today-card {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px;
+  gap: clamp(10px, 10px + 6 * var(--fluid-h), 16px);
+  padding: clamp(14px, 14px + 6 * var(--fluid-h), 20px) clamp(16px, 16px + 4 * var(--fluid), 20px);
   border-radius: var(--radius-lg);
 }
 
@@ -32,7 +33,7 @@ app-week-strip {
   justify-content: space-between;
   align-items: baseline;
   gap: 12px;
-  padding: 10px 0;
+  padding: clamp(6px, 6px + 4 * var(--fluid-h), 10px) 0;
   border-top: 1px solid var(--line);
 }
 
@@ -57,15 +58,19 @@ app-week-strip {
   color: var(--text-2);
 }
 
+.start-btn {
+  height: clamp(44px, 44px + 8 * var(--fluid-h), 52px);
+}
+
 .empty-workout-btn {
-  margin-top: 8px;
+  margin-top: clamp(0px, 8 * var(--fluid-h), 8px);
 }
 
 .up-next {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 22px;
+  gap: clamp(6px, 6px + 4 * var(--fluid-h), 10px);
+  margin-top: clamp(12px, 12px + 10 * var(--fluid-h), 22px);
 }
 
 .section-head {
@@ -113,7 +118,7 @@ app-week-strip {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-top: 18px;
+  margin-top: var(--gap-section);
   padding: 12px 14px;
   border: 1px solid var(--pr-tint);
   border-radius: var(--radius-md);

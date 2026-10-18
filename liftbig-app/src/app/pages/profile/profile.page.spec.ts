@@ -5,10 +5,14 @@ import {
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { provideRouter, Router } from '@angular/router';
-import { ToastController } from '@ionic/angular';
+import { AlertController, ToastController } from '@ionic/angular';
 import { environment } from '../../../environments/environment';
 import { AuthService, User } from '../../core/auth.service';
 import { fakeToken } from '../../core/auth.testing';
+import { OUTBOX_PLATFORM, OutboxService } from '../../core/outbox.service';
+import { FakeOutboxPlatform } from '../../core/outbox.testing';
+import { ReadCacheService } from '../../core/read-cache.service';
+import { WorkoutCopyService } from '../../core/workout-copy.service';
 import { RestTimeService } from '../../core/rest-time';
 import { THEME_KEY } from '../../core/theme.service';
 import { WeightUnitService } from '../../core/weight-unit.service';
@@ -25,6 +29,7 @@ describe('ProfilePage', () => {
   let http: HttpTestingController;
   let toastCtrl: jasmine.SpyObj<ToastController>;
   let sheet: jasmine.SpyObj<BottomSheetService>;
+  let platform: FakeOutboxPlatform;
   const url = `${environment.apiUrl}/users/me`;
   const profile = {
     id: 'u1',
@@ -38,6 +43,7 @@ describe('ProfilePage', () => {
     toastCtrl = jasmine.createSpyObj('ToastController', ['create']);
     toastCtrl.create.and.resolveTo({ present: () => Promise.resolve() } as any);
     sheet = jasmine.createSpyObj('BottomSheetService', ['open']);
+    platform = new FakeOutboxPlatform();
     TestBed.configureTestingModule({
       imports: [ProfilePage],
       providers: [
@@ -46,6 +52,7 @@ describe('ProfilePage', () => {
         provideRouter([]),
         { provide: ToastController, useValue: toastCtrl },
         { provide: BottomSheetService, useValue: sheet },
+        { provide: OUTBOX_PLATFORM, useValue: platform },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -59,6 +66,8 @@ describe('ProfilePage', () => {
   afterEach(() => {
     http.verify();
     localStorage.removeItem('token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     localStorage.removeItem(THEME_KEY);
     document.documentElement.removeAttribute('data-theme');
     document.documentElement.classList.remove('ion-palette-dark');
@@ -120,6 +129,64 @@ describe('ProfilePage', () => {
       expect(TestBed.inject(AuthService).isAuthenticated()).toBe(false);
       expect(localStorage.getItem('token')).toBeNull();
       expect(navigate).toHaveBeenCalledWith(['/login']);
+    });
+
+    describe('with changes waiting', () => {
+      let alertCreate: jasmine.Spy;
+      let navigate: jasmine.Spy;
+
+      /** Two changes stored for u1 that can't be sent yet */
+      async function queueTwo() {
+        const outbox = TestBed.inject(OutboxService);
+        await outbox.start();
+        for (const n of [1, 2]) {
+          await outbox.enqueue({ method: 'PATCH', path: '/workouts/w1', body: { n }, workoutId: 'w1', label: 'Leg day' });
+        }
+        await fixture.whenStable();
+        http.match((r) => r.url.startsWith(`${environment.apiUrl}/workouts`));
+      }
+
+      function answerAlert(role: string) {
+        alertCreate = spyOn(TestBed.inject(AlertController), 'create').and.resolveTo({
+          present: () => Promise.resolve(),
+          onDidDismiss: () => Promise.resolve({ role }),
+        } as unknown as HTMLIonAlertElement);
+      }
+
+      beforeEach(async () => {
+        TestBed.inject(AuthService).setSession(fakeToken('CLIENT', { id: 'u1' }));
+        navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+        await queueTwo();
+      });
+
+      it('asks first, and Stay keeps the session', async () => {
+        answerAlert('cancel');
+        (fixture.nativeElement.querySelector('.logout-btn') as HTMLElement).click();
+        await fixture.whenStable();
+
+        expect(alertCreate).toHaveBeenCalledWith(
+          jasmine.objectContaining({
+            message: "2 changes haven't been saved yet. If you log out now they'll be lost.",
+            buttons: [
+              { text: 'Stay', role: 'cancel' },
+              { text: 'Log out anyway', role: 'destructive' },
+            ],
+          }),
+        );
+        expect(TestBed.inject(AuthService).isAuthenticated()).toBeTrue();
+        expect(navigate).not.toHaveBeenCalled();
+      });
+
+      it("Log out anyway signs out and leaves the changes stored for that user", async () => {
+        answerAlert('destructive');
+        (fixture.nativeElement.querySelector('.logout-btn') as HTMLElement).click();
+        await fixture.whenStable();
+
+        expect(TestBed.inject(AuthService).isAuthenticated()).toBeFalse();
+        expect(navigate).toHaveBeenCalledWith(['/login']);
+        expect(JSON.parse(platform.data.get('outbox.u1')!).length).toBe(2);
+        expect(TestBed.inject(OutboxService).countFor('u1')).toBe(2);
+      });
     });
   });
 
@@ -434,6 +501,28 @@ describe('ProfilePage', () => {
       expect(toastCtrl.create).toHaveBeenCalledWith(
         jasmine.objectContaining({ message: 'Account deleted', color: 'success' }),
       );
+    });
+
+    it("forgets the deleted user's waiting changes, workout copies and cached answers on this phone", async () => {
+      TestBed.inject(AuthService).setSession(fakeToken('CLIENT', { id: 'u1' }));
+      spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+      const outbox = TestBed.inject(OutboxService);
+      await outbox.start();
+      await outbox.enqueue({ method: 'PATCH', path: '/workouts/w1', body: {}, workoutId: 'w1', label: 'Leg day' });
+      await fixture.whenStable();
+      http.match((r) => r.url.startsWith(`${environment.apiUrl}/workouts`));
+      const forgetCopies = spyOn(TestBed.inject(WorkoutCopyService), 'forget').and.callThrough();
+      const forgetAnswers = spyOn(TestBed.inject(ReadCacheService), 'forget').and.callThrough();
+
+      sheet.open.and.resolveTo({ data: true, role: 'confirm' });
+      await component.openDeleteAccount();
+      await fixture.whenStable();
+
+      expect(outbox.countFor('u1')).toBe(0);
+      expect(platform.data.has('outbox.u1')).toBeFalse();
+      expect(forgetCopies).toHaveBeenCalledOnceWith('u1');
+      expect(forgetAnswers).toHaveBeenCalledOnceWith('u1');
+      expect(TestBed.inject(AuthService).isAuthenticated()).toBe(false);
     });
 
     it('keeps the session when the sheet is closed', async () => {

@@ -111,9 +111,20 @@ $light: map.merge(
   --radius-lg: 20px;
   --radius-sheet: 24px;
   --space: 4px;
-  --gutter: 20px;
-  --gutter-dense: 16px;
+  // Fluid sizes: 0 at a 320px viewport, 1px at 390px and up the handoff's
+  // size, e.g. clamp(16px, 16px + 4 * var(--fluid), 20px) is 20px at 390px
+  --fluid: calc((100vw - 320px) / 70);
+  // The same over the height: 0 at 568px, 1px at 844px and up
+  --fluid-h: calc((100vh - 568px) / 276);
+  --gutter: clamp(16px, 16px + 4 * var(--fluid), 20px);
+  --gutter-dense: clamp(12px, 12px + 4 * var(--fluid), 16px);
   --tap: 44px;
+  // Card and bar side padding on dense screens; space between sections
+  --pad-dense: clamp(8px, 8px + 4 * var(--fluid), 12px);
+  --gap-section: clamp(10px, 10px + 8 * var(--fluid-h), 18px);
+  --fs-title-screen: clamp(24px, 24px + 4 * var(--fluid), 28px);
+  --fs-title-detail: clamp(22px, 22px + 4 * var(--fluid), 26px);
+  --fs-title-card: clamp(19px, 19px + 3 * var(--fluid), 22px);
 
   // Old "Midnight Momentum" names still used by page styles
   --bg-deep: var(--bg);

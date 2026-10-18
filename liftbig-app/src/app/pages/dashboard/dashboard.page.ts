@@ -1,12 +1,16 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonicModule, ViewWillEnter } from '@ionic/angular';
 import { Router, RouterModule } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { AuthService } from '../../core/auth.service';
 import { Workout, WorkoutCard, WorkoutService, sourceBadge } from '../../core/workout.service';
 import { Enrollment, ProgramService, sessionPosition } from '../../core/program.service';
 import { BestLift, LiftService } from '../../core/lift.service';
 import { ProfileService } from '../../core/profile.service';
 import { WeightUnitService } from '../../core/weight-unit.service';
+import { WorkoutCopyService } from '../../core/workout-copy.service';
+import { ReadCacheService } from '../../core/read-cache.service';
 import { DateBlockRowComponent } from '../../shared/ui/date-block-row.component';
 import { WeekStripComponent } from '../../shared/ui/week-strip.component';
 import { LargeTitleComponent } from '../../shared/ui/large-title.component';
@@ -29,12 +33,15 @@ import { StripDay, greeting, recentPr, todayWorkout, upNext, weekStrip } from '.
     LargeTitleComponent,
   ],
 })
-export class DashboardPage implements ViewWillEnter {
+export class DashboardPage implements ViewWillEnter, OnDestroy {
   private workoutService = inject(WorkoutService);
   private programService = inject(ProgramService);
   private liftService = inject(LiftService);
   private profileService = inject(ProfileService);
   private router = inject(Router);
+  private auth = inject(AuthService);
+  private copies = inject(WorkoutCopyService);
+  private cache = inject(ReadCacheService);
   readonly units = inject(WeightUnitService);
 
   now = new Date();
@@ -50,34 +57,68 @@ export class DashboardPage implements ViewWillEnter {
 
   private workouts: Workout[] = [];
   private exerciseNames: Map<string, string> | null = null;
+  // Whose answers the page shows, and the requests of the current visit
+  private shownFor: string | undefined;
+  private requests = new Subscription();
 
-  // Runs on every visit; cached pages don't re-run ngOnInit
+  // Runs on every visit; cached pages don't re-run ngOnInit. The page
+  // outlives a sign-out, so answers only count for the user they were asked
+  // for, and a new visit drops the last one's requests.
   ionViewWillEnter() {
+    this.requests.unsubscribe();
+    this.requests = new Subscription();
     this.now = new Date();
-    this.workoutService.getAllWorkouts().subscribe({
-      next: (workouts) => {
-        this.workouts = workouts;
-        this.loaded = true;
-        this.refresh();
-        this.namePr();
-      },
-      error: () => (this.loaded = true),
-    });
-    this.programService.getActive().subscribe({
-      next: ({ active }) => (this.active = active?.status === 'ACTIVE' ? active : null),
-      error: () => undefined,
-    });
-    this.liftService.getBests().subscribe({
-      next: (bests) => {
-        this.pr = recentPr(bests, this.now);
-        this.namePr();
-      },
-      error: () => undefined,
-    });
-    this.profileService.getMe().subscribe({
-      next: (profile) => (this.name = profile.name),
-      error: () => (this.name = null),
-    });
+    const userId = this.auth.currentUser()?.id;
+    if (userId !== this.shownFor) this.clear(userId);
+    const forUser =
+      <T>(apply: (value: T) => void) =>
+      (value: T) => {
+        if (this.auth.currentUser()?.id === userId) apply(value);
+      };
+
+    this.requests.add(
+      // Without a connection, the list last loaded on this phone
+      this.cache.read('workouts', this.workoutService.getAllWorkouts()).subscribe({
+        // Workouts with changes waiting on this phone show as they are here
+        next: forUser((workouts: Workout[]) => {
+          this.workouts = this.copies.overlay(workouts);
+          this.loaded = true;
+          this.refresh();
+          this.namePr();
+        }),
+        // Keeps this user's last list
+        error: forUser(() => {
+          this.workouts = this.copies.overlay(this.workouts);
+          this.loaded = true;
+          this.refresh();
+        }),
+      }),
+    );
+    this.requests.add(
+      this.programService.getActive().subscribe({
+        next: forUser(({ active }: { active: Enrollment | null }) => (this.active = active?.status === 'ACTIVE' ? active : null)),
+        error: () => undefined,
+      }),
+    );
+    this.requests.add(
+      this.liftService.getBests().subscribe({
+        next: forUser((bests: BestLift[]) => {
+          this.pr = recentPr(bests, this.now);
+          this.namePr();
+        }),
+        error: () => undefined,
+      }),
+    );
+    this.requests.add(
+      this.profileService.getMe().subscribe({
+        next: forUser((profile: { name: string | null }) => (this.name = profile.name)),
+        error: forUser(() => (this.name = null)),
+      }),
+    );
+  }
+
+  ngOnDestroy() {
+    this.requests.unsubscribe();
   }
 
   get greeting(): string {
@@ -116,6 +157,19 @@ export class DashboardPage implements ViewWillEnter {
 
   openPr() {
     if (this.pr) this.router.navigate(['/history/lifts', this.pr.exerciseId]);
+  }
+
+  /** Starts over for another user, so nothing of the last one shows */
+  private clear(userId: string | undefined) {
+    this.shownFor = userId;
+    this.loaded = false;
+    this.workouts = [];
+    this.name = null;
+    this.active = null;
+    this.pr = null;
+    this.prName = null;
+    this.exerciseNames = null;
+    this.refresh();
   }
 
   private refresh() {

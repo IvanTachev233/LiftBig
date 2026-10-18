@@ -29,6 +29,10 @@
             ><span class="visually-hidden">Elapsed </span>{{ formatElapsed(elapsedSeconds) }}</span
           >
         }
+        @if (workout.id) {
+          @let state = saveState();
+          <span class="save-state" role="status" [class.offline]="state.startsWith('Offline')">{{ state }}</span>
+        }
       </div>
       <ion-buttons slot="end">
         @if (workout.status === 'COMPLETED') {

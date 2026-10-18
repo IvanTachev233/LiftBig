@@ -10,6 +10,10 @@ import { environment } from '../../../../environments/environment';
 import { ActiveWorkoutService } from '../../../core/active-workout.service';
 import { AuthService } from '../../../core/auth.service';
 import { fakeToken } from '../../../core/auth.testing';
+import { OutboxService } from '../../../core/outbox.service';
+import { FakeOutboxPlatform, InstantOutbox } from '../../../core/outbox.testing';
+import { OUTBOX_PLATFORM } from '../../../core/outbox.service';
+import { WorkoutCopyService } from '../../../core/workout-copy.service';
 import { Workout, WorkoutStatus } from '../../../core/workout.service';
 import { ResumeBarComponent } from './resume-bar.component';
 
@@ -31,7 +35,13 @@ describe('ResumeBarComponent', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       imports: [ResumeBarComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: OutboxService, useClass: InstantOutbox },
+        { provide: OUTBOX_PLATFORM, useValue: new FakeOutboxPlatform() },
+      ],
     });
     http = TestBed.inject(HttpTestingController);
     TestBed.inject(AuthService).setSession(fakeToken('CLIENT'));
@@ -42,6 +52,8 @@ describe('ResumeBarComponent', () => {
   afterEach(() => {
     http.verify();
     localStorage.removeItem('token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
   });
 
   const bar = () => fixture.nativeElement.querySelector('.resume-bar') as HTMLElement | null;
@@ -92,6 +104,16 @@ describe('ResumeBarComponent', () => {
     TestBed.inject(ActiveWorkoutService).completed('w1');
     fixture.detectChanges();
     expect(bar()).toBeNull();
+  });
+
+  it('shows a workout whose changes are still waiting on this phone', () => {
+    load([]);
+    const outbox = TestBed.inject(OutboxService) as unknown as InstantOutbox;
+    outbox.online.set(false);
+    TestBed.inject(WorkoutCopyService).save(listed('w9', 'IN_PROGRESS', '2026-10-09T12:00:00'));
+    void outbox.enqueue({ method: 'POST', path: '/workouts', body: { id: 'w9' }, workoutId: 'w9', label: 'w9' });
+    fixture.detectChanges();
+    expect(bar()?.textContent).toContain('Workout in progress');
   });
 
   it('never shows for a coach', () => {

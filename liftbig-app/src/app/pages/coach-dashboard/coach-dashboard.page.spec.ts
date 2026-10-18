@@ -252,6 +252,15 @@ describe('CoachDashboardPage', () => {
       expect(card.querySelector('app-progress-bar')!.getAttribute('aria-hidden')).toBe('true');
     });
 
+    it('puts the last workout name in its own element, so a narrow card wraps it whole', () => {
+      enterAndFlush([
+        withSummary('c1', 'Alice', 4, 1, { date: '2026-10-07T00:00:00.000Z', name: 'Bench focus' }),
+      ]);
+
+      const [card] = cards();
+      expect(card.querySelector('.client-last .client-last-name')?.textContent).toBe('Bench focus');
+    });
+
     it('says when nothing was started yet, and shows no bar without assigned workouts', () => {
       enterAndFlush([withSummary('c1', 'Alice', 3, 0), withSummary('c2', 'Bob', 0, 0)]);
 

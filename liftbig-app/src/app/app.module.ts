@@ -10,6 +10,7 @@ import { AppComponent } from './app.component';
 import { AppRoutingModule } from './app-routing.module';
 import { authInterceptor } from './core/auth.interceptor';
 import { ThemeService } from './core/theme.service';
+import { startUp } from './core/startup';
 
 @NgModule({
   declarations: [AppComponent],
@@ -23,6 +24,7 @@ import { ThemeService } from './core/theme.service';
   providers: [
     provideHttpClient(withInterceptors([authInterceptor])),
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
+    provideAppInitializer(startUp),
     provideAppInitializer(() => inject(ThemeService).init()),
   ],
   bootstrap: [AppComponent],

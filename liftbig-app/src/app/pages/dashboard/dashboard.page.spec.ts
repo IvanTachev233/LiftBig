@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import {
   HttpTestingController,
+  TestRequest,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { Router, provideRouter } from '@angular/router';
@@ -10,6 +11,13 @@ import { Workout, WorkoutCard, WorkoutSource, WorkoutStatus } from '../../core/w
 import { BestLift } from '../../core/lift.service';
 import { WeightUnitService } from '../../core/weight-unit.service';
 import { environment } from '../../../environments/environment';
+import { AuthService } from '../../core/auth.service';
+import { fakeToken } from '../../core/auth.testing';
+import { OutboxService } from '../../core/outbox.service';
+import { FakeOutboxPlatform, InstantOutbox } from '../../core/outbox.testing';
+import { OUTBOX_PLATFORM } from '../../core/outbox.service';
+import { ReadCacheService } from '../../core/read-cache.service';
+import { WorkoutCopyService } from '../../core/workout-copy.service';
 
 const api = environment.apiUrl;
 
@@ -68,7 +76,13 @@ describe('DashboardPage (Today)', () => {
     jasmine.clock().mockDate(NOW);
     TestBed.configureTestingModule({
       imports: [DashboardPage],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: OutboxService, useClass: InstantOutbox },
+        { provide: OUTBOX_PLATFORM, useValue: new FakeOutboxPlatform() },
+      ],
     });
     fixture = TestBed.createComponent(DashboardPage);
     component = fixture.componentInstance;
@@ -159,6 +173,84 @@ describe('DashboardPage (Today)', () => {
     });
   });
 
+  describe('switching users', () => {
+    const signIn = (id: string) => TestBed.inject(AuthService).setSession(fakeToken('CLIENT', { id }));
+    /** Answers the pending Today requests of one visit; the list for /workouts */
+    function answer(reqs: TestRequest[], list: Workout[]) {
+      for (const req of reqs) {
+        const url = req.request.url;
+        if (url === `${api}/workouts`) req.flush(list);
+        else if (url.endsWith('/program-enrollments/active')) req.flush({ active: null });
+        else if (url.endsWith('/users/me')) req.flush({ name: null, weightUnit: 'kg' });
+        else req.flush([]);
+      }
+      fixture.detectChanges();
+    }
+    const visitRequests = () =>
+      ['/workouts', '/program-enrollments/active', '/lifts/best', '/users/me'].map((p) => httpMock.expectOne(`${api}${p}`));
+
+    afterEach(() => {
+      localStorage.removeItem('access_token');
+    });
+
+    it("never shows the last user's answers that arrive after another user signed in", () => {
+      signIn('userA');
+      component.ionViewWillEnter();
+      const fromA = visitRequests();
+      TestBed.inject(AuthService).logout();
+      signIn('userB');
+      answer(fromA, [workout('a-plan', '2026-10-10')]);
+      expect(text('.today-card .title-card')).not.toBe('Workout a-plan');
+
+      component.ionViewWillEnter();
+      answer(visitRequests(), [workout('b-plan', '2026-10-10')]);
+      expect(text('.today-card .title-card')).toBe('Workout b-plan');
+    });
+
+    it("a new visit replaces the last one's requests, so an older answer can't land after a newer one", () => {
+      signIn('userA');
+      component.ionViewWillEnter();
+      const fromA = visitRequests();
+      signIn('userB');
+      component.ionViewWillEnter();
+      const workoutsReqs = httpMock.match(`${api}/workouts`);
+      expect(fromA.every((r) => r.cancelled)).toBeTrue();
+      expect(workoutsReqs.length).toBe(1);
+      answer(
+        [workoutsReqs[0], ...['/program-enrollments/active', '/lifts/best', '/users/me'].map((p) => httpMock.expectOne(`${api}${p}`))],
+        [workout('b-plan', '2026-10-10')],
+      );
+      expect(text('.today-card .title-card')).toBe('Workout b-plan');
+    });
+
+    it("keeps the same user's list when a reload fails, never another user's", () => {
+      signIn('userA');
+      component.ionViewWillEnter();
+      answer(visitRequests(), [workout('a-plan', '2026-10-10')]);
+
+      component.ionViewWillEnter();
+      const [list, ...rest] = visitRequests();
+      list.flush({}, { status: 500, statusText: 'Error' });
+      answer(rest, []);
+      expect(text('.today-card .title-card')).toBe('Workout a-plan');
+
+      signIn('userB');
+      component.ionViewWillEnter();
+      const [listB, ...restB] = visitRequests();
+      listB.flush({}, { status: 500, statusText: 'Error' });
+      answer(restB, []);
+      expect(el('.today-card.rest-day')).toBeTruthy();
+    });
+
+    it('cancels its requests when the page is destroyed', () => {
+      signIn('userA');
+      component.ionViewWillEnter();
+      const reqs = visitRequests();
+      fixture.destroy();
+      expect(reqs.every((r) => r.cancelled)).toBeTrue();
+    });
+  });
+
   describe('header', () => {
     it('shows the date and greets by first name', () => {
       enter();
@@ -233,6 +325,82 @@ describe('DashboardPage (Today)', () => {
       enter({ workouts: [workout('w2', '2026-10-10', 'IN_PROGRESS', 'manual', [card('Squat', 3, 5, 100)])] });
       expect(text('.today-card .eyebrow')).toBe('Today');
       expect(text('.today-card .start-btn')).toBe('Resume');
+    });
+
+    describe('without a connection', () => {
+      /** Enters the page with every request failing as without a connection */
+      function enterOffline() {
+        component.ionViewWillEnter();
+        for (const path of ['/workouts', '/program-enrollments/active', '/lifts/best', '/users/me']) {
+          httpMock.expectOne(`${api}${path}`).error(new ProgressEvent('error'), { status: 0, statusText: '' });
+        }
+        fixture.detectChanges();
+      }
+
+      beforeEach(async () => {
+        TestBed.inject(AuthService).setSession(fakeToken('CLIENT', { id: 'u1' }));
+        // jasmine's mock clock holds timers; the cache's storage writes use promises only
+        await TestBed.inject(ReadCacheService).start();
+      });
+
+      afterEach(() => {
+        localStorage.removeItem('access_token');
+      });
+
+      it('shows the list last loaded on this phone, and Start session opens it', () => {
+        enter({ workouts: [workout('prog', '2026-10-10', 'PLANNED', 'program', [card('Snatch', 5, 2, 62.5)])] });
+        enterOffline();
+        expect(text('.today-card .title-card')).toBe('Workout prog');
+        (el('.today-card .start-btn') as HTMLElement).click();
+        expect(router.navigate).toHaveBeenCalledWith(['/workout-logger'], { queryParams: { id: 'prog' } });
+      });
+
+      it('prefers the network while online', () => {
+        enter({ workouts: [workout('old', '2026-10-10')] });
+        enter({ workouts: [workout('new', '2026-10-10')] });
+        expect(text('.today-card .title-card')).toBe('Workout new');
+      });
+
+      it("never shows another user's list", () => {
+        enter({ workouts: [workout('mine', '2026-10-10')] });
+        TestBed.inject(AuthService).setSession(fakeToken('CLIENT', { id: 'u2' }));
+        enterOffline();
+        expect(el('.today-card.rest-day')).toBeTruthy();
+      });
+    });
+
+    describe('with changes waiting on this phone', () => {
+      /** The device copy of a workout plus a change that can't be sent yet */
+      function queue(w: Workout) {
+        TestBed.inject(AuthService).setSession(fakeToken('CLIENT', { id: 'u1' }));
+        const outbox = TestBed.inject(OutboxService) as unknown as InstantOutbox;
+        outbox.online.set(false);
+        TestBed.inject(WorkoutCopyService).save(w);
+        void outbox.enqueue({ method: 'PATCH', path: `/workouts/${w.id}`, body: {}, workoutId: w.id, label: w.name });
+      }
+
+      afterEach(() => {
+        localStorage.removeItem('access_token');
+      });
+
+      it('shows Resume for a planned workout started on this phone', () => {
+        queue(workout('coach', '2026-10-10', 'IN_PROGRESS', 'coach', [card('Squat', 3, 5, 100)]));
+        enter({ workouts: [workout('coach', '2026-10-10', 'PLANNED', 'coach', [card('Squat', 3, 5, 100)])] });
+        expect(text('.today-card .title-card')).toBe('Workout coach');
+        expect(text('.today-card .start-btn')).toBe('Resume');
+      });
+
+      it('shows a workout the API has not seen yet, also when the list fails to load', () => {
+        queue(workout('offline', '2026-10-10', 'IN_PROGRESS'));
+        component.ionViewWillEnter();
+        httpMock.expectOne(`${api}/workouts`).error(new ProgressEvent('error'));
+        httpMock.expectOne(`${api}/program-enrollments/active`).error(new ProgressEvent('error'));
+        httpMock.expectOne(`${api}/lifts/best`).error(new ProgressEvent('error'));
+        httpMock.expectOne(`${api}/users/me`).error(new ProgressEvent('error'));
+        fixture.detectChanges();
+        expect(text('.today-card .title-card')).toBe('Workout offline');
+        expect(text('.today-card .start-btn')).toBe('Resume');
+      });
     });
 
     it('shows planned weights in pounds for an lb user', () => {

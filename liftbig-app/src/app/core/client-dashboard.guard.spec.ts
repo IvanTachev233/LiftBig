@@ -39,6 +39,8 @@ describe('clientDashboardGuard', () => {
 
   afterEach(() => {
     localStorage.removeItem('token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
   });
 
   async function open(role: 'COACH' | 'CLIENT', url = '/today') {

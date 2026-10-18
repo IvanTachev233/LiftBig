@@ -4,13 +4,13 @@
   --background: var(--bg);
   --padding-top: 16px;
   --padding-bottom: 8px;
-  --padding-start: 12px;
-  --padding-end: 12px;
+  --padding-start: var(--pad-dense);
+  --padding-end: var(--pad-dense);
 }
 
 // Equal side columns keep the name centred
 ion-buttons {
-  min-width: 64px;
+  min-width: calc(40px + 2 * var(--pad-dense));
 }
 
 ion-buttons[slot='end'] {
@@ -34,9 +34,15 @@ ion-buttons[slot='end'] {
 .workout-name-input {
   --color: var(--text);
   margin: 0;
-  overflow: hidden;
   font-size: 16px;
   font-weight: 600;
+}
+
+// One line each, cut short with an ellipsis
+.workout-title,
+.workout-name-input,
+.save-state {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -47,6 +53,16 @@ ion-buttons[slot='end'] {
   font-size: 20px;
   font-weight: 600;
   line-height: 1.1;
+}
+
+.save-state {
+  display: block;
+  color: var(--text-3);
+  font-size: clamp(11px, 11px + var(--fluid), 12px);
+
+  &.offline {
+    color: var(--pr-text);
+  }
 }
 
 .workout-name-input {
@@ -61,8 +77,8 @@ ion-button.finish-btn {
   --background: var(--success-tint);
   --color: var(--success-text);
   --border-radius: 10px;
-  --padding-start: 14px;
-  --padding-end: 14px;
+  --padding-start: calc(var(--pad-dense) + 2px);
+  --padding-end: calc(var(--pad-dense) + 2px);
   --box-shadow: none;
   height: 36px;
   margin: 0;
@@ -72,8 +88,8 @@ ion-button.finish-btn {
 }
 
 .logger-content {
-  --padding-start: 16px;
-  --padding-end: 16px;
+  --padding-start: var(--gutter-dense);
+  --padding-end: var(--gutter-dense);
   --padding-bottom: 32px;
 }
 

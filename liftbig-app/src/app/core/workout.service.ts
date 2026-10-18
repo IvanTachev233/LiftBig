@@ -106,6 +106,8 @@ export type SetWriteResponse = WorkoutSet & {
 };
 
 export interface CreateWorkoutRequest {
+  // Made by the app; the same id sent again returns the existing workout
+  id?: string;
   name: string;
   date: string;
   notes?: string;
@@ -145,6 +147,8 @@ export interface UpdateWorkoutRequest {
 
 // Appends a set to a card of an own workout, self-made or assigned
 export interface AddSetRequest {
+  // Made by the app; the same id sent again returns the existing set
+  id?: string;
   reps: number;
   weight?: number | null;
   made?: boolean | null;

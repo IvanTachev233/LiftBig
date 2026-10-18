@@ -1,10 +1,13 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { IonicModule, ToastController, ViewWillEnter } from '@ionic/angular';
+import { AlertController, IonicModule, ToastController, ViewWillEnter } from '@ionic/angular';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 import { ClientService } from '../../core/client.service';
+import { OutboxService } from '../../core/outbox.service';
+import { ReadCacheService } from '../../core/read-cache.service';
+import { WorkoutCopyService } from '../../core/workout-copy.service';
 import { Profile, ProfileService } from '../../core/profile.service';
 import { RestTimeService, formatRest } from '../../core/rest-time';
 import { ThemeService, ThemeSetting } from '../../core/theme.service';
@@ -34,6 +37,10 @@ export class ProfilePage implements ViewWillEnter {
   private clientService = inject(ClientService);
   private authService = inject(AuthService);
   private toastController = inject(ToastController);
+  private alertController = inject(AlertController);
+  private outbox = inject(OutboxService);
+  private copies = inject(WorkoutCopyService);
+  private cache = inject(ReadCacheService);
   private bottomSheet = inject(BottomSheetService);
   private router = inject(Router);
   private restTime = inject(RestTimeService);
@@ -160,17 +167,46 @@ export class ProfilePage implements ViewWillEnter {
     });
   }
 
+  /** With changes still waiting on this phone, asks first */
   logout() {
+    const pending = this.outbox.pendingCount();
+    if (pending > 0) {
+      void this.confirmLogout(pending);
+      return;
+    }
     this.authService.logout();
   }
 
-  /** The sheet deletes the account itself; then this device signs out to Login */
+  private async confirmLogout(pending: number) {
+    const changes = pending === 1 ? "1 change hasn't" : `${pending} changes haven't`;
+    const alert = await this.alertController.create({
+      message: `${changes} been saved yet. If you log out now they'll be lost.`,
+      buttons: [
+        { text: 'Stay', role: 'cancel' },
+        { text: 'Log out anyway', role: 'destructive' },
+      ],
+    });
+    await alert.present();
+    const { role } = await alert.onDidDismiss();
+    if (role === 'destructive') this.authService.logout();
+  }
+
+  /**
+   * The sheet deletes the account itself; then this device forgets what it
+   * kept for that account, which can't sign in again, and signs out to Login
+   */
   async openDeleteAccount() {
     const { role } = await this.bottomSheet.open(DeleteAccountSheetComponent, {
       label: 'Delete account',
       props: { isCoach: !this.isClient },
     });
     if (role !== 'confirm') return;
+    const userId = this.user()?.id;
+    if (userId) {
+      void this.outbox.forget(userId);
+      void this.copies.forget(userId);
+      void this.cache.forget(userId);
+    }
     this.authService.logout();
     this.presentToast('Account deleted', 'success');
   }

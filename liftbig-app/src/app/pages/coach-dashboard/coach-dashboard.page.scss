@@ -36,8 +36,8 @@ ion-button.invite-btn {
 .client-card {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px;
+  gap: clamp(10px, 10px + 4 * var(--fluid), 14px);
+  padding: clamp(12px, 12px + 2 * var(--fluid), 14px);
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--surface);
@@ -50,11 +50,11 @@ ion-button.invite-btn {
   display: grid;
   flex-shrink: 0;
   place-items: center;
-  width: 46px;
-  height: 46px;
+  width: clamp(40px, 40px + 6 * var(--fluid), 46px);
+  height: clamp(40px, 40px + 6 * var(--fluid), 46px);
   border-radius: 50%;
   background: var(--surface-2);
-  font-size: 19px;
+  font-size: clamp(17px, 17px + 2 * var(--fluid), 19px);
   font-weight: 600;
 }
 
@@ -80,6 +80,23 @@ ion-button.invite-btn {
   font-size: 12px;
   color: var(--text-2);
   overflow-wrap: anywhere;
+}
+
+// The full email is on the client's screen
+.client-card .client-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// The workout name wraps as a whole, cut short when longer than the line
+.client-last-name {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
 }
 
 .client-progress {

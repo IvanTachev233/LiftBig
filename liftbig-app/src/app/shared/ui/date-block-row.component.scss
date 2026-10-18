@@ -1,7 +1,7 @@
 :host {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: clamp(10px, 10px + 4 * var(--fluid), 14px);
   min-height: 64px;
   color: var(--text);
 }
@@ -50,7 +50,7 @@
 }
 
 .row-title {
-  font-size: 15px;
+  font-size: clamp(14px, 14px + var(--fluid), 15px);
   font-weight: 600;
   color: var(--text);
   overflow-wrap: anywhere;
