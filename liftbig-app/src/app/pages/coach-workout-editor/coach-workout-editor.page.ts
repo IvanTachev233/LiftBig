@@ -544,6 +544,11 @@ export class CoachWorkoutEditorPage implements OnInit {
       this.presentToast('Please fill in all required fields', 'danger');
       return;
     }
+    const wholeReps = (set: SetRow) => Math.round(Number(set.reps ?? NaN));
+    if (this.exerciseGroups.some((g) => g.sets.some((s) => !(wholeReps(s) >= 1)))) {
+      this.presentToast('Every set needs at least 1 rep', 'danger');
+      return;
+    }
 
     // Cards and sets keep their ids so the API updates them in place and
     // keeps the client's results; results are never sent
@@ -556,8 +561,8 @@ export class CoachWorkoutEditorPage implements OnInit {
         ...(this.cardNotesChanged.has(group) ? { notes: this.cardNote(group) || null } : {}),
         sets: group.sets.map((set, si) => ({
           ...(set.id ? { id: set.id } : {}),
-          // The API takes whole reps; an emptied field stays empty
-          reps: set.reps == null ? set.reps : Math.round(Number(set.reps)),
+          // The API takes whole reps
+          reps: wholeReps(set),
           weight: this.units.toKg(set.weight),
           notes: set.notes || null,
           order: si + 1,

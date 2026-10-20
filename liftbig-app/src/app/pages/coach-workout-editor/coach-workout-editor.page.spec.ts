@@ -416,6 +416,36 @@ describe('CoachWorkoutEditorPage', () => {
     expect(navigateSpy).not.toHaveBeenCalled();
   });
 
+  for (const reps of [null, '', 0, 0.4, -2]) {
+    it(`does not save a set with reps ${JSON.stringify(reps)}, and shows a danger toast`, () => {
+      setup({ clientId: 'c1' });
+      component.workoutName = 'Week 1';
+      component.addExercises([{ id: 'ex1', name: 'Bench Press' }]);
+      (component.exerciseGroups[0].sets[0] as { reps: unknown }).reps = reps;
+
+      component.save();
+
+      httpTesting.expectNone(createUrl);
+      expect(toastControllerSpy.create).toHaveBeenCalledWith(
+        jasmine.objectContaining({ message: 'Every set needs at least 1 rep', color: 'danger' }),
+      );
+      expect(navigateSpy).not.toHaveBeenCalled();
+    });
+  }
+
+  it('sends typed reps as a whole number', () => {
+    setup({ clientId: 'c1' });
+    component.workoutName = 'Week 1';
+    component.addExercises([{ id: 'ex1', name: 'Bench Press' }]);
+    (component.exerciseGroups[0].sets[0] as { reps: unknown }).reps = '3.6';
+
+    component.save();
+
+    const req = httpTesting.expectOne(createUrl);
+    expect(req.request.body.exercises[0].sets[0].reps).toBe(4);
+    req.flush(workoutResponse([]));
+  });
+
   it('a failed save shows the API message and stays on the page', () => {
     setupWithWorkout([card('card1', 'ex3', 'Squat', 1, null)]);
 
