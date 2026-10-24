@@ -175,9 +175,11 @@ export class AgreementsService {
   }
 }
 
-/** The API's answer to a version that is no longer current */
+/** The API's answer to a version that is no longer current ("... is out of date") */
 export function isOutdated(error: unknown): boolean {
-  return error instanceof HttpErrorResponse && error.status === 400;
+  if (!(error instanceof HttpErrorResponse) || error.status !== 400) return false;
+  const message: unknown = (error.error as { message?: unknown } | null)?.message;
+  return typeof message === 'string' && message.endsWith('is out of date');
 }
 
 function choice(purpose: ConsentPurpose, granted: boolean): ConsentChoice {

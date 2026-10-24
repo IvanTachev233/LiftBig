@@ -7,6 +7,8 @@ import {
 import { environment } from '../../environments/environment';
 import { AuthService } from './auth.service';
 import { fakeToken } from './auth.testing';
+import { AgreementsService } from './agreements.service';
+import { AGREED } from './agreements.testing';
 import { Profile, ProfileService } from './profile.service';
 import { RestTimeService } from './rest-time';
 import { WeightUnitService } from './weight-unit.service';
@@ -34,6 +36,26 @@ describe('ProfileService', () => {
   });
 
   afterEach(() => http.verify());
+
+  describe('terms acceptance', () => {
+    const pending = { ...profile, ...AGREED, needsAcceptance: ['terms' as const] };
+
+    it("applies the signed-in user's agreement fields", () => {
+      TestBed.inject(AuthService).setSession(fakeToken('CLIENT', { id: 'u1' }));
+      service.getMe().subscribe();
+      http.expectOne(url).flush(pending);
+      expect(TestBed.inject(AgreementsService).pending()).toEqual(['terms']);
+    });
+
+    it('ignores an answer for a user who has since signed out or been replaced', () => {
+      const auth = TestBed.inject(AuthService);
+      auth.setSession(fakeToken('CLIENT', { id: 'u1' }));
+      service.getMe().subscribe();
+      auth.setSession(fakeToken('CLIENT', { id: 'u2' }));
+      http.expectOne(url).flush(pending);
+      expect(TestBed.inject(AgreementsService).status()).toBeNull();
+    });
+  });
 
   it('loads /users/me and applies its unit', () => {
     let loaded: Profile | undefined;

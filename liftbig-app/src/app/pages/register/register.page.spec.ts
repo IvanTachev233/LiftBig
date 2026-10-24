@@ -191,7 +191,7 @@ describe('RegisterPage', () => {
       fillValid();
       agree();
       component.register();
-      (await expectRegister()).flush({ message: 'out of date' }, { status: 400, statusText: 'Bad Request' });
+      (await expectRegister()).flush({ message: 'Terms of Use version 2026-10-21 is out of date' }, { status: 400, statusText: 'Bad Request' });
       component.register();
       (await expectRegister()).flush({ verificationRequired: true, email: 'jane@x.io' }, { status: 201, statusText: 'Created' });
       expect(navigate).toHaveBeenCalled();

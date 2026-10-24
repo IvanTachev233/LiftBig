@@ -13,8 +13,9 @@ import {
 import { AccountActionsService } from '../../../pages/profile/account-actions.service';
 import { AgreementChecksComponent } from '../../ui/agreement-checks.component';
 
-// Heading and intro by what is listed (docs/privacy/consent-texts.md). All
-// three are listed only on the first rollout
+// Heading and intro by what is listed (docs/privacy/consent-texts.md). The
+// first rollout lists all three for a user who has never given the training
+// data consent
 const FIRST_ROLLOUT = {
   heading: "We've updated our terms",
   intro:
@@ -71,7 +72,8 @@ export class TermsUpdateScreenComponent {
   );
   private readonly texts = computed(() => {
     const pending = this.pending();
-    if (pending.length === 3) return FIRST_ROLLOUT;
+    const agreedBefore = !!this.agreements.status()?.consentsUpdatedAt.health_data;
+    if (pending.length === 3 && !agreedBefore) return FIRST_ROLLOUT;
     return (pending.length === 1 && ONLY[pending[0]]) || SOME_CHANGED;
   });
   readonly heading = computed(() => this.texts().heading);

@@ -183,7 +183,7 @@ describe('TermsUpdateScreenComponent', () => {
   it('says the terms changed after a 400, and the next Continue fetches the new versions', async () => {
     show({ ...chosen, needsAcceptance: ['privacy'] });
     continueButton().click();
-    (await expectAcceptance()).flush({ message: 'out of date' }, { status: 400, statusText: 'Bad Request' });
+    (await expectAcceptance()).flush({ message: 'Privacy Policy version 2026-10-21 is out of date' }, { status: 400, statusText: 'Bad Request' });
     await settle();
     expect(toastCtrl.create).toHaveBeenCalledWith(
       jasmine.objectContaining({ message: 'LiftBig\'s terms have just changed. Please read them and try again.' }),
@@ -218,6 +218,12 @@ describe('TermsUpdateScreenComponent', () => {
       ],
       [
         ['privacy', 'health_data'],
+        "We've updated our terms",
+        "We've changed some of what you agreed to. Please read the changes and confirm to keep using LiftBig.",
+      ],
+      // A later release changing all three: this user agreed before
+      [
+        ['terms', 'privacy', 'health_data'],
         "We've updated our terms",
         "We've changed some of what you agreed to. Please read the changes and confirm to keep using LiftBig.",
       ],

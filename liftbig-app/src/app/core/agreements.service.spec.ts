@@ -155,6 +155,23 @@ describe('AgreementsService', () => {
     await second;
   });
 
+  it('keeps the versions after a 400 that is not about them', async () => {
+    const first = firstValueFrom(service.accept({ documents: ['terms'], healthData: false, optional: {} })).catch(
+      (e: unknown) => e,
+    );
+    http.expectOne(`${api}/policies`).flush(POLICIES);
+    await settle();
+    http
+      .expectOne(`${api}/users/me/acceptances`)
+      .flush({ message: ['appVersionCode must not be less than 1'] }, { status: 400, statusText: 'Bad Request' });
+    await first;
+    const second = firstValueFrom(service.accept({ documents: ['terms'], healthData: false, optional: {} }));
+    http.expectNone(`${api}/policies`);
+    await settle();
+    http.expectOne(`${api}/users/me/acceptances`).flush(AGREED);
+    await second;
+  });
+
   it('forgets the versions on request', async () => {
     const first = firstValueFrom(service.policies());
     http.expectOne(`${api}/policies`).flush(POLICIES);

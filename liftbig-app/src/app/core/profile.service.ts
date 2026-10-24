@@ -79,6 +79,7 @@ export class ProfileService {
   private apply(profile: Profile) {
     this.units.setUnit(profile.weightUnit);
     this.restTime.set(profile.restSeconds);
-    this.agreements.apply(profile);
+    // An answer that arrives after a sign-out or another sign-in isn't this user's
+    if (profile.id === this.auth.currentUser()?.id) this.agreements.apply(profile);
   }
 }
