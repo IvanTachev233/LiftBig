@@ -1,4 +1,5 @@
-import { Component, effect, inject, untracked } from '@angular/core';
+import { Component, computed, effect, inject, untracked } from '@angular/core';
+import { AppUpdateService } from './core/app-update.service';
 import { AuthService } from './core/auth.service';
 import { ProfileService } from './core/profile.service';
 import { RestTimeService } from './core/rest-time';
@@ -15,6 +16,10 @@ export class AppComponent {
   private profileService = inject(ProfileService);
   private units = inject(WeightUnitService);
   private restTime = inject(RestTimeService);
+  private updates = inject(AppUpdateService);
+
+  /** While "Update LiftBig" is up, the pages under it can't be reached */
+  readonly updateShown = computed(() => this.updates.state() !== 'none');
 
   constructor() {
     // The weight unit and rest time follow whoever is signed in

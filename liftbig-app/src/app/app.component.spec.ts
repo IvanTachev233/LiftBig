@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import {
@@ -8,6 +8,7 @@ import {
 import { provideRouter, Router } from '@angular/router';
 
 import { AppComponent } from './app.component';
+import { AppUpdate, AppUpdateService } from './core/app-update.service';
 import { AuthService } from './core/auth.service';
 import { fakeToken } from './core/auth.testing';
 import { RestTimeService } from './core/rest-time';
@@ -48,6 +49,20 @@ describe('AppComponent', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('ion-menu')).toBeNull();
     expect(fixture.nativeElement.querySelector('ion-router-outlet')).toBeTruthy();
+  });
+
+  it('makes the pages unreachable while Update LiftBig is shown', () => {
+    const state = signal<AppUpdate>('required');
+    TestBed.overrideProvider(AppUpdateService, { useValue: { state } });
+    const fixture = TestBed.createComponent(AppComponent);
+    const outlet = () => fixture.nativeElement.querySelector('ion-router-outlet') as HTMLElement;
+    fixture.detectChanges();
+    expect(outlet().hasAttribute('inert')).toBeTrue();
+    expect(fixture.nativeElement.querySelector('app-update-screen')).toBeTruthy();
+
+    state.set('none');
+    fixture.detectChanges();
+    expect(outlet().hasAttribute('inert')).toBeFalse();
   });
 
   it('applies the signed-in user\'s unit and rest time, and resets both on sign-out', () => {

@@ -4,19 +4,22 @@ import { Observable, catchError, of, switchMap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AuthService, SessionChangedError } from './auth.service';
 
-// The auth endpoints that need no session: they answer 401 or 400 for a
-// wrong password or code (not for the session), and refresh and logout
-// must not trigger a refresh of their own
+// The endpoints that need no session: the auth ones answer 401 or 400 for a
+// wrong password or code (not for the session), refresh and logout must not
+// trigger a refresh of their own, and the version check needs no auth
 const SESSION_FREE_URLS = [
-  'login',
-  'register',
-  'verify-email',
-  'resend-verification',
-  'forgot-password',
-  'reset-password',
-  'refresh',
-  'logout',
-].map((p) => `${environment.apiUrl}/auth/${p}`);
+  ...[
+    'login',
+    'register',
+    'verify-email',
+    'resend-verification',
+    'forgot-password',
+    'reset-password',
+    'refresh',
+    'logout',
+  ].map((p) => `${environment.apiUrl}/auth/${p}`),
+  `${environment.apiUrl}/app-config`,
+];
 
 // Refresh this long before the access token expires
 const EXPIRY_MARGIN_MS = 30_000;

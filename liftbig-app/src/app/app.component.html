@@ -1,3 +1,4 @@
 <ion-app>
-  <ion-router-outlet></ion-router-outlet>
+  <ion-router-outlet [attr.inert]="updateShown() ? '' : null"></ion-router-outlet>
+  <app-update-screen></app-update-screen>
 </ion-app>

@@ -207,6 +207,15 @@ describe('authInterceptor', () => {
       expect(auth.hasSession()).toBeTrue();
     });
 
+    it('sends the app version check without refreshing, even with the token about to expire', () => {
+      auth.setSession(fakeToken('CLIENT', { exp: Math.floor(Date.now() / 1000) + 20 }), 'r1');
+      get(`${api}/app-config`);
+      httpMock.expectOne(`${api}/app-config`).flush({}, unauthorized);
+      httpMock.expectNone(refreshUrl);
+      expect(errors.map((e) => e.status)).toEqual([401]);
+      expect(auth.hasSession()).toBeTrue();
+    });
+
     it('still refreshes for an API URL that only starts like a sign-in URL', () => {
       get(`${api}/auth/logout-all`);
       deny(`${api}/auth/logout-all`);
