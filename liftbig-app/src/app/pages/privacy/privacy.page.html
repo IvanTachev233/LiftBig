@@ -1,0 +1,74 @@
+<ion-header class="screen-header ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button [defaultHref]="backHref()" text="" aria-label="Back"></ion-back-button>
+    </ion-buttons>
+    <ion-title>Privacy</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="screen-pushed">
+  <section class="privacy-section" aria-labelledby="choices-heading">
+    <h2 class="eyebrow" id="choices-heading">Your choices</h2>
+    <div class="privacy-group">
+      @for (purpose of purposes; track purpose) {
+        <ion-toggle
+          class="privacy-row"
+          justify="space-between"
+          [attr.data-purpose]="purpose"
+          [helperText]="texts[purpose].text"
+          [checked]="choices()[purpose]"
+          [disabled]="!status()"
+          (ionChange)="toggle(purpose, $any($event).detail.checked)"
+        >
+          {{ texts[purpose].title }}
+        </ion-toggle>
+      }
+    </div>
+  </section>
+
+  @if (agreedOn(); as date) {
+    <section class="privacy-section" aria-labelledby="training-heading">
+      <h2 class="eyebrow" id="training-heading">Training data</h2>
+      <div class="privacy-group training-data">
+        <p class="privacy-row">
+          You agreed on {{ date | date: 'd MMM y' }}. LiftBig can't log your training without it. To withdraw it,
+          delete your account.
+        </p>
+        <button type="button" class="privacy-row delete-btn" (click)="deleteAccount()">Delete account</button>
+      </div>
+    </section>
+  }
+
+  <section class="privacy-section" aria-labelledby="documents-heading">
+    <h2 class="eyebrow" id="documents-heading">Documents and your data</h2>
+    <div class="privacy-group">
+      <a class="privacy-row link-row terms-link" [href]="termsUrl" target="_blank" rel="noopener">
+        <span class="row-text">
+          <span>Terms of Use</span>
+          @if (policies(); as p) {
+            <span class="row-sub">Version {{ p.termsVersion }}</span>
+          }
+        </span>
+        <ion-icon name="open-outline" aria-hidden="true"></ion-icon>
+      </a>
+      <a class="privacy-row link-row privacy-link" [href]="privacyUrl" target="_blank" rel="noopener">
+        <span class="row-text">
+          <span>Privacy Policy</span>
+          @if (policies(); as p) {
+            <span class="row-sub">Version {{ p.privacyVersion }}</span>
+          }
+        </span>
+        <ion-icon name="open-outline" aria-hidden="true"></ion-icon>
+      </a>
+      @if (dataRequestUrl(); as href) {
+        <a class="privacy-row link-row data-request" [href]="href">
+          <span class="row-text">
+            <span>Request a copy of my data</span>
+            <span class="row-sub">We'll email it to you within a month.</span>
+          </span>
+        </a>
+      }
+    </div>
+  </section>
+</ion-content>

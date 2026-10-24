@@ -13,6 +13,7 @@ import { ThemeService } from './core/theme.service';
 import { startUp } from './core/startup';
 import { AppUpdateService } from './core/app-update.service';
 import { AppUpdateScreenComponent } from './shared/components/app-update-screen/app-update-screen.component';
+import { TermsUpdateScreenComponent } from './shared/components/terms-update-screen/terms-update-screen.component';
 
 @NgModule({
   declarations: [AppComponent],
@@ -23,6 +24,7 @@ import { AppUpdateScreenComponent } from './shared/components/app-update-screen/
     FormsModule,
     ReactiveFormsModule,
     AppUpdateScreenComponent,
+    TermsUpdateScreenComponent,
   ],
   providers: [
     provideHttpClient(withInterceptors([authInterceptor])),

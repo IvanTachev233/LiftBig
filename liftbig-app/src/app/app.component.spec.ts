@@ -8,9 +8,13 @@ import {
 import { provideRouter, Router } from '@angular/router';
 
 import { AppComponent } from './app.component';
+import { AgreementsService } from './core/agreements.service';
+import { AGREED } from './core/agreements.testing';
 import { AppUpdate, AppUpdateService } from './core/app-update.service';
 import { AuthService } from './core/auth.service';
 import { fakeToken } from './core/auth.testing';
+import { OUTBOX_PLATFORM, OutboxService } from './core/outbox.service';
+import { FakeOutboxPlatform } from './core/outbox.testing';
 import { RestTimeService } from './core/rest-time';
 import { WeightUnitService } from './core/weight-unit.service';
 import { environment } from '../environments/environment';
@@ -82,5 +86,78 @@ describe('AppComponent', () => {
     fixture.detectChanges();
     expect(units.unit()).toBe('kg');
     expect(rest.seconds()).toBe(120);
+  });
+
+  describe('We\'ve updated our terms', () => {
+    const me = `${environment.apiUrl}/users/me`;
+    const profile = { id: 'u1', email: 'u@x.io', name: null, role: 'CLIENT', weightUnit: 'kg' };
+    const pendingAll = { ...AGREED, needsAcceptance: ['terms', 'privacy', 'health_data'] };
+
+    const start = () => {
+      TestBed.inject(AuthService).setSession(fakeToken('CLIENT', { id: 'u1' }), 'r1');
+      const fixture = TestBed.createComponent(AppComponent);
+      fixture.detectChanges();
+      return fixture;
+    };
+    const outlet = (fixture: ReturnType<typeof start>) =>
+      fixture.nativeElement.querySelector('ion-router-outlet') as HTMLElement;
+
+    it('covers the pages while the payload lists something to accept, and goes once accepted', () => {
+      const fixture = start();
+      TestBed.inject(HttpTestingController).expectOne(me).flush({ ...profile, ...pendingAll });
+      fixture.detectChanges();
+      expect(fixture.componentInstance.termsShown()).toBeTrue();
+      expect(outlet(fixture).hasAttribute('inert')).toBeTrue();
+      expect(fixture.nativeElement.querySelector('app-terms-update-screen')).toBeTruthy();
+
+      TestBed.inject(AgreementsService).apply(AGREED);
+      fixture.detectChanges();
+      expect(fixture.componentInstance.termsShown()).toBeFalse();
+      expect(outlet(fixture).hasAttribute('inert')).toBeFalse();
+    });
+
+    it('shows nothing for a user with nothing to accept', () => {
+      const fixture = start();
+      TestBed.inject(HttpTestingController).expectOne(me).flush({ ...profile, ...AGREED });
+      fixture.detectChanges();
+      expect(fixture.componentInstance.termsShown()).toBeFalse();
+    });
+
+    it('goes on sign-out', () => {
+      const fixture = start();
+      TestBed.inject(HttpTestingController).expectOne(me).flush({ ...profile, ...pendingAll });
+      spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+      TestBed.inject(AuthService).logout();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.termsShown()).toBeFalse();
+      expect(TestBed.inject(AgreementsService).status()).toBeNull();
+    });
+
+    it('offline at start opens the app as usual and leaves waiting changes queued; the next online start asks', async () => {
+      const platform = new FakeOutboxPlatform();
+      TestBed.overrideProvider(OUTBOX_PLATFORM, { useValue: platform });
+      TestBed.inject(AuthService).setSession(fakeToken('CLIENT', { id: 'u1' }), 'r1');
+      const outbox = TestBed.inject(OutboxService);
+      await outbox.start();
+      await outbox.enqueue({ method: 'PATCH', path: '/workouts/w1', body: {}, workoutId: 'w1', label: 'Leg day' });
+      const http = TestBed.inject(HttpTestingController);
+      http.match((r) => r.url.startsWith(`${environment.apiUrl}/workouts`));
+
+      const fixture = TestBed.createComponent(AppComponent);
+      fixture.detectChanges();
+      http.expectOne(me).flush(null, { status: 0, statusText: 'Offline' });
+      fixture.detectChanges();
+      expect(fixture.componentInstance.termsShown()).toBeFalse();
+      expect(outlet(fixture).hasAttribute('inert')).toBeFalse();
+      expect(outbox.countFor('u1')).toBe(1);
+
+      // The next start, online
+      TestBed.inject(AgreementsService).clear();
+      fixture.componentInstance['profileService'].load();
+      http.expectOne(me).flush({ ...profile, ...pendingAll });
+      fixture.detectChanges();
+      expect(fixture.componentInstance.termsShown()).toBeTrue();
+      expect(outbox.countFor('u1')).toBe(1);
+    });
   });
 });

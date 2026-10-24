@@ -92,12 +92,17 @@
         </p>
       </div>
 
+      <app-agreement-checks [terms]="true" [healthData]="true" [optional]="optionalPurposes" [(choices)]="choices" />
+
       <ion-button class="btn-primary" expand="block" type="submit" [disabled]="!formValid || submitting">
         @if (submitting) {
           <ion-spinner name="crescent" slot="start"></ion-spinner>
         }
         Create account
       </ion-button>
+      @if (!agreed) {
+        <p class="agree-hint">Tick both boxes to continue.</p>
+      }
     </form>
 
     <p class="auth-footer">Already have an account? <a routerLink="/login">Log in</a></p>

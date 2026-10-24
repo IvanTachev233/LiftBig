@@ -6,7 +6,8 @@ import { AuthService, SessionChangedError } from './auth.service';
 
 // The endpoints that need no session: the auth ones answer 401 or 400 for a
 // wrong password or code (not for the session), refresh and logout must not
-// trigger a refresh of their own, and the version check needs no auth
+// trigger a refresh of their own, and the version check and the current
+// terms versions need no auth
 const SESSION_FREE_URLS = [
   ...[
     'login',
@@ -19,6 +20,7 @@ const SESSION_FREE_URLS = [
     'logout',
   ].map((p) => `${environment.apiUrl}/auth/${p}`),
   `${environment.apiUrl}/app-config`,
+  `${environment.apiUrl}/policies`,
 ];
 
 // Refresh this long before the access token expires

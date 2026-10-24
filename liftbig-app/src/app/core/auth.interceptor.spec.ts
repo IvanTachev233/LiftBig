@@ -216,6 +216,15 @@ describe('authInterceptor', () => {
       expect(auth.hasSession()).toBeTrue();
     });
 
+    it('asks for the current terms versions without refreshing', () => {
+      auth.setSession(fakeToken('CLIENT', { exp: Math.floor(Date.now() / 1000) + 20 }), 'r1');
+      get(`${api}/policies`);
+      httpMock.expectOne(`${api}/policies`).flush({}, unauthorized);
+      httpMock.expectNone(refreshUrl);
+      expect(errors.map((e) => e.status)).toEqual([401]);
+      expect(auth.hasSession()).toBeTrue();
+    });
+
     it('still refreshes for an API URL that only starts like a sign-in URL', () => {
       get(`${api}/auth/logout-all`);
       deny(`${api}/auth/logout-all`);

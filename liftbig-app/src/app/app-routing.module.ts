@@ -172,6 +172,12 @@ export const routes: Routes = [
         (m) => m.CoachWorkoutEditorPage,
       ),
   },
+  // Profile → Privacy, for both roles (no tab bar)
+  {
+    path: 'privacy',
+    canActivate: [AuthGuard],
+    loadComponent: () => import('./pages/privacy/privacy.page').then((m) => m.PrivacyPage),
+  },
   // Accept invite (any authenticated user)
   {
     path: 'accept-invite/:token',
