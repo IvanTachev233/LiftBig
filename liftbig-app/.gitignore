@@ -71,6 +71,9 @@ Thumbs.db
 *.keystore
 *.jks
 
+# Local Docker stack settings; .env.example is the committed reference
+/.env
+
 # Claude Code (local only)
 /CLAUDE.md
 .claude/
