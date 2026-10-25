@@ -144,9 +144,10 @@ Google Play takes a signed Android App Bundle (`.aab`), built against the produc
 
 2. Raise `versionCode` by 1 in `android/app/build.gradle` (`defaultConfig`) before every upload; Play rejects a versionCode it has already seen. `versionName` is the version users see; change it when you want a new one.
 
-3. Build:
+3. Build. Install with `--legacy-peer-deps`: plain `npm ci` fails on `ng2-charts`' `@angular/cdk` peer, which the lockfile leaves out.
 
    ```bash
+   npm ci --legacy-peer-deps
    npm run build
    npx cap sync android
    cd android && ./gradlew bundleRelease
