@@ -2,7 +2,8 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class SeedCoachAndProgram1709800000003 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Precomputed bcrypt hash for '***REMOVED***'
+    // Precomputed bcrypt hash of a shared demo password. DisableSeedAccounts
+    // (1709800000011) makes it unusable.
     const passwordHash =
       '$2b$10$Qw/JkwEksWkWQ3WFok2w5.ViUItjFwWSmTSodDoHBMiOvSIXQ1cUa';
 
