@@ -1,0 +1,47 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button aria-label="Close" (click)="close()">
+        <ion-icon slot="icon-only" name="chevron-back"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+    <ion-title>Exercise</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <h1 class="exercise-name">{{ exercise.name }}</h1>
+
+  @if (description) {
+    <p class="exercise-description">{{ description }}</p>
+  }
+
+  @if (video) {
+    <section class="exercise-video" aria-label="Exercise video">
+      @if (video.kind === 'youtube' || video.kind === 'vimeo') {
+        <div class="video-frame">
+          <iframe
+            [src]="embedUrl"
+            [title]="'Video for ' + exercise.name"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerpolicy="strict-origin-when-cross-origin"
+            allowfullscreen
+          ></iframe>
+        </div>
+      } @else if (video.kind === 'file') {
+        <video
+          class="video-file"
+          controls
+          playsinline
+          preload="metadata"
+          [src]="video.url"
+        ></video>
+      } @else {
+        <a class="video-link" [href]="video.url" target="_blank" rel="noopener">
+          <ion-icon name="open-outline" aria-hidden="true"></ion-icon>
+          Open video
+        </a>
+      }
+    </section>
+  }
+</ion-content>

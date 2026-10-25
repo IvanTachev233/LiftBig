@@ -1,0 +1,21 @@
+ion-toolbar {
+  --background: var(--bg);
+}
+
+ion-title {
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+}
+
+// [fill] outranks the global clear-button accent colour
+.add-entry-btn[fill] {
+  --color: var(--text-soft);
+}
+
+.history-modal-content {
+  --padding-start: var(--gutter);
+  --padding-end: var(--gutter);
+  --padding-top: 18px;
+  --padding-bottom: 24px;
+}

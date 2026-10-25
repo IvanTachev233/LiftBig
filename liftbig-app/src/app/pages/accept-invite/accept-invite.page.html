@@ -1,0 +1,21 @@
+<ion-content class="auth-content">
+  <div class="invite-status">
+    @if (loading) {
+      <ion-spinner></ion-spinner>
+      <p class="invite-message">Accepting the invite…</p>
+    }
+
+    @if (success) {
+      <ion-icon name="checkmark-circle" class="status-icon success" aria-hidden="true"></ion-icon>
+      <h1 class="title-detail">Invite accepted</h1>
+      <p class="invite-message">You're connected to your coach. Taking you to Today…</p>
+    }
+
+    @if (errorMessage) {
+      <ion-icon name="close-circle" class="status-icon error" aria-hidden="true"></ion-icon>
+      <h1 class="title-detail">Couldn't accept the invite</h1>
+      <p class="invite-message">{{ errorMessage }}</p>
+      <ion-button class="btn-primary" expand="block" routerLink="/today">Go to Today</ion-button>
+    }
+  </div>
+</ion-content>

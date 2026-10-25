@@ -1,0 +1,110 @@
+<ion-header class="screen-header ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/login" text="" aria-label="Back"></ion-back-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="auth-content">
+  <div class="auth-page register-page">
+    <div class="auth-brand">
+      <h1 class="title-screen">Create account</h1>
+      <p class="auth-tagline">Start training with LiftBig.</p>
+    </div>
+
+    <form class="auth-form" (ngSubmit)="register()">
+      <ion-input
+        class="input-field"
+        label="Full name"
+        labelPlacement="stacked"
+        type="text"
+        name="name"
+        autocomplete="name"
+        [(ngModel)]="form.name"
+        placeholder="Jane Doe"
+        required
+      ></ion-input>
+
+      <ion-input
+        class="input-field"
+        label="Email"
+        labelPlacement="stacked"
+        type="email"
+        name="email"
+        autocomplete="email"
+        [(ngModel)]="form.email"
+        placeholder="you@example.com"
+        required
+      ></ion-input>
+
+      <ion-input
+        class="input-field password-input"
+        label="Password"
+        labelPlacement="stacked"
+        name="password"
+        autocomplete="new-password"
+        [type]="showPassword ? 'text' : 'password'"
+        [(ngModel)]="form.password"
+        placeholder="At least 6 characters"
+        required
+      >
+        <button
+          slot="end"
+          type="button"
+          class="password-toggle"
+          [attr.aria-pressed]="showPassword"
+          [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+          (click)="showPassword = !showPassword"
+        >
+          <ion-icon [name]="showPassword ? 'eye-off-outline' : 'eye-outline'" aria-hidden="true"></ion-icon>
+        </button>
+      </ion-input>
+
+      <ion-input
+        class="input-field password-input"
+        label="Confirm password"
+        labelPlacement="stacked"
+        name="confirmPassword"
+        autocomplete="new-password"
+        [type]="showPassword ? 'text' : 'password'"
+        [(ngModel)]="form.confirmPassword"
+        placeholder="Repeat your password"
+        required
+      ></ion-input>
+
+      @if (passwordMismatch) {
+        <p class="field-error">Passwords do not match.</p>
+      }
+
+      <div class="role-section">
+        <span class="role-label" id="role-label">I am a</span>
+        <ion-segment name="role" aria-labelledby="role-label" [(ngModel)]="form.role">
+          <ion-segment-button value="CLIENT"><ion-label>Client</ion-label></ion-segment-button>
+          <ion-segment-button value="COACH"><ion-label>Coach</ion-label></ion-segment-button>
+        </ion-segment>
+        <p class="role-hint">
+          {{
+            form.role === 'COACH'
+              ? 'Coaches assign workouts and manage clients.'
+              : 'Clients log workouts and follow programs.'
+          }}
+        </p>
+      </div>
+
+      <app-agreement-checks [terms]="true" [healthData]="true" [optional]="optionalPurposes" [(choices)]="choices" />
+
+      <ion-button class="btn-primary" expand="block" type="submit" [disabled]="!formValid || submitting">
+        @if (submitting) {
+          <ion-spinner name="crescent" slot="start"></ion-spinner>
+        }
+        Create account
+      </ion-button>
+      @if (!agreed) {
+        <p class="agree-hint">Tick both boxes to continue.</p>
+      }
+    </form>
+
+    <p class="auth-footer">Already have an account? <a routerLink="/login">Log in</a></p>
+  </div>
+</ion-content>

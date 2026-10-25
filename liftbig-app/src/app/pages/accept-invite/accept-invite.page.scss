@@ -1,0 +1,31 @@
+.invite-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 70vh;
+  padding: 0 24px;
+  text-align: center;
+}
+
+.status-icon {
+  font-size: 64px;
+
+  &.success {
+    color: var(--success);
+  }
+
+  &.error {
+    color: var(--danger-text);
+  }
+}
+
+.invite-message {
+  margin: 0 0 12px;
+  color: var(--text-2);
+}
+
+ion-button {
+  align-self: stretch;
+}

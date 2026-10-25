@@ -1,0 +1,297 @@
+<ion-header class="screen-header ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button [defaultHref]="backHref" text="" aria-label="Back"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ isEditMode ? 'Edit workout' : 'New workout' }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button fill="clear" class="save-btn" [disabled]="!workoutName" (click)="save()">Save</ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="editor-content">
+  <div class="workout-meta">
+    <ion-input
+      class="workout-name-input"
+      aria-label="Workout name"
+      placeholder="Workout name"
+      [(ngModel)]="workoutName"
+    ></ion-input>
+    <div class="meta-chips">
+      <button type="button" class="meta-chip date-chip" (click)="pickingDate = true">
+        <ion-icon name="calendar-outline" aria-hidden="true"></ion-icon>
+        {{ workoutDate | date: 'EEE d MMM' }}
+      </button>
+      @if (isEditMode) {
+        <span
+          class="meta-chip completion-chip"
+          [class.done]="status === 'COMPLETED'"
+          [class.live]="status === 'IN_PROGRESS'"
+        >{{ completionText() }}</span>
+      }
+    </div>
+  </div>
+
+  <!-- Workout date -->
+  <ion-modal
+    class="bottom-sheet"
+    aria-label="Workout date"
+    [isOpen]="pickingDate"
+    [breakpoints]="[0, 1]"
+    [initialBreakpoint]="1"
+    [handle]="true"
+    (didDismiss)="pickingDate = false"
+  >
+    <ng-template>
+      <div class="date-sheet">
+        <h2 class="title-card">Workout date</h2>
+        <ion-datetime
+          presentation="date"
+          [value]="workoutDate"
+          (ionChange)="dateChanged($any($event))"
+        ></ion-datetime>
+      </div>
+    </ng-template>
+  </ion-modal>
+
+  <!-- Exercise cards (a superset is drawn as one card); each block drags as one -->
+  <ion-reorder-group [disabled]="false" (ionReorderEnd)="onReorder($any($event))">
+    @for (block of groupBlocks(); track block.key) {
+      @let closed = isCollapsed(block.groups);
+      @if (block.superset) {
+        @let labelId = idPrefix + '-superset-' + $index;
+        <!-- ion-card drops its host aria-label, so the name comes from the label -->
+        <ion-card
+          class="superset-card superset-block"
+          role="group"
+          aria-label="Superset"
+          [attr.aria-labelledby]="labelId"
+        >
+          <div class="superset-head">
+            <ion-reorder class="drag-handle"></ion-reorder>
+            <span class="superset-label eyebrow accent" [id]="labelId">SUPERSET</span>
+            @if (!closed) {
+              <ion-button
+                fill="clear"
+                class="icon-btn"
+                aria-expanded="true"
+                aria-label="Collapse superset"
+                (click)="toggleCollapsed(block.groups)"
+              >
+                <ion-icon slot="icon-only" name="chevron-up" aria-hidden="true"></ion-icon>
+              </ion-button>
+            }
+          </div>
+          @if (closed) {
+            <button
+              type="button"
+              class="card-toggle"
+              aria-expanded="false"
+              (click)="toggleCollapsed(block.groups)"
+            >
+              <span class="toggle-members">
+                @for (group of block.groups; track group) {
+                  <ng-container
+                    *ngTemplateOutlet="collapsedSummary; context: { $implicit: group }"
+                  ></ng-container>
+                }
+              </span>
+              <ion-icon class="toggle-chevron" name="chevron-down" aria-hidden="true"></ion-icon>
+            </button>
+          } @else {
+            @for (group of block.groups; track group) {
+              <div class="superset-member">
+                <ng-container
+                  *ngTemplateOutlet="cardHeader; context: { $implicit: group, cards: block.groups, standalone: false }"
+                ></ng-container>
+                <ng-container *ngTemplateOutlet="setRows; context: { $implicit: group }"></ng-container>
+              </div>
+            }
+          }
+        </ion-card>
+      } @else {
+        @for (group of block.groups; track group) {
+          <ion-card class="exercise-card" [class.collapsed]="closed">
+            @if (closed) {
+              <div class="collapsed-row">
+                <ion-reorder class="drag-handle"></ion-reorder>
+                <button
+                  type="button"
+                  class="card-toggle"
+                  aria-expanded="false"
+                  (click)="toggleCollapsed(block.groups)"
+                >
+                  <ng-container
+                    *ngTemplateOutlet="collapsedSummary; context: { $implicit: group }"
+                  ></ng-container>
+                  <ion-icon class="toggle-chevron" name="chevron-down" aria-hidden="true"></ion-icon>
+                </button>
+              </div>
+            } @else {
+              <ng-container
+                *ngTemplateOutlet="cardHeader; context: { $implicit: group, cards: block.groups, standalone: true }"
+              ></ng-container>
+              <ng-container *ngTemplateOutlet="setRows; context: { $implicit: group }"></ng-container>
+            }
+          </ion-card>
+        }
+      }
+    }
+  </ion-reorder-group>
+
+  <!-- A collapsed card: name and plan -->
+  <ng-template #collapsedSummary let-group>
+    <span class="collapsed-summary">
+      <span class="collapsed-main">
+        <span class="exercise-title">{{ group.exerciseName }}</span>
+        <span class="plan-line">{{ planLine(group) }}</span>
+      </span>
+    </span>
+  </ng-template>
+
+  <!-- Drag handle (standalone cards), name, `⋯` and collapse -->
+  <ng-template #cardHeader let-group let-cards="cards" let-standalone="standalone">
+    <div class="exercise-header-row">
+      @if (standalone) {
+        <ion-reorder class="drag-handle"></ion-reorder>
+      }
+      <div class="exercise-heading">
+        <h2 class="exercise-title">{{ group.exerciseName }}</h2>
+        @if (cardNote(group); as note) {
+          <p class="card-note">
+            <ion-icon name="chatbox-ellipses-outline" aria-hidden="true"></ion-icon>
+            <span><span class="visually-hidden">Note for athlete: </span>{{ note }}</span>
+          </p>
+        }
+      </div>
+      <ion-button
+        fill="clear"
+        class="icon-btn"
+        [attr.aria-label]="group.exerciseName + ' options'"
+        (click)="openCardMenu(group)"
+      >
+        <ion-icon slot="icon-only" name="ellipsis-horizontal" aria-hidden="true"></ion-icon>
+      </ion-button>
+      @if (standalone) {
+        <ion-button
+          fill="clear"
+          class="icon-btn"
+          aria-expanded="true"
+          [attr.aria-label]="'Collapse ' + group.exerciseName"
+          (click)="toggleCollapsed(cards)"
+        >
+          <ion-icon slot="icon-only" name="chevron-up" aria-hidden="true"></ion-icon>
+        </ion-button>
+      }
+    </div>
+  </ng-template>
+
+  <!-- Set table: set · reps · weight · athlete result (edit mode) -->
+  <ng-template #setRows let-group>
+    <div class="plan-grid plan-head" [class.with-result]="isEditMode" aria-hidden="true">
+      <span>Set</span>
+      <span class="center">Reps</span>
+      <span class="center">{{ units.unit() }}</span>
+      <span>{{ isEditMode ? 'Athlete result' : '' }}</span>
+    </div>
+    @for (set of group.sets; track set; let si = $index) {
+      <!-- Swipe left to remove; a card keeps at least 1 set -->
+      <ion-item-sliding [disabled]="group.sets.length <= 1">
+        <ion-item lines="none" class="set-item">
+          <div class="plan-set">
+            <div class="plan-grid set-row" [class.with-result]="isEditMode">
+              <span class="set-order num">{{ si + 1 }}</span>
+              <ion-input
+                type="number"
+                step="1"
+                inputmode="numeric"
+                class="set-input num"
+                placeholder="reps"
+                [(ngModel)]="set.reps"
+                [attr.aria-label]="'Reps, set ' + (si + 1)"
+              ></ion-input>
+              <ion-input
+                type="number"
+                inputmode="decimal"
+                class="set-input num"
+                [(ngModel)]="set.weight"
+                [placeholder]="units.unit()"
+                [attr.aria-label]="units.unit() + ', set ' + (si + 1)"
+              ></ion-input>
+              @if (isEditMode) {
+                <!-- The client's result, read-only and never sent -->
+                <span
+                  class="made-col result-chip"
+                  [class.made]="set.made === true"
+                  [class.missed]="set.made === false"
+                >
+                  @if (set.made === true) {
+                    <ion-icon name="checkmark-circle" aria-hidden="true"></ion-icon>
+                  } @else if (set.made === false) {
+                    <ion-icon name="close-circle" aria-hidden="true"></ion-icon>
+                  } @else {
+                    <ion-icon name="remove-circle-outline" aria-hidden="true"></ion-icon>
+                  }
+                  @if (set.made !== null) {
+                    @let prefix = resultPrefix(set);
+                    <span class="set-result">
+                      @if (prefix) {
+                        <span class="visually-hidden">{{ prefix }}</span>
+                      }
+                      <span class="chip-value">{{ resultValue(set) }}</span>
+                    </span>
+                  } @else {
+                    <span class="chip-value visually-hidden">Not logged</span>
+                  }
+                </span>
+              }
+            </div>
+            @if (isNoteOpen(set)) {
+              <ion-input
+                class="set-note-input"
+                placeholder="Note for this set"
+                [(ngModel)]="set.notes"
+                [attr.aria-label]="'Note, set ' + (si + 1)"
+              ></ion-input>
+            }
+          </div>
+        </ion-item>
+        <ion-item-options side="end">
+          <ion-item-option
+            color="danger"
+            [attr.aria-label]="'Remove set ' + (si + 1)"
+            [disabled]="group.sets.length <= 1"
+            (click)="removeSet(group, si)"
+          >
+            Remove
+          </ion-item-option>
+        </ion-item-options>
+      </ion-item-sliding>
+    }
+    <div class="card-footer">
+      <button type="button" class="add-set-btn" (click)="addSet(group)">
+        <ion-icon name="add" aria-hidden="true"></ion-icon>
+        Add set
+      </button>
+      <button
+        type="button"
+        class="note-btn"
+        [attr.aria-label]="'Note for athlete, ' + group.exerciseName"
+        (click)="editCardNote(group)"
+      >
+        <ion-icon name="chatbox-ellipses-outline" aria-hidden="true"></ion-icon>
+        Note for athlete
+      </button>
+    </div>
+  </ng-template>
+
+  @if (exerciseGroups.length === 0) {
+    <p class="empty-note">No exercises added yet.</p>
+  }
+
+  <button type="button" class="add-exercise-btn" (click)="openExercisePicker()">
+    <ion-icon name="add" aria-hidden="true"></ion-icon>
+    Add exercise
+  </button>
+</ion-content>

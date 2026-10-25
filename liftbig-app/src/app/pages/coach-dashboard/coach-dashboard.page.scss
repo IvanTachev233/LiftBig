@@ -1,0 +1,148 @@
+// Accent fill beside the large title (color="primary": a toolbar paints
+// colourless buttons with its own colours); 44px touch target
+ion-button.invite-btn {
+  --border-radius: 12px;
+  --padding-start: 12px;
+  --padding-end: 14px;
+  --box-shadow: none;
+  height: 44px;
+  margin: 0;
+  font: 600 14px var(--font-ui);
+  text-transform: none;
+
+  ion-icon {
+    margin-inline-end: 6px;
+    font-size: 18px;
+  }
+}
+
+.client-search,
+.client-tiles {
+  margin-bottom: 20px;
+}
+
+.client-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+
+  h2 {
+    margin: 0;
+    font-size: 12px;
+  }
+}
+
+.client-card {
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 10px + 4 * var(--fluid), 14px);
+  padding: clamp(12px, 12px + 2 * var(--fluid), 14px);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.client-avatar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: clamp(40px, 40px + 6 * var(--fluid), 46px);
+  height: clamp(40px, 40px + 6 * var(--fluid), 46px);
+  border-radius: 50%;
+  background: var(--surface-2);
+  font-size: clamp(17px, 17px + 2 * var(--fluid), 19px);
+  font-weight: 600;
+}
+
+.client-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.client-title,
+.pending-email {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.client-sub,
+.client-last {
+  font-size: 12px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+// The full email is on the client's screen
+.client-card .client-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// The workout name wraps as a whole, cut short when longer than the line
+.client-last-name {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.client-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+
+  app-progress-bar {
+    flex: 1;
+  }
+}
+
+.client-done {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.client-chevron {
+  flex-shrink: 0;
+  font-size: 18px;
+  color: var(--icon-muted);
+}
+
+.pending-list {
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.pending-invite {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 10px 14px;
+}
+
+.pending-icon {
+  flex-shrink: 0;
+  font-size: 20px;
+  color: var(--text-2);
+}
+
+.empty-note {
+  margin: 16px 0;
+  text-align: center;
+  color: var(--text-2);
+}

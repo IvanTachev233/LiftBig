@@ -1,0 +1,24 @@
+@if (state() !== 'none') {
+  <div class="update-screen" role="dialog" aria-modal="true" aria-labelledby="update-title" aria-describedby="update-text">
+    <div class="auth-page">
+      <div class="auth-brand">
+        <span class="wordmark num" aria-hidden="true">LiftBig<span class="wordmark-dot">.</span></span>
+        <h1 id="update-title" class="title-screen">Update LiftBig</h1>
+        <p id="update-text" class="auth-tagline">
+          @if (state() === 'required') {
+            This version of LiftBig is no longer supported. Update it from Google Play to keep using the app.
+          } @else {
+            A new version of LiftBig is on Google Play.
+          }
+        </p>
+      </div>
+
+      <div class="update-actions">
+        <ion-button class="btn-primary" expand="block" [href]="storeUrl">Update</ion-button>
+        @if (state() === 'available') {
+          <ion-button class="btn-text" expand="block" (click)="dismiss()">Not now</ion-button>
+        }
+      </div>
+    </div>
+  </div>
+}

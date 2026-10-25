@@ -1,0 +1,396 @@
+@use "sass:meta";
+
+/*
+ * App Global CSS
+ * ----------------------------------------------------------------------------
+ * Put style rules here that you want to apply globally. These styles are for
+ * the entire app and not just one component. Additionally, this file can be
+ * used as an entry point to import other CSS/Sass files to be included in the
+ * output CSS.
+ * For more information on global stylesheets, visit the documentation:
+ * https://ionicframework.com/docs/layout/global-stylesheets
+ */
+
+/* Core CSS required for Ionic components to work properly */
+@import "@ionic/angular/css/core.css";
+
+/* Basic CSS for apps built with Ionic */
+@import "@ionic/angular/css/normalize.css";
+@import "@ionic/angular/css/structure.css";
+@import "@ionic/angular/css/typography.css";
+@import "@ionic/angular/css/display.css";
+
+/* Optional CSS utils that can be commented out */
+@import "@ionic/angular/css/padding.css";
+@import "@ionic/angular/css/float-elements.css";
+@import "@ionic/angular/css/text-alignment.css";
+@import "@ionic/angular/css/text-transformation.css";
+@import "@ionic/angular/css/flex-utils.css";
+
+/**
+ * Ionic Dark Mode
+ * -----------------------------------------------------
+ * For more info, please see:
+ * https://ionicframework.com/docs/theming/dark-mode
+ */
+
+/* @import "@ionic/angular/css/palettes/dark.always.css"; */
+/* ThemeService adds .ion-palette-dark to <html> for the dark theme */
+@import "@ionic/angular/css/palettes/dark.class.css";
+/* @import "@ionic/angular/css/palettes/dark.system.css"; */
+
+/* Geist and Barlow Condensed, shipped in assets/fonts (after the imports,
+   which must come first) */
+@include meta.load-css("theme/fonts");
+
+/* Global Typography Fixes */
+/* This ensures that raw HTML elements correctly switch to white on dark mode and black on light mode */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+span {
+  color: var(--ion-text-color, inherit);
+}
+
+/* ---------------------------------------------------------------------------
+ * Shared component styles
+ * ------------------------------------------------------------------------- */
+
+/* Ionic draws the primary colour as text here; orange text uses --accent-text,
+   which is darker in light mode */
+ion-button:not([color]):is([fill="clear"], [fill="outline"]) {
+  --color: var(--accent-text);
+}
+
+/* Canonical section heading (spec: 600 weight, -0.025em letter spacing) */
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--text-main);
+  margin: 0 0 1rem;
+}
+
+/* Canonical set-entry input (workout logger, program editor, program logger).
+   Spec: large input fields for weight/reps, easy thumb typing. */
+ion-input.set-input {
+  --background: var(--bg-deep);
+  --color: var(--ion-text-color);
+  --placeholder-color: var(--ion-color-medium);
+  --padding-start: 8px;
+  --padding-end: 8px;
+  --padding-top: 8px;
+  --padding-bottom: 8px;
+  min-height: 44px;
+  border: 1px solid var(--border-color);
+  border-radius: 0.25rem;
+  text-align: center;
+}
+
+// Spin buttons would take the text room of a narrow number input
+ion-input.set-input input {
+  appearance: textfield;
+
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+}
+
+/* Log in, Sign up and Accept invite */
+.auth-content {
+  --padding-start: 24px;
+  --padding-end: 24px;
+}
+
+.auth-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 96px 0 40px;
+
+  &.register-page {
+    padding-top: 8px;
+  }
+}
+
+.auth-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wordmark {
+  font-size: 64px;
+  font-weight: 700;
+  line-height: 0.9;
+  text-transform: uppercase;
+  color: var(--text);
+
+  .wordmark-dot {
+    color: var(--accent-text);
+  }
+}
+
+.auth-tagline {
+  margin: 0;
+  font-size: 17px;
+  color: var(--text-2);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 56px;
+
+  .register-page & {
+    margin-top: 32px;
+  }
+
+  ion-button.btn-primary {
+    margin-top: 10px;
+  }
+}
+
+.auth-form .field-error {
+  margin: -10px 0 0;
+  font-size: 13px;
+  color: var(--danger-text);
+}
+
+// Mailed 6-digit codes (app-code-field)
+ion-input.code-input .native-input {
+  font-family: var(--font-num);
+  font-size: 26px;
+  letter-spacing: 0.35em;
+}
+
+// 44px target inside the password field
+.password-toggle {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-inline-end: -12px;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 20px;
+  cursor: pointer;
+
+  &[aria-pressed='true'] {
+    color: var(--text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    border-radius: 10px;
+  }
+}
+
+// Screens that take a mailed code (Check your email, Reset password)
+.verify-address {
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.verify-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 24px;
+}
+
+.verify-notice {
+  margin: 0 0 4px;
+  text-align: center;
+}
+
+// The countdown stays readable while the button waits
+ion-button.resend-button.button-disabled {
+  --color: var(--text-2);
+  opacity: 1;
+}
+
+.auth-footer {
+  margin: auto 0 0;
+  padding-top: 32px;
+  text-align: center;
+  font-size: 15px;
+  color: var(--text-2);
+
+  a {
+    padding-bottom: 1px;
+    border-bottom: 1.5px solid var(--accent);
+    color: var(--text);
+    font-weight: 600;
+    text-decoration: none;
+  }
+}
+
+/* Global Ionic card dark-mode text fix */
+ion-card {
+  ion-card-title {
+    --color: var(--ion-text-color);
+    color: var(--ion-text-color);
+  }
+
+  ion-card-subtitle {
+    color: var(--ion-color-medium);
+  }
+
+  ion-card-content {
+    color: var(--ion-text-color);
+  }
+}
+
+/* Fix dark mode datetime picker and button */
+ion-datetime-button {
+  &::part(native) {
+    background: var(--bg-surface);
+    color: var(--ion-text-color);
+  }
+}
+
+ion-datetime {
+  --background: var(--bg-surface);
+  --title-color: var(--ion-text-color);
+  color: var(--ion-text-color);
+}
+
+/* Fix dark mode text in overlays (alerts, action sheets, popovers) */
+ion-alert {
+  --ion-text-color: var(--text-main);
+  --ion-background-color: var(--bg-surface);
+
+  .alert-radio-label,
+  .alert-checkbox-label {
+    color: var(--ion-text-color) !important;
+  }
+
+  .alert-title,
+  .alert-message {
+    color: var(--ion-text-color) !important;
+  }
+}
+
+/* Buttons, segments, chips, fields, cards, type scale (design handoff) */
+@include meta.load-css("theme/components");
+
+/* Exercise cards and the set table of the logger */
+@include meta.load-css("theme/workout");
+
+/* Screen padding, pushed-screen toolbars, row buttons, focus rings */
+@include meta.load-css("theme/screens");
+
+/* ---------------------------------------------------------------------------
+ * Utility classes
+ * The templates use Tailwind-style utilities but Tailwind is not installed,
+ * so the classes are defined here. Spacing scale: 1 unit = 0.25rem.
+ * Kept last so utilities win over component styles of equal specificity.
+ * ------------------------------------------------------------------------- */
+
+/* Layout */
+.flex {
+  display: flex;
+}
+
+.block {
+  display: block;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+/* Spacing */
+.mt-4 {
+  margin-top: 1rem;
+}
+
+.mt-6 {
+  margin-top: 1.5rem;
+}
+
+.mt-8 {
+  margin-top: 2rem;
+}
+
+.mt-10 {
+  margin-top: 2.5rem;
+}
+
+.mt-20 {
+  margin-top: 5rem;
+}
+
+.mb-2 {
+  margin-bottom: 0.5rem;
+}
+
+.mb-4 {
+  margin-bottom: 1rem;
+}
+
+.mx-auto {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Typography */
+.text-center {
+  text-align: center;
+}
+
+.font-mono {
+  font-family: monospace;
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+/* Misc */
+.bg-transparent {
+  background: transparent;
+  --background: transparent;
+}
+
+/* A heading that opens details, e.g. an exercise name in the logger */
+.exercise-name-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  text-decoration: underline dotted;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+// Gold trophy marking a personal best
+.pb-trophy {
+  display: inline-flex;
+  vertical-align: middle;
+  font-size: 1rem;
+}
+
+// Read by screen readers, not shown
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

@@ -1,0 +1,22 @@
+<ion-tabs (ionTabsWillChange)="onTabChange()">
+  <!-- In the tab bar's slot, before it, so it sits right above it -->
+  <app-resume-bar slot="bottom"></app-resume-bar>
+  <ion-tab-bar slot="bottom">
+    <ion-tab-button tab="today">
+      <ion-icon name="calendar-outline" aria-hidden="true"></ion-icon>
+      <ion-label>Today</ion-label>
+    </ion-tab-button>
+    <ion-tab-button tab="programs">
+      <ion-icon name="layers-outline" aria-hidden="true"></ion-icon>
+      <ion-label>Programs</ion-label>
+    </ion-tab-button>
+    <ion-tab-button tab="history">
+      <ion-icon name="time-outline" aria-hidden="true"></ion-icon>
+      <ion-label>History</ion-label>
+    </ion-tab-button>
+    <ion-tab-button tab="profile">
+      <ion-icon name="person-outline" aria-hidden="true"></ion-icon>
+      <ion-label>Profile</ion-label>
+    </ion-tab-button>
+  </ion-tab-bar>
+</ion-tabs>

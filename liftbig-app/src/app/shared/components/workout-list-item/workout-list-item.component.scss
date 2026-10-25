@@ -1,0 +1,37 @@
+:host {
+  display: block;
+  border-bottom: 1px solid var(--divider);
+}
+
+// Opaque background hides the Delete option while the item slides back
+.workout-list-item {
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  --background: var(--bg);
+  --border-width: 0;
+}
+
+app-date-block-row {
+  flex: 1;
+}
+
+.row-volume {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+
+  .num {
+    font-size: 19px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  &.empty .num {
+    color: var(--icon-muted);
+  }
+}
+
+.volume-unit {
+  font-size: 11px;
+  color: var(--text-2);
+}

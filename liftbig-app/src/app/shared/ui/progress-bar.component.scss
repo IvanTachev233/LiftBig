@@ -1,0 +1,41 @@
+:host {
+  display: block;
+}
+
+.track {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.complete .fill,
+.complete .segment.filled {
+  background: var(--success);
+}
+
+.track.segmented {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 3px;
+  height: 6px;
+  border-radius: 0;
+  background: none;
+}
+
+.segment {
+  border-radius: 3px;
+  background: var(--line-strong);
+
+  &.filled {
+    background: var(--accent);
+  }
+}

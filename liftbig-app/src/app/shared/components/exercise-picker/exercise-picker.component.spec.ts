@@ -1,0 +1,670 @@
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+} from '@angular/common/http/testing';
+import { ModalController } from '@ionic/angular';
+import { ExercisePickerComponent } from './exercise-picker.component';
+import { ExerciseDetailModalComponent } from '../exercise-detail-modal/exercise-detail-modal.component';
+import { CreateExerciseModalComponent } from '../create-exercise-modal/create-exercise-modal.component';
+import { AuthService, User } from '../../../core/auth.service';
+import { Exercise } from '../../../core/workout.service';
+import { environment } from '../../../../environments/environment';
+import { OUTBOX_PLATFORM } from '../../../core/outbox.service';
+import { FakeOutboxPlatform } from '../../../core/outbox.testing';
+import { ReadCacheService } from '../../../core/read-cache.service';
+
+describe('ExercisePickerComponent', () => {
+  let component: ExercisePickerComponent;
+  let fixture: ComponentFixture<ExercisePickerComponent>;
+  let httpMock: HttpTestingController;
+  let modalCtrlSpy: jasmine.SpyObj<ModalController>;
+  let childModalSpy: jasmine.SpyObj<HTMLIonModalElement>;
+  let currentUser: User | null;
+
+  const coach: User = { id: 'coach-1', email: 'c@example.test', role: 'COACH' };
+  const client: User = { id: 'client-1', email: 'k@example.test', role: 'CLIENT', coachId: 'coach-1' };
+
+  const exercises: Exercise[] = [
+    { id: 'e1', name: 'Back Squat', bodyPart: 'LG', imageUrl: 'https://cdn.example.com/squat.png' },
+    { id: 'e2', name: 'Bench Press', bodyPart: 'CH' },
+    { id: 'e3', name: 'Deadlift', bodyPart: 'BK' },
+    { id: 'e4', name: 'Front Squat', bodyPart: 'LG' },
+    { id: 'e5', name: 'Overhead Press', bodyPart: null },
+  ];
+
+  function setup(options: { user?: User | null; exercises?: Exercise[] | undefined } = {}) {
+    currentUser = 'user' in options ? (options.user ?? null) : coach;
+    fixture = TestBed.createComponent(ExercisePickerComponent);
+    component = fixture.componentInstance;
+    if ('exercises' in options) {
+      component.exercises = options.exercises;
+    } else {
+      component.exercises = exercises;
+    }
+    fixture.detectChanges();
+    httpMock = TestBed.inject(HttpTestingController);
+  }
+
+  function el(): HTMLElement {
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  function rowNames(): string[] {
+    return Array.from(el().querySelectorAll('.exercise-row-name')).map((n) =>
+      (n.textContent ?? '').trim(),
+    );
+  }
+
+  function row(name: string): HTMLElement {
+    const rows = Array.from(el().querySelectorAll<HTMLElement>('.exercise-row'));
+    const found = rows.find((r) =>
+      (r.querySelector('.exercise-row-name')?.textContent ?? '').trim() === name,
+    );
+    if (!found) throw new Error(`row not found: ${name}`);
+    return found;
+  }
+
+  function checkbox(name: string): HTMLIonCheckboxElement {
+    return row(name).querySelector('ion-checkbox') as HTMLIonCheckboxElement;
+  }
+
+  function clickRow(name: string) {
+    (row(name).querySelector('.exercise-row-name') as HTMLElement).click();
+    fixture.detectChanges();
+  }
+
+  function search(value: string | null) {
+    const searchbar = el().querySelector('ion-searchbar') as Element;
+    searchbar.dispatchEvent(new CustomEvent('ionInput', { detail: { value } }));
+    fixture.detectChanges();
+  }
+
+  function addButton(): HTMLIonButtonElement {
+    return el().querySelector('.add-button') as HTMLIonButtonElement;
+  }
+
+  function supersetButton(): HTMLIonButtonElement {
+    return el().querySelector('.superset-button') as HTMLIonButtonElement;
+  }
+
+  // Lets the awaited modal calls settle
+  function settle(condition: () => boolean, timeoutMs = 1000): Promise<void> {
+    const start = Date.now();
+    return new Promise((resolve, reject) => {
+      const check = () => {
+        if (condition()) return resolve();
+        if (Date.now() - start > timeoutMs) return reject(new Error('settle: timed out'));
+        setTimeout(check, 10);
+      };
+      check();
+    });
+  }
+
+  beforeEach(async () => {
+    childModalSpy = jasmine.createSpyObj('HTMLIonModalElement', ['present', 'onWillDismiss']);
+    childModalSpy.present.and.resolveTo();
+    childModalSpy.onWillDismiss.and.resolveTo({ data: undefined, role: 'cancel' });
+
+    modalCtrlSpy = jasmine.createSpyObj('ModalController', ['create', 'dismiss']);
+    modalCtrlSpy.create.and.resolveTo(childModalSpy);
+    modalCtrlSpy.dismiss.and.resolveTo(true);
+
+    await TestBed.configureTestingModule({
+      imports: [ExercisePickerComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ModalController, useValue: modalCtrlSpy },
+        { provide: AuthService, useValue: { currentUser: () => currentUser } },
+        { provide: OUTBOX_PLATFORM, useValue: new FakeOutboxPlatform() },
+      ],
+    })
+      // IonicModule provides its own ModalController to standalone components,
+      // so the spy has to be provided on the component itself
+      .overrideComponent(ExercisePickerComponent, {
+        add: { providers: [{ provide: ModalController, useValue: modalCtrlSpy }] },
+      })
+      .compileComponents();
+  });
+
+  afterEach(() => {
+    httpMock.verify();
+  });
+
+  describe('loading', () => {
+    it('renders the exercises passed in without requesting them', () => {
+      setup();
+      httpMock.expectNone(`${environment.apiUrl}/workouts/exercises`);
+      expect(rowNames()).toEqual(exercises.map((e) => e.name));
+    });
+
+    it('loads the exercises from the service when none are passed in', () => {
+      setup({ exercises: undefined });
+      const req = httpMock.expectOne(`${environment.apiUrl}/workouts/exercises`);
+      expect(req.request.method).toBe('GET');
+      req.flush(exercises.slice(0, 2));
+      expect(rowNames()).toEqual(['Back Squat', 'Bench Press']);
+    });
+
+    it('lists the exercises last loaded on this phone when there is no connection', async () => {
+      await TestBed.inject(ReadCacheService).start();
+      setup({ exercises: undefined });
+      httpMock.expectOne(`${environment.apiUrl}/workouts/exercises`).flush(exercises.slice(0, 2));
+
+      setup({ exercises: undefined });
+      httpMock
+        .expectOne(`${environment.apiUrl}/workouts/exercises`)
+        .error(new ProgressEvent('error'), { status: 0, statusText: '' });
+      expect(el().querySelector('.load-error')).toBeNull();
+      expect(rowNames()).toEqual(['Back Squat', 'Bench Press']);
+    });
+
+    it('shows an error with Retry when loading fails', () => {
+      setup({ exercises: undefined });
+      httpMock
+        .expectOne(`${environment.apiUrl}/workouts/exercises`)
+        .flush('boom', { status: 500, statusText: 'Server Error' });
+      expect(el().querySelector('.load-error')?.textContent).toContain('Could not load exercises');
+
+      (el().querySelector('.retry-button') as HTMLElement).click();
+      httpMock.expectOne(`${environment.apiUrl}/workouts/exercises`).flush(exercises);
+      expect(rowNames().length).toBe(exercises.length);
+    });
+  });
+
+  describe('rows', () => {
+    beforeEach(() => setup());
+
+    it('shows a thumbnail only when imageUrl is set', () => {
+      const img = row('Back Squat').querySelector('img') as HTMLImageElement;
+      expect(img.getAttribute('src')).toBe('https://cdn.example.com/squat.png');
+      expect(row('Bench Press').querySelector('img')).toBeNull();
+    });
+
+    it('shows the body part under the name, and nothing without one', () => {
+      expect(row('Bench Press').querySelector('.exercise-row-sub')?.textContent?.trim()).toBe('Chest');
+      expect(row('Back Squat').querySelector('.exercise-row-sub')?.textContent?.trim()).toBe('Legs');
+      expect(row('Overhead Press').querySelector('.exercise-row-sub')).toBeNull();
+    });
+
+    it('labels the info button and the checkbox for screen readers', () => {
+      const info = row('Deadlift').querySelector('.info-button') as HTMLElement;
+      expect(info.getAttribute('aria-label')).toBe('Details for Deadlift');
+      expect(checkbox('Deadlift').getAttribute('aria-label')).toBe('Select Deadlift');
+    });
+  });
+
+  describe('search', () => {
+    beforeEach(() => setup());
+
+    it('typing "squat" leaves only matching rows, ignoring case', () => {
+      search('squat');
+      expect(rowNames()).toEqual(['Back Squat', 'Front Squat']);
+
+      search('SQUAT');
+      expect(rowNames()).toEqual(['Back Squat', 'Front Squat']);
+    });
+
+    it('filters on every keystroke and the clear button resets the list', () => {
+      search('e');
+      expect(rowNames()).toEqual(['Bench Press', 'Deadlift', 'Overhead Press']);
+      search('es');
+      expect(rowNames()).toEqual(['Bench Press', 'Overhead Press']);
+
+      // The clear (x) button empties the value and fires ionInput
+      search('');
+      expect(rowNames()).toEqual(exercises.map((e) => e.name));
+      search(null);
+      expect(rowNames()).toEqual(exercises.map((e) => e.name));
+    });
+
+    it('shows "No exercises match" when nothing matches', () => {
+      search('zzz');
+      expect(rowNames()).toEqual([]);
+      expect(el().querySelector('.empty-state')?.textContent).toContain('No exercises match');
+    });
+
+    it('keeps selections made before filtering', () => {
+      clickRow('Deadlift');
+      search('squat');
+      clickRow('Front Squat');
+      search('');
+      expect(checkbox('Deadlift').checked).toBeTrue();
+      expect(checkbox('Front Squat').checked).toBeTrue();
+    });
+  });
+
+  describe('body part chips', () => {
+    beforeEach(() => setup());
+
+    function chips(): HTMLElement[] {
+      return Array.from(el().querySelectorAll<HTMLElement>('.filter-chips .chip'));
+    }
+
+    function pick(label: string) {
+      chips()
+        .find((c) => c.textContent?.trim() === label)!
+        .click();
+      fixture.detectChanges();
+    }
+
+    it('offers All plus only the body parts present, in a fixed order, with All selected', () => {
+      expect(chips().map((c) => c.textContent?.trim())).toEqual(['All', 'Chest', 'Back', 'Legs']);
+      expect(chips()[0].getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('a chip filters the list, combined with the search', () => {
+      pick('Legs');
+      expect(rowNames()).toEqual(['Back Squat', 'Front Squat']);
+
+      search('front');
+      expect(rowNames()).toEqual(['Front Squat']);
+
+      pick('All');
+      expect(rowNames()).toEqual(['Front Squat']);
+      search('');
+      expect(rowNames()).toEqual(exercises.map((e) => e.name));
+    });
+
+    it('keeps selections hidden by a chip', () => {
+      clickRow('Deadlift');
+      pick('Legs');
+      clickRow('Back Squat');
+      expect(addButton().textContent?.trim()).toBe('Add 2 exercises');
+    });
+  });
+
+  describe('category chips', () => {
+    const tagged: Exercise[] = [
+      { id: 'c1', name: 'Back Squat', bodyPart: 'LG', category: 'Squat', equipment: 'Barbell' },
+      { id: 'c2', name: 'Bench Press', bodyPart: 'CH', category: 'Press', equipment: 'Barbell' },
+      { id: 'c3', name: 'Clean', bodyPart: 'FB', category: 'Olympic', equipment: 'Barbell' },
+      { id: 'c4', name: 'Deadlift', bodyPart: 'BK', category: 'Pull', equipment: 'Barbell' },
+      { id: 'c5', name: 'Front Squat', bodyPart: 'LG', category: 'Squat', equipment: null },
+      { id: 'c6', name: 'Sled Push', bodyPart: 'LG', category: null, equipment: null, createdById: 'coach-1' },
+      { id: 'c7', name: 'Wall Ball', bodyPart: null, category: null, equipment: null, createdById: 'coach-1' },
+      { id: 'c8', name: 'Sled Drag', bodyPart: 'LG', category: null, equipment: null, createdById: null },
+      { id: 'c9', name: 'Zercher Squat', bodyPart: 'LG', category: 'Squat', equipment: null, createdById: 'coach-1' },
+    ];
+
+    function chips(): HTMLElement[] {
+      return Array.from(el().querySelectorAll<HTMLElement>('.filter-chips .chip'));
+    }
+
+    function pick(label: string) {
+      chips()
+        .find((c) => c.textContent?.trim() === label)!
+        .click();
+      fixture.detectChanges();
+    }
+
+    const sub = (name: string) => row(name).querySelector('.exercise-row-sub')?.textContent?.trim() ?? null;
+
+    it('offers All, the categories present in design order, then Coach and Other', () => {
+      setup({ exercises: tagged });
+      expect(chips().map((c) => c.textContent?.trim())).toEqual([
+        'All', 'Olympic', 'Squat', 'Press', 'Pull', 'Coach', 'Other',
+      ]);
+      expect(chips()[0].getAttribute('aria-checked')).toBe('true');
+      expect(el().querySelector('.filter-chips [role="radiogroup"]')?.getAttribute('aria-label')).toBe('Category');
+    });
+
+    it('leaves out categories with no exercise, and Coach and Other when every exercise has one', () => {
+      setup({ exercises: tagged.filter((e) => e.category && e.category !== 'Pull') });
+      expect(chips().map((c) => c.textContent?.trim())).toEqual(['All', 'Olympic', 'Squat', 'Press']);
+    });
+
+    it('puts a category it does not know after the known ones', () => {
+      setup({
+        exercises: [...tagged, { id: 'c10', name: 'Farmer Carry', category: 'Carry', equipment: 'Dumbbell' }],
+      });
+      expect(chips().map((c) => c.textContent?.trim())).toEqual([
+        'All', 'Olympic', 'Squat', 'Press', 'Pull', 'Carry', 'Coach', 'Other',
+      ]);
+    });
+
+    it('a chip filters by category; Coach and Other hold the ones without, combined with the search', () => {
+      setup({ exercises: tagged });
+      pick('Squat');
+      expect(rowNames()).toEqual(['Back Squat', 'Front Squat', 'Zercher Squat']);
+      pick('Coach');
+      expect(rowNames()).toEqual(['Sled Push', 'Wall Ball']);
+      pick('Other');
+      expect(rowNames()).toEqual(['Sled Drag']);
+      pick('Coach');
+      search('wall');
+      expect(rowNames()).toEqual(['Wall Ball']);
+      pick('All');
+      expect(rowNames()).toEqual(['Wall Ball']);
+    });
+
+    it('shows category · equipment under the name; a coach exercise without a category says so', () => {
+      setup({ exercises: tagged });
+      expect(sub('Clean')).toBe('Olympic · Barbell');
+      expect(sub('Front Squat')).toBe('Squat');
+      expect(sub('Zercher Squat')).toBe('Squat');
+      expect(sub('Sled Push')).toBe('Coach exercise');
+      expect(sub('Wall Ball')).toBe('Coach exercise');
+      expect(sub('Sled Drag')).toBe('Legs');
+    });
+
+    it('falls back to body part chips when no exercise has a category', () => {
+      setup({ exercises: tagged.map((e) => ({ ...e, category: null, equipment: null })) });
+      expect(chips().map((c) => c.textContent?.trim())).toEqual(['All', 'Chest', 'Back', 'Legs', 'Full body']);
+      expect(el().querySelector('.filter-chips [role="radiogroup"]')?.getAttribute('aria-label')).toBe('Body part');
+      pick('Legs');
+      expect(rowNames()).toEqual(['Back Squat', 'Front Squat', 'Sled Push', 'Sled Drag', 'Zercher Squat']);
+    });
+
+    it('resets a category chip that would hide a created exercise', async () => {
+      setup({ user: coach, exercises: tagged });
+      pick('Squat');
+      const created: Exercise = { id: 'new-3', name: 'Box Jump', category: null, createdById: 'coach-1' };
+      childModalSpy.onWillDismiss.and.resolveTo({ data: created, role: 'confirm' });
+      await component.openCreate();
+      fixture.detectChanges();
+      expect(rowNames()).toContain('Box Jump');
+      expect(chips()[0].getAttribute('aria-checked')).toBe('true');
+    });
+  });
+
+  describe('selection and header buttons', () => {
+    beforeEach(() => setup());
+
+    it('Add is disabled at 0 selected and Superset below 2', () => {
+      expect(addButton().disabled).toBeTrue();
+      expect(supersetButton().disabled).toBeTrue();
+
+      clickRow('Deadlift');
+      expect(addButton().disabled).toBeFalse();
+      expect(supersetButton().disabled).toBeTrue();
+
+      clickRow('Bench Press');
+      expect(addButton().disabled).toBeFalse();
+      expect(supersetButton().disabled).toBeFalse();
+
+      clickRow('Bench Press');
+      expect(supersetButton().disabled).toBeTrue();
+    });
+
+    it('tapping a row toggles its checkbox', () => {
+      clickRow('Deadlift');
+      expect(checkbox('Deadlift').checked).toBeTrue();
+      clickRow('Deadlift');
+      expect(checkbox('Deadlift').checked).toBeFalse();
+    });
+
+    it('the checkbox ionChange sets the selection without the row click toggling it back', () => {
+      const box = checkbox('Overhead Press');
+      box.dispatchEvent(new CustomEvent('ionChange', { detail: { checked: true } }));
+      // A real tap on the checkbox also fires a click that bubbles to the row
+      box.click();
+      fixture.detectChanges();
+      expect(checkbox('Overhead Press').checked).toBeTrue();
+
+      box.dispatchEvent(new CustomEvent('ionChange', { detail: { checked: false } }));
+      box.click();
+      fixture.detectChanges();
+      expect(checkbox('Overhead Press').checked).toBeFalse();
+    });
+
+    it('Add dismisses with the exercises in selection order and superset false', () => {
+      clickRow('Overhead Press');
+      clickRow('Back Squat');
+      clickRow('Deadlift');
+
+      addButton().click();
+
+      expect(modalCtrlSpy.dismiss).toHaveBeenCalledWith(
+        { exercises: [exercises[4], exercises[0], exercises[2]], superset: false },
+        'confirm',
+      );
+    });
+
+    it('Superset dismisses with the selection and superset true', () => {
+      clickRow('Front Squat');
+      clickRow('Bench Press');
+
+      supersetButton().click();
+
+      expect(modalCtrlSpy.dismiss).toHaveBeenCalledWith(
+        { exercises: [exercises[3], exercises[1]], superset: true },
+        'confirm',
+      );
+    });
+
+    it('does not dismiss from add()/superset() below their thresholds', () => {
+      component.add();
+      clickRow('Deadlift');
+      component.addAsSuperset();
+      expect(modalCtrlSpy.dismiss).not.toHaveBeenCalled();
+    });
+
+    it('the add button reads "Add exercise", "Add 1 exercise", then "Add N exercises"', () => {
+      expect(addButton().textContent?.trim()).toBe('Add exercise');
+      clickRow('Deadlift');
+      expect(addButton().textContent?.trim()).toBe('Add 1 exercise');
+      clickRow('Bench Press');
+      clickRow('Front Squat');
+      expect(addButton().textContent?.trim()).toBe('Add 3 exercises');
+    });
+
+    it('Cancel sits at the top left beside the centred title', () => {
+      expect(el().querySelector('.back-button')?.textContent?.trim()).toBe('Cancel');
+      expect(el().querySelector('.picker-title')?.textContent?.trim()).toBe('Add exercise');
+    });
+
+    it('back dismisses with nothing and the cancel role', () => {
+      clickRow('Deadlift');
+      (el().querySelector('.back-button') as HTMLElement).click();
+      expect(modalCtrlSpy.dismiss).toHaveBeenCalledWith(null, 'cancel');
+    });
+  });
+
+  describe('info button', () => {
+    beforeEach(() => setup());
+
+    it('opens the detail modal and does not toggle selection', async () => {
+      const info = row('Deadlift').querySelector('.info-button') as HTMLElement;
+      info.click();
+      fixture.detectChanges();
+
+      expect(checkbox('Deadlift').checked).toBeFalse();
+      expect(addButton().disabled).toBeTrue();
+      await settle(() => childModalSpy.present.calls.count() > 0);
+      expect(modalCtrlSpy.create).toHaveBeenCalledWith(
+        jasmine.objectContaining({
+          component: ExerciseDetailModalComponent,
+          componentProps: { exercise: exercises[2] },
+        }),
+      );
+    });
+
+    it('does not untoggle an already selected row', () => {
+      clickRow('Deadlift');
+      (row('Deadlift').querySelector('.info-button') as HTMLElement).click();
+      fixture.detectChanges();
+      expect(checkbox('Deadlift').checked).toBeTrue();
+    });
+  });
+
+  describe('Create New Exercise card', () => {
+    it('renders for a COACH', () => {
+      setup({ user: coach });
+      expect(el().querySelector('.create-card')?.textContent).toContain('Create new exercise');
+    });
+
+    it('does not render for a CLIENT', () => {
+      setup({ user: client });
+      expect(el().querySelector('.create-card')).toBeNull();
+    });
+
+    it('does not render without a user', () => {
+      setup({ user: null });
+      expect(el().querySelector('.create-card')).toBeNull();
+    });
+
+    it('a created exercise appears in sorted position, checked, at the end of the selection order', async () => {
+      setup({ user: coach });
+      clickRow('Overhead Press');
+      const created: Exercise = { id: 'new-1', name: 'barbell Row', createdById: 'coach-1' };
+      childModalSpy.onWillDismiss.and.resolveTo({ data: created, role: 'confirm' });
+
+      (el().querySelector('.create-card') as HTMLElement).click();
+      await settle(() => rowNames().includes('barbell Row'));
+
+      expect(modalCtrlSpy.create).toHaveBeenCalledWith(
+        jasmine.objectContaining({ component: CreateExerciseModalComponent }),
+      );
+      expect(rowNames()).toEqual([
+        'Back Squat',
+        'barbell Row',
+        'Bench Press',
+        'Deadlift',
+        'Front Squat',
+        'Overhead Press',
+      ]);
+      expect(checkbox('barbell Row').checked).toBeTrue();
+
+      addButton().click();
+      expect(modalCtrlSpy.dismiss).toHaveBeenCalledWith(
+        { exercises: [exercises[4], created], superset: false },
+        'confirm',
+      );
+    });
+
+    it('clears a search that would hide the created exercise', async () => {
+      setup({ user: coach });
+      search('squat');
+      const created: Exercise = { id: 'new-2', name: 'Zercher Lunge' };
+      childModalSpy.onWillDismiss.and.resolveTo({ data: created, role: 'confirm' });
+
+      await component.openCreate();
+      fixture.detectChanges();
+
+      expect(rowNames()).toContain('Zercher Lunge');
+      expect(rowNames().length).toBe(exercises.length + 1);
+    });
+
+    it('cancelling the create modal changes nothing', async () => {
+      setup({ user: coach });
+      childModalSpy.onWillDismiss.and.resolveTo({ data: null, role: 'cancel' });
+
+      await component.openCreate();
+
+      expect(rowNames()).toEqual(exercises.map((e) => e.name));
+      expect(addButton().disabled).toBeTrue();
+    });
+  });
+
+  describe('replace mode', () => {
+    function setupReplace(options: { user?: User | null; excludeIds?: string[] } = {}) {
+      currentUser = 'user' in options ? (options.user ?? null) : coach;
+      fixture = TestBed.createComponent(ExercisePickerComponent);
+      component = fixture.componentInstance;
+      component.exercises = exercises;
+      component.mode = 'replace';
+      if (options.excludeIds) {
+        component.excludeIds = options.excludeIds;
+      }
+      fixture.detectChanges();
+      httpMock = TestBed.inject(HttpTestingController);
+    }
+
+    function replaceButton(): HTMLIonButtonElement {
+      return addButton();
+    }
+
+    it('hides the Superset button', () => {
+      setupReplace();
+      expect(supersetButton()).toBeNull();
+    });
+
+    it('selecting a row deselects the previous one, keeping only one selected', () => {
+      setupReplace();
+      clickRow('Deadlift');
+      expect(checkbox('Deadlift').checked).toBeTrue();
+
+      clickRow('Bench Press');
+      expect(checkbox('Bench Press').checked).toBeTrue();
+      expect(checkbox('Deadlift').checked).toBeFalse();
+    });
+
+    it('Replace is disabled at 0 selected and enabled with exactly 1', () => {
+      setupReplace();
+      expect(replaceButton().disabled).toBeTrue();
+
+      clickRow('Deadlift');
+      expect(replaceButton().disabled).toBeFalse();
+
+      clickRow('Bench Press');
+      expect(replaceButton().disabled).toBeFalse();
+    });
+
+    it('the primary button reads and is labelled "Replace"', () => {
+      setupReplace();
+      expect(replaceButton().textContent?.trim()).toBe('Replace');
+      expect(replaceButton().getAttribute('aria-label')).toBe('Replace');
+
+      clickRow('Deadlift');
+      expect(replaceButton().textContent?.trim()).toBe('Replace');
+      expect(replaceButton().getAttribute('aria-label')).toBe('Replace');
+    });
+
+    it('confirming dismisses with the single selection and superset false', () => {
+      setupReplace();
+      clickRow('Deadlift');
+      clickRow('Bench Press');
+
+      replaceButton().click();
+
+      expect(modalCtrlSpy.dismiss).toHaveBeenCalledWith(
+        { exercises: [exercises[1]], superset: false },
+        'confirm',
+      );
+    });
+
+    it('does not dismiss from replace() when nothing is selected', () => {
+      setupReplace();
+      component.replace();
+      expect(modalCtrlSpy.dismiss).not.toHaveBeenCalled();
+    });
+
+    it('does not list excluded ids', () => {
+      setupReplace({ excludeIds: ['e2', 'e4'] });
+      expect(rowNames()).toEqual(['Back Squat', 'Deadlift', 'Overhead Press']);
+    });
+
+    it('still shows the Create New Exercise card for coaches', () => {
+      setupReplace({ user: coach });
+      expect(el().querySelector('.create-card')?.textContent).toContain('Create new exercise');
+    });
+
+    it('titles the picker "Replace exercise"', () => {
+      setupReplace();
+      expect(el().querySelector('.picker-title')?.textContent?.trim()).toBe('Replace exercise');
+    });
+
+    it('a created exercise is selected and replaces the previous selection', async () => {
+      setupReplace({ user: coach });
+      clickRow('Overhead Press');
+      const created: Exercise = { id: 'new-3', name: 'barbell Row', createdById: 'coach-1' };
+      childModalSpy.onWillDismiss.and.resolveTo({ data: created, role: 'confirm' });
+
+      (el().querySelector('.create-card') as HTMLElement).click();
+      await settle(() => rowNames().includes('barbell Row'));
+
+      expect(checkbox('barbell Row').checked).toBeTrue();
+      expect(checkbox('Overhead Press').checked).toBeFalse();
+
+      replaceButton().click();
+      expect(modalCtrlSpy.dismiss).toHaveBeenCalledWith(
+        { exercises: [created], superset: false },
+        'confirm',
+      );
+    });
+  });
+});

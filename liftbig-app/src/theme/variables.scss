@@ -1,0 +1,125 @@
+// Ionic variables mapped onto the design tokens. For more info, please see:
+// http://ionicframework.com/docs/theming/
+@use 'sass:color';
+@use 'sass:list';
+@use 'sass:map';
+@use 'sass:math';
+@use 'tokens';
+
+@function rgb-triple($c) {
+  @return math.round(color.channel($c, 'red', $space: rgb)),
+    math.round(color.channel($c, 'green', $space: rgb)),
+    math.round(color.channel($c, 'blue', $space: rgb));
+}
+
+// color.mix leaves fractional channels; round them to whole ones
+@function mix($a, $b, $weight) {
+  $c: color.mix($a, $b, $weight);
+  @return rgb(rgb-triple($c)...);
+}
+
+// WCAG relative luminance
+@function luminance($c) {
+  $weights: 0.2126, 0.7152, 0.0722;
+  $channels: rgb-triple($c);
+  $sum: 0;
+  @for $i from 1 through 3 {
+    $s: math.div(list.nth($channels, $i), 255);
+    @if $s <= 0.03928 {
+      $s: math.div($s, 12.92);
+    } @else {
+      $s: math.pow(math.div($s + 0.055, 1.055), 2.4);
+    }
+    $sum: $sum + $s * list.nth($weights, $i);
+  }
+  @return $sum;
+}
+
+@function contrast($a, $b) {
+  $la: luminance($a) + 0.05;
+  $lb: luminance($b) + 0.05;
+  @return math.div(math.max($la, $lb), math.min($la, $lb));
+}
+
+// Text on a fill: the dark on-accent colour or white, whichever reads better
+@function contrast-on($fill, $dark) {
+  @if contrast($fill, $dark) >= contrast($fill, #ffffff) {
+    @return $dark;
+  }
+  @return #ffffff;
+}
+
+@mixin ion-color($name, $base, $dark) {
+  $contrast: contrast-on($base, $dark);
+  --ion-color-#{$name}: #{$base};
+  --ion-color-#{$name}-rgb: #{rgb-triple($base)};
+  --ion-color-#{$name}-contrast: #{$contrast};
+  --ion-color-#{$name}-contrast-rgb: #{rgb-triple($contrast)};
+  --ion-color-#{$name}-shade: #{mix(#000000, $base, 12%)};
+  --ion-color-#{$name}-tint: #{mix(#ffffff, $base, 10%)};
+}
+
+@mixin ionic-theme($t) {
+  $bg: map.get($t, bg);
+  $text: map.get($t, text);
+  $on-accent: map.get($t, on-accent);
+
+  @include ion-color(primary, map.get($t, accent), $on-accent);
+  @include ion-color(secondary, map.get($t, success), $on-accent);
+  @include ion-color(tertiary, map.get($t, pr-text), $on-accent);
+  @include ion-color(success, map.get($t, success), $on-accent);
+  @include ion-color(warning, map.get($t, pr-text), $on-accent);
+  @include ion-color(danger, map.get($t, danger-text), $on-accent);
+  @include ion-color(medium, map.get($t, text-3), $on-accent);
+  // Ionic's convention: "dark" contrasts with the background, "light" sits near it
+  @include ion-color(dark, $text, $on-accent);
+  @include ion-color(light, map.get($t, surface-2), $on-accent);
+
+  --ion-background-color: #{$bg};
+  --ion-background-color-rgb: #{rgb-triple($bg)};
+  --ion-text-color: #{$text};
+  --ion-text-color-rgb: #{rgb-triple($text)};
+
+  // Ionic's stepped colours: background mixed towards text, and text towards background
+  @for $i from 1 through 19 {
+    --ion-background-color-step-#{$i * 50}: #{mix($text, $bg, $i * 5%)};
+    --ion-text-color-step-#{$i * 50}: #{mix($bg, $text, $i * 5%)};
+  }
+
+  --ion-border-color: var(--line);
+  --ion-placeholder-color: var(--placeholder);
+  --ion-overlay-background-color: var(--surface);
+  --ion-item-background: var(--surface);
+  --ion-item-border-color: var(--line);
+  --ion-card-background: var(--surface);
+  --ion-toolbar-background: var(--bg);
+  --ion-toolbar-color: var(--text);
+  --ion-toolbar-border-color: var(--line);
+  --ion-tab-bar-background: var(--tabbar-bg);
+  --ion-tab-bar-border-color: var(--line);
+  --ion-tab-bar-color: var(--text-3);
+  --ion-tab-bar-color-selected: var(--accent-text);
+  --ion-font-family: var(--font-ui);
+}
+
+// Ionic's dark palette sets these on `.ion-palette-dark.ios` / `.md`. These
+// selectors have the same specificity and this file loads after global.scss
+// (angular.json `styles`), so the tokens win.
+:root,
+:root.ios,
+:root.md {
+  @include ionic-theme(tokens.$dark);
+}
+
+:root[data-theme='light'],
+:root[data-theme='light'].ios,
+:root[data-theme='light'].md {
+  @include ionic-theme(tokens.$light);
+}
+
+// The iOS dark palette lifts modal backgrounds; keep them on the tokens
+.ion-palette-dark.ios ion-modal {
+  --ion-background-color: var(--bg);
+  --ion-toolbar-background: var(--bg);
+  --ion-toolbar-border-color: var(--line);
+}

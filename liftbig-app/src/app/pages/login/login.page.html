@@ -1,0 +1,67 @@
+<ion-content class="auth-content">
+  <div class="auth-page">
+    <div class="auth-brand">
+      <span class="wordmark num">LiftBig<span class="wordmark-dot">.</span></span>
+      <p class="auth-tagline">Train like a champion.</p>
+    </div>
+
+    <form class="auth-form" (ngSubmit)="login()">
+      @if (notice) {
+        <p class="auth-notice" role="status">
+          <ion-icon name="checkmark-circle" aria-hidden="true"></ion-icon>
+          {{ notice }}
+        </p>
+      }
+
+      <ion-input
+        class="input-field"
+        label="Email"
+        labelPlacement="stacked"
+        type="email"
+        name="email"
+        autocomplete="email"
+        [(ngModel)]="credentials.email"
+        placeholder="you@example.com"
+        required
+      ></ion-input>
+
+      <div class="password-field">
+        <ion-input
+          class="input-field password-input"
+          label="Password"
+          labelPlacement="stacked"
+          name="password"
+          autocomplete="current-password"
+          [type]="showPassword ? 'text' : 'password'"
+          [(ngModel)]="credentials.password"
+          placeholder="Your password"
+          required
+        >
+          <button
+            slot="end"
+            type="button"
+            class="password-toggle"
+            [attr.aria-pressed]="showPassword"
+            [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+            (click)="showPassword = !showPassword"
+          >
+            <ion-icon [name]="showPassword ? 'eye-off-outline' : 'eye-outline'" aria-hidden="true"></ion-icon>
+          </button>
+        </ion-input>
+        <!-- After the field in tab order; shown at the right of its label -->
+        <a class="forgot-link" routerLink="/forgot-password" [queryParams]="forgotParams">Forgot password?</a>
+      </div>
+
+      <ion-button
+        class="btn-primary"
+        expand="block"
+        type="submit"
+        [disabled]="!credentials.email || !credentials.password"
+      >
+        Log in
+      </ion-button>
+    </form>
+
+    <p class="auth-footer">New to LiftBig? <a routerLink="/register">Create an account</a></p>
+  </div>
+</ion-content>

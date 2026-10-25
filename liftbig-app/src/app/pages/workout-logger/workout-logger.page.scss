@@ -1,0 +1,144 @@
+// Cards and the set table are in theme/_workout.scss
+
+.logger-header ion-toolbar {
+  --background: var(--bg);
+  --padding-top: 16px;
+  --padding-bottom: 8px;
+  --padding-start: var(--pad-dense);
+  --padding-end: var(--pad-dense);
+}
+
+// Equal side columns keep the name centred
+ion-buttons {
+  min-width: calc(40px + 2 * var(--pad-dense));
+}
+
+ion-buttons[slot='end'] {
+  justify-content: flex-end;
+}
+
+.minimise-btn {
+  --background: var(--surface);
+  --border-radius: 12px;
+  --color: var(--text-soft);
+  width: 44px;
+  height: 44px;
+}
+
+.logger-title {
+  min-width: 0;
+  text-align: center;
+}
+
+.workout-title,
+.workout-name-input {
+  --color: var(--text);
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+// One line each, cut short with an ellipsis
+.workout-title,
+.workout-name-input,
+.save-state {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.elapsed {
+  display: block;
+  color: var(--accent-text);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.save-state {
+  display: block;
+  color: var(--text-3);
+  font-size: clamp(11px, 11px + var(--fluid), 12px);
+
+  &.offline {
+    color: var(--pr-text);
+  }
+}
+
+.workout-name-input {
+  --padding-start: 4px;
+  --padding-end: 4px;
+  --highlight-height: 0;
+  min-height: 44px;
+  text-align: center;
+}
+
+ion-button.finish-btn {
+  --background: var(--success-tint);
+  --color: var(--success-text);
+  --border-radius: 10px;
+  --padding-start: calc(var(--pad-dense) + 2px);
+  --padding-end: calc(var(--pad-dense) + 2px);
+  --box-shadow: none;
+  height: 36px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: none;
+}
+
+.logger-content {
+  --padding-start: var(--gutter-dense);
+  --padding-end: var(--gutter-dense);
+  --padding-bottom: 32px;
+}
+
+.set-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 4px 12px;
+}
+
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+
+  span {
+    font-size: 12px;
+    color: var(--text-2);
+  }
+}
+
+.workout-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  margin: 0 4px 12px;
+}
+
+.program-badge {
+  text-decoration: none;
+}
+
+.workout-date {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+ion-datetime-button.date-chip::part(native) {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line-stronger);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font-size: 13px;
+}
+
+.empty-sets-message {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-2);
+}

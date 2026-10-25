@@ -1,0 +1,29 @@
+<app-bottom-sheet
+  title="Add entry"
+  helper="A 1, 2 or 3 rep max you lifted, up to today."
+  primaryLabel="Add entry"
+  [primaryDisabled]="!valid"
+  (primary)="add()"
+>
+  <ion-segment aria-label="Reps" [(ngModel)]="reps">
+    <ion-segment-button value="1"><ion-label>1RM</ion-label></ion-segment-button>
+    <ion-segment-button value="2"><ion-label>2RM</ion-label></ion-segment-button>
+    <ion-segment-button value="3"><ion-label>3RM</ion-label></ion-segment-button>
+  </ion-segment>
+  <ion-input
+    class="input-field entry-weight-input"
+    type="number"
+    inputmode="decimal"
+    labelPlacement="stacked"
+    [label]="'Weight (' + units.unit() + ')'"
+    [(ngModel)]="weight"
+  ></ion-input>
+  <ion-input
+    class="input-field entry-date-input"
+    type="date"
+    labelPlacement="stacked"
+    label="Date"
+    [max]="today"
+    [(ngModel)]="achievedOn"
+  ></ion-input>
+</app-bottom-sheet>

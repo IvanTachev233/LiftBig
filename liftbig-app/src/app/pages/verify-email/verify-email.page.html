@@ -1,0 +1,50 @@
+<ion-header class="screen-header ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/login" text="" aria-label="Back"></ion-back-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="auth-content">
+  <div class="auth-page register-page">
+    <div class="auth-brand">
+      <h1 class="title-screen">Check your email</h1>
+      <p class="auth-tagline">
+        We sent a 6-digit code to <span class="verify-address">{{ email }}</span>. It expires in 15 minutes.
+      </p>
+    </div>
+
+    <form class="auth-form" (ngSubmit)="verify()">
+      <app-code-field [(value)]="code" (completed)="verify()" />
+
+      @if (error) {
+        <p class="field-error" role="alert">{{ error }}</p>
+      }
+
+      <ion-button class="btn-primary" expand="block" type="submit" [disabled]="code().length !== 6 || submitting">
+        @if (submitting) {
+          <ion-spinner name="crescent" slot="start"></ion-spinner>
+        }
+        Confirm
+      </ion-button>
+    </form>
+
+    <div class="verify-actions">
+      @if (notice) {
+        <p class="verify-notice text-secondary" role="status">{{ notice }}</p>
+      }
+      <ion-button
+        class="btn-text resend-button"
+        expand="block"
+        [disabled]="cooldown.remaining() > 0 || resending"
+        (click)="resend()"
+      >
+        {{ cooldown.remaining() > 0 ? 'Resend code in ' + waitLabel(cooldown.remaining()) : 'Resend code' }}
+      </ion-button>
+      <ion-button class="btn-text muted different-email" expand="block" (click)="useDifferentEmail()">
+        Use a different email
+      </ion-button>
+    </div>
+  </div>
+</ion-content>

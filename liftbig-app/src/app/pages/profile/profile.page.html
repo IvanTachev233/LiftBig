@@ -1,0 +1,112 @@
+<app-tab-header title="Profile" />
+
+<ion-content class="screen-tab" [fullscreen]="true">
+  <app-large-title title="Profile" />
+
+  @if (profile; as p) {
+    <div class="identity">
+      <span class="avatar num" aria-hidden="true">{{ initials }}</span>
+      <span class="identity-text">
+        <span class="profile-name">{{ p.name || p.email }}</span>
+        @if (p.name) {
+          <span class="profile-email">{{ p.email }}</span>
+        }
+      </span>
+      <button type="button" class="edit-btn" aria-label="Edit name" (click)="openEdit()">Edit</button>
+    </div>
+  } @else {
+    <ion-spinner class="block mx-auto"></ion-spinner>
+  }
+
+  @if (isClient) {
+    <section class="profile-section" aria-labelledby="coach-heading">
+      <h2 class="eyebrow" id="coach-heading">Coach</h2>
+      <div class="coach-card">
+        <span class="coach-icon" aria-hidden="true">
+          <ion-icon name="people-outline"></ion-icon>
+        </span>
+        <span class="coach-text">
+          <span class="coach-title">{{ hasCoach ? 'Coach connected' : 'No coach connected' }}</span>
+          <span class="coach-sub">
+            {{ hasCoach ? 'Your coach can assign you workouts' : 'Get workouts assigned to you' }}
+          </span>
+        </span>
+        @if (!hasCoach) {
+          <button type="button" class="connect-btn" (click)="openConnect()">Connect</button>
+        }
+      </div>
+    </section>
+  }
+
+  <section class="profile-section" aria-labelledby="preferences-heading">
+    <h2 class="eyebrow" id="preferences-heading">Preferences</h2>
+    <div class="settings-group">
+      @if (profile) {
+        <div class="setting-row">
+          <span class="setting-label" id="unit-label">Weight unit</span>
+          <ion-segment
+            class="compact"
+            aria-labelledby="unit-label"
+            [value]="unit"
+            (ionChange)="changeUnit($any($event).detail.value)"
+          >
+            <ion-segment-button value="kg"><ion-label>kg</ion-label></ion-segment-button>
+            <ion-segment-button value="lb"><ion-label>lb</ion-label></ion-segment-button>
+          </ion-segment>
+        </div>
+        @if (isClient) {
+          <button type="button" class="setting-row rest-row" (click)="openRestTimer()">
+            <span class="setting-label">Default rest timer</span>
+            <span class="setting-value">
+              <span class="rest-value num">{{ restLabel }}</span>
+              <ion-icon name="chevron-forward" aria-hidden="true"></ion-icon>
+            </span>
+          </button>
+        }
+      }
+      <!-- Stored on the device, so it works without the profile -->
+      <div class="setting-row stacked">
+        <span class="setting-label" id="theme-label">Theme</span>
+        <ion-segment
+          aria-labelledby="theme-label"
+          [value]="theme.setting()"
+          (ionChange)="changeTheme($any($event).detail.value)"
+        >
+          <ion-segment-button value="dark"><ion-label>Dark</ion-label></ion-segment-button>
+          <ion-segment-button value="light"><ion-label>Light</ion-label></ion-segment-button>
+          <ion-segment-button value="system"><ion-label>System</ion-label></ion-segment-button>
+        </ion-segment>
+      </div>
+      @if (isClient) {
+        <button type="button" class="setting-row my-1rms" (click)="openMyMaxes()">
+          <span class="setting-label">My 1RMs</span>
+          <ion-icon name="chevron-forward" aria-hidden="true"></ion-icon>
+        </button>
+      }
+    </div>
+  </section>
+
+  <section class="profile-section" aria-labelledby="privacy-heading">
+    <h2 class="eyebrow" id="privacy-heading">Privacy</h2>
+    <div class="settings-group">
+      <button type="button" class="setting-row privacy-row" (click)="openPrivacy()">
+        <span class="setting-label">Your choices, terms and data</span>
+        <ion-icon name="chevron-forward" aria-hidden="true"></ion-icon>
+      </button>
+    </div>
+  </section>
+
+  <section class="profile-section" aria-labelledby="account-heading">
+    <h2 class="eyebrow" id="account-heading">Account</h2>
+    <div class="settings-group">
+      <button type="button" class="setting-row password-row" (click)="openChangePassword()">
+        <span class="setting-label">Change password</span>
+        <ion-icon name="chevron-forward" aria-hidden="true"></ion-icon>
+      </button>
+      <button type="button" class="setting-row logout-btn danger" (click)="logout()">Log out</button>
+      <button type="button" class="setting-row delete-account-row danger" (click)="openDeleteAccount()">
+        Delete account
+      </button>
+    </div>
+  </section>
+</ion-content>

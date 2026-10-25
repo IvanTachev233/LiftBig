@@ -1,0 +1,108 @@
+// Cards and the set table are in theme/_workout.scss
+
+// Accent text action. A toolbar colours a colourless clear button with
+// --ion-toolbar-color; [fill] outranks the screen header's muted colour
+ion-button.save-btn[fill] {
+  --color: var(--accent-text);
+  --ion-toolbar-color: var(--accent-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-transform: none;
+}
+
+.editor-content {
+  --padding-start: var(--gutter-dense);
+  --padding-end: var(--gutter-dense);
+  --padding-top: 8px;
+  --padding-bottom: 32px;
+}
+
+.workout-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 4px 16px;
+}
+
+ion-input.workout-name-input {
+  --padding-start: 0;
+  --padding-end: 0;
+  --highlight-height: 0;
+  --placeholder-color: var(--placeholder);
+  --placeholder-opacity: 1;
+  min-height: 44px;
+  font-size: var(--fs-title-detail);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.meta-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  font: 500 13px var(--font-ui);
+}
+
+.date-chip {
+  position: relative;
+  border: 1px solid var(--line-stronger);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+
+  ion-icon {
+    font-size: 15px;
+    color: var(--text-2);
+  }
+
+  // 44px touch target around the 34px chip
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -5px 0;
+  }
+}
+
+.completion-chip {
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-weight: 600;
+
+  &.done {
+    background: var(--success-tint);
+    color: var(--success-text);
+  }
+
+  &.live {
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--text);
+  }
+}
+
+.date-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 33px 20px 24px;
+
+  ion-datetime {
+    --background: var(--surface);
+    align-self: center;
+  }
+}
+
+.empty-note {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-2);
+}

@@ -1,0 +1,248 @@
+import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { environment } from '../../environments/environment';
+
+export type WorkoutStatus = 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED';
+
+export type WorkoutSource = 'manual' | 'coach' | 'program';
+
+export interface WorkoutSet {
+  id: string;
+  workoutExerciseId?: string;
+  // Planned reps and weight
+  reps: number;
+  weight: number | null;
+  // Set number inside its card
+  order: number;
+  // true = made, false = missed, null = not logged
+  made: boolean | null;
+  // Logged values; null means "as planned" once the set is logged
+  actualReps: number | null;
+  actualWeight: number | null;
+  notes: string | null;
+  // Program sets: the planned weight is this percent of the 1RM of the
+  // reference exercise
+  prescribedPercent?: number | null;
+  referenceExerciseId?: string | null;
+  // A non-removed rep max entry was recorded from this set
+  pb?: boolean;
+}
+
+// One exercise card; the same exercise may appear on several cards
+export interface WorkoutCard {
+  id: string;
+  workoutId?: string;
+  exerciseId: string;
+  exercise?: Exercise;
+  // Card position in the workout
+  order: number;
+  // Cards sharing a value form one superset
+  supersetGroup: string | null;
+  // The coach's note for the athlete
+  notes?: string | null;
+  sets: WorkoutSet[];
+  // Single-workout view only: the heaviest entry (kg) per rep count before
+  // this workout, not counting its own sets; null when there is none
+  pbBars?: PbBars;
+}
+
+/** Keyed by rep count 1-3 */
+export type PbBars = Partial<Record<1 | 2 | 3, number | null>>;
+
+export interface Workout {
+  id: string;
+  userId?: string;
+  name: string;
+  date: string;
+  notes?: string | null;
+  isTemplate?: boolean;
+  status: WorkoutStatus;
+  // When the status first left PLANNED; null before that and on workouts
+  // started before the API stored it
+  startedAt?: string | null;
+  totalWeightLifted: number;
+  // The coach who assigned the workout; null for a self-made one
+  assignedById: string | null;
+  assignedBy: { id: string; name: string | null } | null;
+  source?: WorkoutSource;
+  // The program enrollment of a program workout
+  program?: { enrollmentId: string; name: string } | null;
+  // A set of this workout is a personal best
+  hasPb?: boolean;
+  // Sorted by card order, sets by set order
+  exercises: WorkoutCard[];
+}
+
+/** Where a workout came from; older payloads without source fall back to assignedById */
+export function workoutSource(
+  workout: Pick<Workout, 'source' | 'assignedById'>,
+): WorkoutSource {
+  return workout.source ?? (workout.assignedById ? 'coach' : 'manual');
+}
+
+/** Coach and program workouts: the user logs results but can't change the plan */
+export function isPlanLocked(
+  workout: Pick<Workout, 'source' | 'assignedById'>,
+): boolean {
+  return workoutSource(workout) !== 'manual';
+}
+
+/** Badge text of a coach or program workout; null for a self-made one */
+export function sourceBadge(workout: Workout): string | null {
+  switch (workoutSource(workout)) {
+    case 'program':
+      return workout.program?.name ? `Program · ${workout.program.name}` : 'Program';
+    case 'coach':
+      return workout.assignedBy?.name ? `Coach · ${workout.assignedBy.name}` : 'Coach';
+    default:
+      return null;
+  }
+}
+
+/** A set write's answer: the set, plus the PB sets and start time of its whole workout */
+export type SetWriteResponse = WorkoutSet & {
+  workoutPb?: { hasPb: boolean; pbSetIds: string[] };
+  workoutStartedAt?: string | null;
+};
+
+export interface CreateWorkoutRequest {
+  // Made by the app; the same id sent again returns the existing workout
+  id?: string;
+  name: string;
+  date: string;
+  notes?: string;
+  isTemplate?: boolean;
+}
+
+// `id` keeps an existing set of the same card; omit it for a new set
+export interface WorkoutSetInput {
+  id?: string;
+  reps: number;
+  weight: number | null;
+  order?: number;
+  made?: boolean | null;
+  actualReps?: number | null;
+  actualWeight?: number | null;
+}
+
+// `id` keeps an existing card of the same workout; omit it for a new card
+export interface WorkoutCardInput {
+  id?: string;
+  exerciseId: string;
+  order: number;
+  supersetGroup?: string | null;
+  sets: WorkoutSetInput[];
+}
+
+// `exercises` is the full card list when present: kept rows carry their id and
+// keep any result left out, rows left out are deleted. Absent = cards unchanged.
+// An assigned workout accepts `status` only.
+export interface UpdateWorkoutRequest {
+  name?: string;
+  notes?: string;
+  status?: WorkoutStatus;
+  date?: string;
+  exercises?: WorkoutCardInput[];
+}
+
+// Appends a set to a card of an own workout, self-made or assigned
+export interface AddSetRequest {
+  // Made by the app; the same id sent again returns the existing set
+  id?: string;
+  reps: number;
+  weight?: number | null;
+  made?: boolean | null;
+  actualReps?: number | null;
+  actualWeight?: number | null;
+}
+
+// Result of one set; planned values can't be changed this way
+export interface SetResultRequest {
+  made?: boolean | null;
+  actualReps?: number | null;
+  actualWeight?: number | null;
+}
+
+export interface Exercise {
+  id: string;
+  name: string;
+  description?: string | null;
+  bodyPart?: string | null;
+  // e.g. Olympic / Barbell; null for coach-made exercises, missing from older APIs
+  category?: string | null;
+  equipment?: string | null;
+  videoUrl?: string | null;
+  imageUrl?: string | null;
+  // null = global (seeded) exercise; otherwise the coach who created it
+  createdById?: string | null;
+  // Rep maxes can be recorded for it
+  isMaxTrackable?: boolean;
+}
+
+export interface CreateExerciseDto {
+  name: string;
+  description?: string;
+  videoUrl?: string;
+  /** One of CATEGORIES; left out for none */
+  category?: string;
+}
+
+@Injectable({
+  providedIn: 'root',
+})
+export class WorkoutService {
+  private http = inject(HttpClient);
+  private apiUrl = `${environment.apiUrl}/workouts`;
+
+  getUpcoming() {
+    return this.http.get<Workout[]>(`${this.apiUrl}/upcoming`);
+  }
+
+  getExercises() {
+    return this.http.get<Exercise[]>(`${this.apiUrl}/exercises`);
+  }
+
+  // COACH only; the API returns 409 when the name is already taken
+  createExercise(dto: CreateExerciseDto) {
+    return this.http.post<Exercise>(`${this.apiUrl}/exercises`, dto);
+  }
+
+  getAllWorkouts() {
+    return this.http.get<Workout[]>(this.apiUrl);
+  }
+
+  getWorkout(id: string) {
+    return this.http.get<Workout>(`${this.apiUrl}/${id}`);
+  }
+
+  createWorkout(workout: CreateWorkoutRequest) {
+    return this.http.post<Workout>(this.apiUrl, workout);
+  }
+
+  updateWorkout(id: string, body: UpdateWorkoutRequest) {
+    return this.http.patch<Workout>(`${this.apiUrl}/${id}`, body);
+  }
+
+  deleteWorkout(id: string) {
+    return this.http.delete(`${this.apiUrl}/${id}`);
+  }
+
+  addSet(workoutId: string, cardId: string, body: AddSetRequest) {
+    return this.http.post<SetWriteResponse>(
+      `${this.apiUrl}/${workoutId}/cards/${cardId}/sets`,
+      body,
+    );
+  }
+
+  // Sends only the result fields, so a passed-in set can't carry planned values
+  updateSetResult(workoutId: string, setId: string, body: SetResultRequest) {
+    const result: SetResultRequest = {};
+    if (body.made !== undefined) result.made = body.made;
+    if (body.actualReps !== undefined) result.actualReps = body.actualReps;
+    if (body.actualWeight !== undefined) result.actualWeight = body.actualWeight;
+    return this.http.patch<SetWriteResponse>(
+      `${this.apiUrl}/${workoutId}/sets/${setId}`,
+      result,
+    );
+  }
+}

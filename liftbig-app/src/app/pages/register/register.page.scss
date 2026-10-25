@@ -1,0 +1,25 @@
+.role-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.role-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-soft);
+}
+
+.role-hint {
+  margin: 0;
+  min-height: 1.4em;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.agree-hint {
+  margin: -8px 0 0;
+  font-size: 13px;
+  text-align: center;
+  color: var(--text-2);
+}
