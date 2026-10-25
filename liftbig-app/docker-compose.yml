@@ -1,10 +1,10 @@
-# Local stack for LiftBig. Expects the API repo cloned next to this one:
-#   <workspace>/liftbig-app  (this repo)
-#   <workspace>/liftbig-api  (LiftBigMobile-API)
+# Local stack for LiftBig. Build contexts are relative to this file:
+#   liftbig-app/  (.)
+#   liftbig-api/  (../liftbig-api)
 # The project name is pinned so containers and the postgres_data volume keep
-# the same names whether this file is run from here or included from the workspace root.
+# the same names whether this file is run from here or included from the repo root.
 # Credentials and JWT_SECRET come from liftbig-app/.env (git-ignored; copy .env.example);
-# the workspace root's include points at the same file.
+# the repo root's include points at the same file.
 name: liftbigmobile
 
 services:

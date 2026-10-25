@@ -11,9 +11,45 @@ permissions:
   contents: read
 
 jobs:
+  # Path filtering happens here, not under `on:`: a workflow skipped by `paths`
+  # leaves its checks pending, which would block PRs that require ci-ok.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      api: ${{ steps.diff.outputs.api }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          case "$EVENT" in
+            pull_request) base=$PR_BASE head=$PR_HEAD ;;
+            push) base=$PUSH_BEFORE head=$GITHUB_SHA ;;
+            *) base= head= ;;
+          esac
+          # Manual runs, new branches and unknown bases test (and deploy) everything.
+          api=true
+          if [ -n "$base" ] && git cat-file -e "$base^{commit}" 2>/dev/null; then
+            changed=$(git diff --name-only "$base...$head")
+            grep -qE '^(liftbig-api/|\.github/workflows/api\.yml$)' <<<"$changed" || api=false
+          fi
+          echo "api=$api" | tee -a "$GITHUB_OUTPUT"
+
   test:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: liftbig-api
     services:
       postgres:
         image: postgres:15-alpine # same as docker-compose.yml
@@ -39,6 +75,7 @@ jobs:
         with:
           node-version: 20 # matches the Dockerfile
           cache: npm
+          cache-dependency-path: liftbig-api/package-lock.json
       - run: npm ci
       - name: Throwaway secrets # the API won't start without them
         run: |
@@ -64,6 +101,9 @@ jobs:
     permissions:
       contents: read
       id-token: write # lets the job request GitHub's OIDC token
+    defaults:
+      run:
+        working-directory: liftbig-api
     env:
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
       GCP_REGION: ${{ vars.GCP_REGION }}
@@ -81,7 +121,7 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v3.0.1
       - name: Who am I
         run: gcloud auth list --filter=status:ACTIVE --format='value(account)'
-      - name: Deploy
+      - name: Deploy # uploads only liftbig-api/ (deploy.sh passes --source=<API folder>)
         run: scripts/deploy.sh --non-interactive
       - name: Smoke check
         run: |
@@ -89,3 +129,21 @@ jobs:
             --project="$GCP_PROJECT_ID" --region="$GCP_REGION" \
             --format='value(status.url)')
           curl -fsS -o /dev/null -w '%{http_code} /privacy\n' "$url/privacy"
+
+  # The one required check: passes when every job it needs passed or was skipped by path.
+  ci-ok:
+    if: always()
+    needs: [changes, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success | skipped) ;;
+              *) exit 1 ;;
+            esac
+          done
