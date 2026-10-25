@@ -3,6 +3,8 @@
 #   <workspace>/liftbig-api  (LiftBigMobile-API)
 # The project name is pinned so containers and the postgres_data volume keep
 # the same names whether this file is run from here or included from the workspace root.
+# Credentials and JWT_SECRET come from liftbig-app/.env (git-ignored; copy .env.example);
+# the workspace root's include points at the same file.
 name: liftbigmobile
 
 services:
@@ -10,9 +12,9 @@ services:
     image: postgres:15-alpine
     container_name: liftbig_db
     environment:
-      POSTGRES_USER: liftbig
-      POSTGRES_PASSWORD: ***REMOVED***
-      POSTGRES_DB: liftbig_db
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in liftbig-app/.env, see .env.example}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in liftbig-app/.env, see .env.example}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in liftbig-app/.env, see .env.example}
     ports:
       - "5433:5432"
     volumes:
@@ -23,8 +25,8 @@ services:
     image: dpage/pgadmin4
     container_name: liftbig_pgadmin
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@liftbig.com
-      PGADMIN_DEFAULT_PASSWORD: ***REMOVED***
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:?set PGADMIN_DEFAULT_EMAIL in liftbig-app/.env, see .env.example}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?set PGADMIN_DEFAULT_PASSWORD in liftbig-app/.env, see .env.example}
     ports:
       - "5050:80"
     depends_on:
@@ -39,10 +41,11 @@ services:
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_USERNAME: liftbig
-      DB_PASSWORD: ***REMOVED***
-      DB_NAME: liftbig_db
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
       RUN_MIGRATIONS: "true"
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in liftbig-app/.env, see .env.example}
     ports:
       - "3000:3000"
     depends_on:
@@ -57,10 +60,11 @@ services:
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_USERNAME: liftbig
-      DB_PASSWORD: ***REMOVED***
-      DB_NAME: liftbig_db
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
       RUN_MIGRATIONS: "true"
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in liftbig-app/.env, see .env.example}
     ports:
       - "3000:3000"
     volumes:

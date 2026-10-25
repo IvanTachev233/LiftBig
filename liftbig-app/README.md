@@ -28,8 +28,11 @@ Run every command below from `liftbig-app/` unless it says otherwise.
 The quickest way to see the app working. Nothing to install except Docker:
 
 ```bash
+cp .env.example .env    # once, then set JWT_SECRET in it (openssl rand -base64 48)
 docker compose up -d --build
 ```
+
+`docker-compose.yml` takes the database and pgAdmin credentials and `JWT_SECRET` from `liftbig-app/.env` (git-ignored), whether you run compose from here or from the workspace root; it stops and names any value that's missing. [`.env.example`](.env.example) is the committed reference. Keep the same `JWT_SECRET` between runs: a new one signs everyone out.
 
 Then open <http://localhost:4200>. This starts PostgreSQL, pgAdmin, the API and the app (served by nginx). The app is built with `--configuration production,docker`, so it calls the **local** API through nginx's `/api` proxy rather than production.
 
@@ -46,11 +49,12 @@ For coding, run the API and app on your machine with live reload, and only the d
    docker compose up -d postgres
    ```
 
-2. In a second terminal, start the API. Its defaults connect to the database above, and it creates the schema on first run:
+2. In a second terminal, start the API. Its `.env` needs `JWT_SECRET` and `DB_USERNAME`/`DB_PASSWORD`/`DB_NAME` set to the `POSTGRES_*` values from `liftbig-app/.env`; it then connects to the database above and creates the schema on first run:
 
    ```bash
    cd ../liftbig-api
    npm install
+   cp .env.example .env # once, then fill it in
    npm run start:dev
    ```
 
@@ -69,7 +73,7 @@ For coding, run the API and app on your machine with live reload, and only the d
 
 ## Hot-reload stack in Docker (dev profile)
 
-If you'd rather not install Node, the `dev` profile runs the API (`npm run start:dev`) and the app (`ng serve`) in containers, with your `src/` folders mounted for live reload:
+If you'd rather not install Node, the `dev` profile runs the API (`npm run start:dev`) and the app (`ng serve`) in containers, with your `src/` folders mounted for live reload. It needs `liftbig-app/.env` (see Quick start):
 
 ```bash
 docker compose stop liftbig_api liftbig_app
@@ -89,14 +93,14 @@ Create one of each to try the coach–client flow.
 
 ## Local ports and credentials
 
-These are local development placeholders defined in [`docker-compose.yml`](docker-compose.yml). Never reuse them anywhere else.
+The database and pgAdmin credentials are whatever you set in `liftbig-app/.env` (keys listed in [`.env.example`](.env.example)). Use local-only values; never reuse them anywhere else.
 
 | Service | URL / port | Credentials |
 | --- | --- | --- |
 | App | <http://localhost:4200> | the account you register |
 | API | <http://localhost:3000> | JWT from `POST /auth/login` |
-| PostgreSQL | `localhost:5433` (host), `postgres:5432` (inside Docker) | user `liftbig`, password `***REMOVED***`, database `liftbig_db` |
-| pgAdmin | <http://localhost:5050> | `admin@liftbig.com` / `***REMOVED***` |
+| PostgreSQL | `localhost:5433` (host), `postgres:5432` (inside Docker) | `POSTGRES_USER` / `POSTGRES_PASSWORD`, database `POSTGRES_DB` |
+| pgAdmin | <http://localhost:5050> | `PGADMIN_DEFAULT_EMAIL` / `PGADMIN_DEFAULT_PASSWORD` |
 
 In pgAdmin, register a server with host `postgres`, port `5432` and the PostgreSQL credentials above.
 
