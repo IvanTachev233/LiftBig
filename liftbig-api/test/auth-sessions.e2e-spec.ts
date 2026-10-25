@@ -6,11 +6,12 @@ import { DataSource } from 'typeorm';
 import { AuthSession } from '../src/auth/auth-session.entity';
 import { User } from '../src/auth/user.entity';
 import {
-  E2eUser,
   createE2eApp,
   createExistingUser,
+  E2eUser,
   mailedCode,
   registerAndLogin,
+  SIGN_UP_AGREEMENT,
 } from './e2e-app';
 
 interface TokenPair {
@@ -96,7 +97,12 @@ describe('Auth sessions (e2e)', () => {
       const email = `e2e-${randomUUID()}@example.com`;
       await request(server())
         .post('/auth/register')
-        .send({ name: 'New Lifter', email, password: '***REMOVED***' })
+        .send({
+          name: 'New Lifter',
+          email,
+          password: '***REMOVED***',
+          ...SIGN_UP_AGREEMENT,
+        })
         .expect(201);
       const res = await request(server())
         .post('/auth/verify-email')
