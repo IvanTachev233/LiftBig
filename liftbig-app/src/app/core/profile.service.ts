@@ -2,11 +2,13 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+import { AgreementStatus, AgreementsService } from './agreements.service';
 import { AuthService, User } from './auth.service';
 import { RestTimeService } from './rest-time';
 import { WeightUnit, WeightUnitService } from './weight-unit.service';
 
-export interface Profile {
+/** The agreement fields are missing from an API that predates them */
+export interface Profile extends Partial<AgreementStatus> {
   id: string;
   email: string;
   name: string | null;
@@ -16,14 +18,15 @@ export interface Profile {
   restSeconds?: number;
 }
 
-// The signed-in user's profile; every answer updates the weight unit and
-// the rest time
+// The signed-in user's profile; every answer updates the weight unit, the
+// rest time and the terms acceptance and consents
 @Injectable({ providedIn: 'root' })
 export class ProfileService {
   private http = inject(HttpClient);
   private auth = inject(AuthService);
   private units = inject(WeightUnitService);
   private restTime = inject(RestTimeService);
+  private agreements = inject(AgreementsService);
   private url = `${environment.apiUrl}/users/me`;
 
   getMe() {
@@ -76,5 +79,7 @@ export class ProfileService {
   private apply(profile: Profile) {
     this.units.setUnit(profile.weightUnit);
     this.restTime.set(profile.restSeconds);
+    // An answer that arrives after a sign-out or another sign-in isn't this user's
+    if (profile.id === this.auth.currentUser()?.id) this.agreements.apply(profile);
   }
 }

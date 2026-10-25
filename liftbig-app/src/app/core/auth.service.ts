@@ -6,6 +6,7 @@ import { AlertController } from '@ionic/angular';
 import { Observable, ReplaySubject, Subject, catchError, map, share, tap, throwError } from 'rxjs';
 import { jwtDecode } from 'jwt-decode';
 import { environment } from '../../environments/environment';
+import type { SignUpAgreement } from './agreements.service';
 import { TokenStore } from './token-store';
 
 interface SessionResponse {
@@ -47,7 +48,7 @@ export const PENDING_CHANGES = new InjectionToken<{ countFor: (userId: string) =
   factory: () => ({ countFor: () => 0 }),
 });
 
-export interface RegisterData {
+export interface RegisterData extends SignUpAgreement {
   name: string;
   email: string;
   password: string;

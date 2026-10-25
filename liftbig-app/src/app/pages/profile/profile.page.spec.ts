@@ -375,6 +375,21 @@ describe('ProfilePage', () => {
     });
   });
 
+  describe('Privacy', () => {
+    it('opens Profile → Privacy for both roles', () => {
+      const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+      for (const role of ['CLIENT', 'COACH'] as const) {
+        TestBed.inject(AuthService).setSession(fakeToken(role));
+        fixture.detectChanges();
+        const row = fixture.nativeElement.querySelector('#privacy-heading + .settings-group .privacy-row') as HTMLElement;
+        expect(row.textContent!.trim()).toBe('Your choices, terms and data');
+        navigate.calls.reset();
+        row.click();
+        expect(navigate).toHaveBeenCalledOnceWith(['/privacy']);
+      }
+    });
+  });
+
   describe('Edit profile', () => {
     const edit = () => fixture.nativeElement.querySelector('.edit-btn') as HTMLElement;
 

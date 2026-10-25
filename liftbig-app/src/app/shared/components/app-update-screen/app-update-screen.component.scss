@@ -1,0 +1,16 @@
+// Above every page and Ionic overlay (those start at z-index 20000)
+.update-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  overflow-y: auto;
+  padding: var(--ion-safe-area-top, 0px) 24px var(--ion-safe-area-bottom, 0px);
+  background: var(--bg);
+}
+
+.update-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 56px;
+}

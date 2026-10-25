@@ -1,0 +1,31 @@
+<div class="terms-screen" role="dialog" aria-modal="true" aria-labelledby="terms-title" aria-describedby="terms-text">
+  <div class="auth-page">
+    <div class="auth-brand">
+      <span class="wordmark num" aria-hidden="true">LiftBig<span class="wordmark-dot">.</span></span>
+      <h1 id="terms-title" class="title-screen">{{ heading() }}</h1>
+      <p id="terms-text" class="auth-tagline">{{ intro() }}</p>
+      @if (privacyLink()) {
+        <a class="notice-link" [href]="privacyUrl" target="_blank" rel="noopener">Read the Privacy Policy</a>
+      }
+    </div>
+
+    <app-agreement-checks
+      class="terms-checks"
+      [terms]="showTerms()"
+      [healthData]="showHealth()"
+      [optional]="optional()"
+      [(choices)]="choices"
+    />
+
+    <div class="terms-actions">
+      <ion-button class="btn-primary continue-btn" expand="block" [disabled]="!canContinue()" (click)="continue()">
+        @if (saving()) {
+          <ion-spinner name="crescent" slot="start"></ion-spinner>
+        }
+        Continue
+      </ion-button>
+      <ion-button class="btn-text muted logout-btn" expand="block" (click)="logout()">Log out</ion-button>
+      <ion-button class="btn-text delete-btn" expand="block" (click)="deleteAccount()">Delete account</ion-button>
+    </div>
+  </div>
+</div>

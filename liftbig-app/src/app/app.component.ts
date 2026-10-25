@@ -1,4 +1,6 @@
-import { Component, effect, inject, untracked } from '@angular/core';
+import { Component, computed, effect, inject, untracked } from '@angular/core';
+import { AgreementsService } from './core/agreements.service';
+import { AppUpdateService } from './core/app-update.service';
 import { AuthService } from './core/auth.service';
 import { ProfileService } from './core/profile.service';
 import { RestTimeService } from './core/rest-time';
@@ -15,9 +17,17 @@ export class AppComponent {
   private profileService = inject(ProfileService);
   private units = inject(WeightUnitService);
   private restTime = inject(RestTimeService);
+  private updates = inject(AppUpdateService);
+  private agreements = inject(AgreementsService);
+
+  /** While "Update LiftBig" is up, the pages under it can't be reached */
+  readonly updateShown = computed(() => this.updates.state() !== 'none');
+
+  /** "We've updated our terms", while the signed-in user has something to accept */
+  readonly termsShown = computed(() => this.authService.isAuthenticated() && this.agreements.pending().length > 0);
 
   constructor() {
-    // The weight unit and rest time follow whoever is signed in
+    // The weight unit, rest time and terms acceptance follow whoever is signed in
     effect(() => {
       const signedIn = this.authService.isAuthenticated();
       untracked(() => {
@@ -26,6 +36,7 @@ export class AppComponent {
         } else {
           this.units.setUnit('kg');
           this.restTime.set(undefined);
+          this.agreements.clear();
         }
       });
     });
