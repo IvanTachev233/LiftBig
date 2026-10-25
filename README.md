@@ -8,3 +8,4 @@ Strength-training app with coach and client roles. One repo, two projects:
 The local stack is defined in `liftbig-app/docker-compose.yml`. The `docker-compose.yml` here only includes it, so `docker compose up -d --build` works from the repo root too (it needs `liftbig-app/.env`; copy `liftbig-app/.env.example`).
 
 CI: `.github/workflows/api.yml` tests the API on pull requests and deploys `master` to Cloud Run.
+
