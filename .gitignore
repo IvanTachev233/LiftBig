@@ -1,0 +1,40 @@
+# LiftBig monorepo root. liftbig-api/ and liftbig-app/ keep their own .gitignore.
+
+# Secrets and local-only files: never commit
+db_pass
+verification_code.txt
+*.keystore
+*.jks
+keystore.properties
+.env
+.env.*
+!.env.example
+liftbig_dump.sql
+*.zip
+
+# Planning, docs, design and tooling files: kept in the working folder, not published
+/Project Specification.*
+/CLAUDE.md
+/Plans.md
+/spec.md
+/docs/
+/liftbig-design-handoff/
+/App icon*.png
+/.harness/
+/.trail/
+/.github/modernize/
+/deploy_backend.sh
+/test_api.js
+/package-lock.json
+
+# Generated or local output
+node_modules/
+Plans.md.bak.*
+/brag-output/
+/out/
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+.DS_Store
+
+# Claude Code settings and state, at any depth
+.claude/

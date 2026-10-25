@@ -1,0 +1,19 @@
+# gitleaks reads this from the repo root: the default rules plus two narrow
+# allowlists for false positives in the projects' history (neither is a secret).
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Nest starter README: CircleCI badge with Nest's public placeholder token"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "line"
+regexes = ['''nestjs/nest/master\?token=''']
+paths = ['''^liftbig-api/README\.md$''']
+
+[[allowlists]]
+description = "Invite sheet spec: hand-typed fake UUID as the invite token"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexes = ['''^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$''']
+paths = ['''^liftbig-app/src/app/pages/coach-dashboard/invite-sheet\.component\.spec\.ts$''']

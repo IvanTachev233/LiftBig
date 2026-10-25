@@ -1,0 +1,6 @@
+# Repo-root entry point. The stack itself is defined in liftbig-app/docker-compose.yml
+# (build contexts relative to it). Commands run from here or from liftbig-app/.
+# Interpolation values (credentials, JWT_SECRET) come from liftbig-app/.env, as when run from liftbig-app/.
+include:
+  - path: liftbig-app/docker-compose.yml
+    env_file: liftbig-app/.env
