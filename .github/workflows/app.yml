@@ -1,0 +1,34 @@
+name: App
+
+# Called by api.yml, whose `changes` job runs it only when the app changed and whose
+# `ci-ok` job waits for it. It has no trigger of its own: a workflow skipped by
+# `paths` leaves its checks pending, and a separate workflow can't be awaited by ci-ok.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: liftbig-app
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: liftbig-app/.nvmrc
+          cache: npm
+          cache-dependency-path: liftbig-app/package-lock.json
+      - name: Install # plain `npm ci` fails on ng2-charts' @angular/cdk peer, which the lockfile leaves out
+        run: npm ci --legacy-peer-deps
+      - name: Lint (no --fix)
+        run: npm run lint
+      - name: Unit tests # single headless run; the launcher is in karma.conf.js
+        run: npx ng test --configuration ci --browsers=ChromeHeadlessCI
+      - name: Production build
+        run: npx ng build --configuration production,ci
