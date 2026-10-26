@@ -18,14 +18,16 @@ jobs:
       run:
         working-directory: liftbig-app
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-node@v7.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: liftbig-app/.nvmrc
           cache: npm
           cache-dependency-path: liftbig-app/package-lock.json
-      - name: Install # plain `npm ci` fails on ng2-charts' @angular/cdk peer, which the lockfile leaves out
+      - name: Install # plain `npm ci` fails on ng2-charts' @angular/cdk peer; also set in .npmrc
         run: npm ci --legacy-peer-deps
+      - name: Audit runtime dependencies # fails on high or critical advisories
+        run: npm audit --omit=dev --audit-level=high
       - name: Lint (no --fix)
         run: npm run lint
       - name: Unit tests # single headless run; the launcher is in karma.conf.js

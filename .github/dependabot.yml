@@ -1,0 +1,36 @@
+version: 2
+updates:
+  # Minor and patch updates come as one PR per project and dependency type;
+  # majors come one PR per package, since they usually need code changes.
+  - package-ecosystem: npm
+    directories:
+      - /liftbig-api
+      - /liftbig-app # its .npmrc sets legacy-peer-deps, which Dependabot reads
+    schedule:
+      interval: weekly
+    groups:
+      production:
+        dependency-type: production
+        update-types: [minor, patch]
+      development:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: / # checks .github/workflows; actions are pinned by SHA with the version as a comment
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directories:
+      - /liftbig-api
+      - /liftbig-app # Dockerfile and Dockerfile.dev
+    schedule:
+      interval: weekly
+    ignore:
+      # The Node major moves in one change across .nvmrc, Dockerfiles and CI (Plans.md A5a2).
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]

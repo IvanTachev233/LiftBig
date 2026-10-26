@@ -7,5 +7,5 @@ Strength-training app with coach and client roles. One repo, two projects:
 
 The local stack is defined in `liftbig-app/docker-compose.yml`. The `docker-compose.yml` here only includes it, so `docker compose up -d --build` works from the repo root too (it needs `liftbig-app/.env`; copy `liftbig-app/.env.example`).
 
-CI: `.github/workflows/api.yml` tests the API on pull requests and deploys `master` to Cloud Run; it also runs the app's lint, unit tests and production build (`.github/workflows/app.yml`) when a change touches the app. Its `ci-ok` job passes when every check passed or was skipped because the change didn't touch that project; it is the one check `master` requires.
+CI: `.github/workflows/api.yml` tests the API on pull requests and deploys `master` to Cloud Run; it also runs the app's lint, unit tests and production build (`.github/workflows/app.yml`) when a change touches the app. Its `ci-ok` job passes when every check passed or was skipped because the change didn't touch that project; it is the one check `master` requires. Both jobs fail on high or critical `npm audit` advisories in runtime dependencies; actions are pinned by commit SHA, and Dependabot (`.github/dependabot.yml`) opens weekly update PRs for npm, actions and Dockerfile base images.
 

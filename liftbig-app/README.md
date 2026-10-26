@@ -65,7 +65,7 @@ For coding, run the API and app on your machine with live reload, and only the d
 
    Open <http://localhost:4200>. In development the app calls the API at `http://localhost:3000` directly (`src/environments/environment.ts`).
 
-`--legacy-peer-deps` matches how the Docker images install the app's dependencies.
+`--legacy-peer-deps` matches how the Docker images install the app's dependencies. `.npmrc` sets it too, so a plain `npm install` or `npm ci` here works (and Dependabot can update the lockfile).
 
 ## Hot-reload stack in Docker (dev profile)
 
@@ -109,7 +109,7 @@ npm test          # Karma; opens Chrome and watches
 npx ng test --watch=false --browsers=ChromeHeadless   # single headless run
 ```
 
-CI (`.github/workflows/app.yml`, run from `api.yml` on changes to `liftbig-app/` or either workflow file) runs the same checks on the Node version in `.nvmrc`: `npm ci --legacy-peer-deps`, `npm run lint`, `npx ng test --configuration ci --browsers=ChromeHeadlessCI` (a headless launcher without Chrome's sandbox, defined in `karma.conf.js`) and `npx ng build --configuration production,ci`.
+CI (`.github/workflows/app.yml`, run from `api.yml` on changes to `liftbig-app/` or either workflow file) runs the same checks on the Node version in `.nvmrc`: `npm ci --legacy-peer-deps`, `npm audit --omit=dev --audit-level=high` (high or critical advisories in runtime dependencies fail it), `npm run lint`, `npx ng test --configuration ci --browsers=ChromeHeadlessCI` (a headless launcher without Chrome's sandbox, defined in `karma.conf.js`) and `npx ng build --configuration production,ci`.
 
 ## Troubleshooting
 
@@ -146,7 +146,7 @@ Google Play takes a signed Android App Bundle (`.aab`), built against the produc
 
 2. Raise `versionCode` by 1 in `android/app/build.gradle` (`defaultConfig`) before every upload; Play rejects a versionCode it has already seen. `versionName` is the version users see; change it when you want a new one.
 
-3. Build. Install with `--legacy-peer-deps`: plain `npm ci` fails on `ng2-charts`' `@angular/cdk` peer, which the lockfile leaves out.
+3. Build. Install with `--legacy-peer-deps` (also set in `.npmrc`): without it `npm ci` fails on `ng2-charts`' `@angular/cdk` peer, which the lockfile leaves out.
 
    ```bash
    npm ci --legacy-peer-deps
