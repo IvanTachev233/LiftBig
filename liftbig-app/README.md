@@ -2,7 +2,7 @@
 
 LiftBig is a strength-training app for coaches and their clients. Coaches invite clients and assign them workouts; clients log their own and assigned workouts and track their stats.
 
-This repo (`LiftBigMobile`) is the mobile/web app: Ionic 8 + Angular 20, packaged for Android and iOS with Capacitor 8. The backend is a separate repo, [LiftBigMobile-API](https://github.com/IvanTachev233/LiftBigMobile-API) (NestJS 11 + PostgreSQL). You need both to run the app locally.
+This folder (`liftbig-app/`) is the mobile/web app: Ionic 8 + Angular 20, packaged for Android and iOS with Capacitor 8. The backend, NestJS 11 + PostgreSQL, is next to it in [`liftbig-api/`](../liftbig-api); both are in the [LiftBig](https://github.com/IvanTachev233/LiftBig) repo.
 
 ## Prerequisites
 
@@ -10,18 +10,14 @@ This repo (`LiftBigMobile`) is the mobile/web app: Ionic 8 + Angular 20, package
 - **Docker** with the Compose plugin (`docker compose`, not `docker-compose`), for PostgreSQL and the optional containerized stack.
 - For device builds only: Android Studio and/or Xcode (see [Running on a device](#running-on-a-device)).
 
-## Clone both repos side by side
-
-The compose file here builds the API from `../liftbig-api`, so the folder names matter:
+## Clone the repo
 
 ```bash
-mkdir liftbig && cd liftbig
-git clone https://github.com/IvanTachev233/LiftBigMobile.git liftbig-app
-git clone https://github.com/IvanTachev233/LiftBigMobile-API.git liftbig-api
-cd liftbig-app
+git clone https://github.com/IvanTachev233/LiftBig.git
+cd LiftBig/liftbig-app
 ```
 
-Run every command below from `liftbig-app/` unless it says otherwise.
+Run every command below from `liftbig-app/` unless it says otherwise. The `docker compose` commands also work from the repo root, whose `docker-compose.yml` includes the one here.
 
 ## Quick start: full stack in Docker
 
@@ -32,7 +28,7 @@ cp .env.example .env    # once, then set JWT_SECRET in it (openssl rand -base64 
 docker compose up -d --build
 ```
 
-`docker-compose.yml` takes the database and pgAdmin credentials and `JWT_SECRET` from `liftbig-app/.env` (git-ignored), whether you run compose from here or from the workspace root; it stops and names any value that's missing. [`.env.example`](.env.example) is the committed reference. Keep the same `JWT_SECRET` between runs: a new one signs everyone out.
+`docker-compose.yml` takes the database and pgAdmin credentials and `JWT_SECRET` from `liftbig-app/.env` (git-ignored), whether you run compose from here or from the repo root; it stops and names any value that's missing. [`.env.example`](.env.example) is the committed reference. Keep the same `JWT_SECRET` between runs: a new one signs everyone out.
 
 Then open <http://localhost:4200>. This starts PostgreSQL, pgAdmin, the API and the app (served by nginx). The app is built with `--configuration production,docker`, so it calls the **local** API through nginx's `/api` proxy rather than production.
 
@@ -113,12 +109,14 @@ npm test          # Karma; opens Chrome and watches
 npx ng test --watch=false --browsers=ChromeHeadless   # single headless run
 ```
 
+CI (`.github/workflows/app.yml`, run from `api.yml` on changes to `liftbig-app/` or either workflow file) runs the same checks on the Node version in `.nvmrc`: `npm ci --legacy-peer-deps`, `npm run lint`, `npx ng test --configuration ci --browsers=ChromeHeadlessCI` (a headless launcher without Chrome's sandbox, defined in `karma.conf.js`) and `npx ng build --configuration production,ci`.
+
 ## Troubleshooting
 
 - **Port 3000 or 4200 is already in use.** Usually `liftbig_api` / `liftbig_app` from an earlier `docker compose up`. They use `restart: always`, so they come back whenever Docker restarts. Stop them with `docker compose stop liftbig_api liftbig_app`.
 - **The API in Docker runs old code.** The container keeps its image until rebuilt: `docker compose up -d --build liftbig_api`.
 - **The API can't reach the database.** PostgreSQL is published on host port **5433**, not 5432. Check that `docker compose ps postgres` shows it running.
-- **CORS errors in the browser.** The API only allows `http://localhost:4200`, `http://localhost:8100`, `capacitor://localhost` and `https://localhost` (see `src/main.ts` in the API repo). Serve the app on one of those origins.
+- **CORS errors in the browser.** The API only allows `http://localhost:4200`, `http://localhost:8100`, `capacitor://localhost` and `https://localhost` (see `liftbig-api/src/main.ts`). Serve the app on one of those origins.
 - **The app is talking to production.** Only builds made with plain `npm run build` / `ng build` do that (see below). `npm start` uses the local API, and so does the Docker stack.
 
 ## Running on a device
@@ -181,4 +179,4 @@ Never commit release signing material. `*.keystore` and `android/keystore.proper
 
 ## Related
 
-- API setup, environment variables and deployment: [LiftBigMobile-API README](https://github.com/IvanTachev233/LiftBigMobile-API#readme)
+- API setup, environment variables and deployment: [API README](../liftbig-api/README.md)

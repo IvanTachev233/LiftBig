@@ -1,6 +1,10 @@
 # Repo-root entry point. The stack itself is defined in liftbig-app/docker-compose.yml
 # (build contexts relative to it). Commands run from here or from liftbig-app/.
 # Interpolation values (credentials, JWT_SECRET) come from liftbig-app/.env, as when run from liftbig-app/.
+# include doesn't carry over the included file's name, so the same project name is pinned here:
+# without it the folder name (liftbig) is used, with a new, empty postgres_data volume.
+name: liftbigmobile
+
 include:
   - path: liftbig-app/docker-compose.yml
     env_file: liftbig-app/.env
