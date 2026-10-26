@@ -2,14 +2,14 @@
 
 The backend for LiftBig, a strength-training app for coaches and clients. It handles auth (JWT), coach–client invites and workouts, both the ones clients log for themselves and the ones their coach assigns.
 
-Stack: NestJS 11, TypeORM 0.3, PostgreSQL 15. The mobile/web client lives in [LiftBigMobile](https://github.com/IvanTachev233/LiftBigMobile).
+Stack: NestJS 11, TypeORM 0.3, PostgreSQL 15. The mobile/web client is next to it in [`liftbig-app/`](../liftbig-app); both are in the [LiftBig](https://github.com/IvanTachev233/LiftBig) repo.
 
-> **Running the whole app?** Start with the [LiftBigMobile README](https://github.com/IvanTachev233/LiftBigMobile#readme). It covers cloning both repos side by side, the Docker stack and the day-to-day dev loop. This README covers the API on its own.
+> **Running the whole app?** Start with the [app README](../liftbig-app/README.md). It covers cloning the repo, the Docker stack and the day-to-day dev loop. This README covers the API on its own.
 
 ## Prerequisites
 
-- **Node.js 22** (NestJS 11 needs 20.11 or newer; the app repo pins 22, so use that for both).
-- **PostgreSQL**, most easily through the app repo's compose file: `docker compose up -d postgres` from `liftbig-app/`. It listens on host port **5433**.
+- **Node.js 22** (NestJS 11 needs 20.11 or newer; the app pins 22 in `liftbig-app/.nvmrc`, so use that for both).
+- **PostgreSQL**, most easily through the repo's Docker stack: `docker compose up -d postgres` from the repo root or `liftbig-app/`. It listens on host port **5433**.
 
 ## Run locally
 
@@ -66,13 +66,13 @@ npm run lint        # ESLint with --fix: it rewrites files
 npm run format      # Prettier
 ```
 
-`npm run test:e2e` needs the postgres container (`docker compose up -d postgres` from the workspace root). It creates a `liftbig_e2e` database on that server if it is missing and rebuilds its schema from scratch for each test app, so `liftbig_db` is never touched. It refuses to run while `DATABASE_URL` is set, and like the API it needs `JWT_SECRET` and the `DB_*` values from `.env` (CI sets its own throwaway ones). Unit tests need none of them.
+`npm run test:e2e` needs the postgres container (`docker compose up -d postgres` from the repo root). It creates a `liftbig_e2e` database on that server if it is missing and rebuilds its schema from scratch for each test app, so `liftbig_db` is never touched. It refuses to run while `DATABASE_URL` is set, and like the API it needs `JWT_SECRET` and the `DB_*` values from `.env` (CI sets its own throwaway ones). Unit tests need none of them.
 
 ## Deployment
 
 > Deploying changes production data. Talk to the maintainer before deploying.
 
-Production runs on **Google Cloud Run**; the app's production build points at its `*.run.app` URL. [`scripts/deploy.sh`](scripts/deploy.sh) uploads this repo and Cloud Build builds it with the `Dockerfile`. Files ignored by `.gitignore` (`.env`, dumps, `node_modules`, `dist`) are not uploaded.
+Production runs on **Google Cloud Run**; the app's production build points at its `*.run.app` URL. [`scripts/deploy.sh`](scripts/deploy.sh) uploads this folder (`liftbig-api/`, not the whole repo) and Cloud Build builds it with the `Dockerfile`. Files ignored by `.gitignore` (`.env`, dumps, `node_modules`, `dist`) are not uploaded.
 
 Every deploy sets `NODE_ENV=production`, `TYPEORM_SYNC=false` and `RUN_MIGRATIONS=true`, so **production schema changes only through migrations** in `src/migrations`, run on startup. An entity change without a migration is not applied in production, even though local dev (no `NODE_ENV`) syncs it automatically. Deploys also set `BACKFILL_PBS=false`.
 
@@ -85,10 +85,11 @@ scripts/gcp-setup.sh --project <project-id>
 Run it in a terminal with an account that owns the project. It:
 
 - logs in to `gcloud` if no account is active,
-- enables the Cloud Run, Cloud Build, Artifact Registry and Secret Manager APIs,
+- enables the Cloud Run, Cloud Build, Artifact Registry, Secret Manager and IAM APIs,
 - grants the Compute Engine default service account, which Cloud Build uses for source deploys, `roles/run.builder` and `roles/storage.objectViewer`,
+- creates the service's runtime service account `liftbig-api-runtime` if it is missing, with no project roles (`--service-account` or `RUNTIME_SA` names another, existing one),
 - creates the secrets `DATABASE_URL`, `JWT_SECRET` and `MAIL_PROVIDER_KEY` in Secret Manager if they are missing (values are typed hidden; a blank `JWT_SECRET` generates a random one), and
-- grants the service's runtime service account `roles/secretmanager.secretAccessor` on each of them.
+- grants the runtime service account `roles/secretmanager.secretAccessor` on each of them, and nothing else.
 
 It is safe to run again; existing secrets are left as they are. To change a secret's value, add a version and redeploy (the service reads `latest` when a revision is created):
 
@@ -117,13 +118,14 @@ scripts/deploy.sh --dry-run                # prints the gcloud command, deploys 
 scripts/deploy.sh
 ```
 
-In a terminal, the script asks for any value still not set, shows the command and asks before deploying. Without a terminal, or with `--non-interactive`, it doesn't ask: it exits with an error naming each missing value, and passes `--quiet` to `gcloud`. `--project`, `--region` and `--service` override the env vars. `scripts/deploy.sh --help` lists the options.
+In a terminal, the script asks for any value still not set, shows the command and asks before deploying. Without a terminal, or with `--non-interactive`, it doesn't ask: it exits with an error naming each missing value, and passes `--quiet` to `gcloud`. `--project`, `--region`, `--service` and `--service-account` override the env vars. `scripts/deploy.sh --help` lists the options.
 
 | Name | Kind | Default | Notes |
 | --- | --- | --- | --- |
 | `GCP_PROJECT_ID` | input | required | The string project ID, not the project number |
 | `GCP_REGION` | input | `europe-west1` | Cloud Run region |
 | `SERVICE` | input | `liftbig-api` | Cloud Run service name |
+| `RUNTIME_SA` | input | `liftbig-api-runtime@<project-id>.iam.gserviceaccount.com` | Service account the service runs as (`--service-account`); it reads the secrets and has no project roles. Empty means the default |
 | `MAIL_FROM` | env var | required | Sender of the code mails (see [Environment variables](#environment-variables)) |
 | `CORS_ORIGINS` | env var | required, may be empty | Extra allowed web origins |
 | `PRIVACY_OPERATOR_NAME` | env var | required | Shown on `/privacy` and `/terms` |
@@ -144,11 +146,13 @@ gcloud run services update liftbig-api --project=<project-id> --region=europe-we
 
 If a new revision fails to start (for example a secret can't be read), Cloud Run keeps serving the previous revision.
 
-### Running from a pipeline later
+### Running from the pipeline
 
-A CI job runs the same script with no changes. Give it the inputs as env vars (none of them are secret) and authenticate `gcloud` as a deploy service account through **Workload Identity Federation**, so there is no service account key file to store. On GitHub Actions that means `permissions: id-token: write`, then `google-github-actions/auth` with `workload_identity_provider` and `service_account`, then `google-github-actions/setup-gcloud`, then `scripts/deploy.sh`. Without a terminal it never waits for input.
+[`.github/workflows/api.yml`](../.github/workflows/api.yml) at the repo root tests the API on pull requests and, after the tests pass, deploys every merge to `master` that changes `liftbig-api/` or the workflow (Actions → API → Run workflow redeploys by hand). Its `ci-ok` job is the one check the `master` ruleset requires. The tests start with `npm audit --omit=dev --audit-level=high`, so a high or critical advisory in a runtime dependency also stops the deploy until it's fixed (`package.json` `overrides` pins `multer` 2.5.0 under `@nestjs/platform-express` until a Nest 11 release ships it; remove it then). It runs the same script with no changes. Give it the inputs as env vars (none of them are secret) and authenticate `gcloud` as a deploy service account through **Workload Identity Federation**, so there is no service account key file to store. On GitHub Actions that means `permissions: id-token: write`, then `google-github-actions/auth` with `workload_identity_provider` and `service_account`, then `google-github-actions/setup-gcloud`, then `scripts/deploy.sh`. Without a terminal it never waits for input.
 
-The deploy service account needs `roles/run.sourceDeveloper` and `roles/serviceusage.serviceUsageConsumer` on the project, and `roles/iam.serviceAccountUser` on the service's runtime service account. It never needs access to the secret values; the runtime service account reads them.
+The deploy service account needs `roles/run.sourceDeveloper` and `roles/serviceusage.serviceUsageConsumer` on the project, and `roles/iam.serviceAccountUser` on the runtime service account (`liftbig-api-runtime`), which it attaches to each revision. Set up the runtime service account, its secret access and this grant before a change to it merges: until they exist, deploys fail and Cloud Run keeps serving the previous revision. Leave its `roles/iam.serviceAccountUser` on the Compute Engine default service account in place while deploys build from source: Cloud Build runs as that account. It never needs access to the secret values; the runtime service account reads them.
+
+The workflow passes `RUNTIME_SA` from the `production` environment's variables; when it isn't set, the script's default applies. To go back to another runtime service account, set `RUNTIME_SA` to it and run the workflow, or pick it in Cloud Run → the service → Edit & deploy new revision → Security (the next pipeline deploy switches back to `RUNTIME_SA`).
 
 ## Deploying the card tables and assigned workouts
 

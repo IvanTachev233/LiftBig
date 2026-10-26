@@ -2,7 +2,8 @@
 #   liftbig-app/  (.)
 #   liftbig-api/  (../liftbig-api)
 # The project name is pinned so containers and the postgres_data volume keep
-# the same names whether this file is run from here or included from the repo root.
+# the same names whether this file is run from here or included from the repo root
+# (the root file pins the same name: include doesn't carry it over).
 # Credentials and JWT_SECRET come from liftbig-app/.env (git-ignored; copy .env.example);
 # the repo root's include points at the same file.
 name: liftbigmobile

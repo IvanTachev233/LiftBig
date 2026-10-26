@@ -18,8 +18,9 @@ jobs:
     timeout-minutes: 5
     outputs:
       api: ${{ steps.diff.outputs.api }}
+      app: ${{ steps.diff.outputs.app }}
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - id: diff
@@ -32,15 +33,18 @@ jobs:
           case "$EVENT" in
             pull_request) base=$PR_BASE head=$PR_HEAD ;;
             push) base=$PUSH_BEFORE head=$GITHUB_SHA ;;
-            *) base= head= ;;
+            *) base='' head='' ;;
           esac
           # Manual runs, new branches and unknown bases test (and deploy) everything.
-          api=true
+          api=true app=true
           if [ -n "$base" ] && git cat-file -e "$base^{commit}" 2>/dev/null; then
             changed=$(git diff --name-only "$base...$head")
             grep -qE '^(liftbig-api/|\.github/workflows/api\.yml$)' <<<"$changed" || api=false
+            # This file calls app.yml, so a change to either runs the app job.
+            grep -qE '^(liftbig-app/|\.github/workflows/(app|api)\.yml$)' <<<"$changed" || app=false
           fi
           echo "api=$api" | tee -a "$GITHUB_OUTPUT"
+          echo "app=$app" | tee -a "$GITHUB_OUTPUT"
 
   test:
     needs: changes
@@ -70,13 +74,15 @@ jobs:
       DB_USERNAME: liftbig
       DB_NAME: liftbig_db
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-node@v7.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 20 # matches the Dockerfile
           cache: npm
           cache-dependency-path: liftbig-api/package-lock.json
       - run: npm ci
+      - name: Audit runtime dependencies # fails on high or critical advisories
+        run: npm audit --omit=dev --audit-level=high
       - name: Throwaway secrets # the API won't start without them
         run: |
           echo "JWT_SECRET=$(openssl rand -base64 48)" >> "$GITHUB_ENV"
@@ -88,6 +94,12 @@ jobs:
         run: npm test -- --ci
       - name: e2e tests
         run: npm run test:e2e -- --ci
+
+  app:
+    name: App
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    uses: ./.github/workflows/app.yml
 
   deploy:
     needs: test
@@ -107,18 +119,19 @@ jobs:
     env:
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
       GCP_REGION: ${{ vars.GCP_REGION }}
+      RUNTIME_SA: ${{ vars.RUNTIME_SA }} # empty: deploy.sh's liftbig-api-runtime default
       MAIL_FROM: ${{ vars.MAIL_FROM }}
       CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
       PRIVACY_OPERATOR_NAME: ${{ vars.PRIVACY_OPERATOR_NAME }}
       PRIVACY_CONTACT_EMAIL: ${{ vars.PRIVACY_CONTACT_EMAIL }}
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: auth
-        uses: google-github-actions/auth@v3
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
           service_account: ${{ vars.DEPLOY_SA }}
-      - uses: google-github-actions/setup-gcloud@v3.0.1
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
       - name: Who am I
         run: gcloud auth list --filter=status:ACTIVE --format='value(account)'
       - name: Deploy # uploads only liftbig-api/ (deploy.sh passes --source=<API folder>)
@@ -133,7 +146,7 @@ jobs:
   # The one required check: passes when every job it needs passed or was skipped by path.
   ci-ok:
     if: always()
-    needs: [changes, test]
+    needs: [changes, test, app]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

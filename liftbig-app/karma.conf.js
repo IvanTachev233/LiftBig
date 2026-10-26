@@ -38,6 +38,15 @@ module.exports = function (config) {
     logLevel: config.LOG_INFO,
     autoWatch: true,
     browsers: ['Chrome'],
+    customLaunchers: {
+      // For CI (`--browsers=ChromeHeadlessCI`): headless, and without Chrome's sandbox,
+      // which needs kernel features CI runners and containers often lack. Only our own
+      // test code runs in it.
+      ChromeHeadlessCI: {
+        base: 'ChromeHeadless',
+        flags: ['--no-sandbox']
+      }
+    },
     singleRun: false,
     restartOnFileChange: true
   });

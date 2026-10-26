@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # One-time Google Cloud setup for scripts/deploy.sh: login, APIs, the IAM roles
-# Cloud Build needs for source deploys, and the Secret Manager secrets the
-# service reads (created here if missing, values typed hidden and never
-# printed). Safe to run again; existing secrets are left as they are.
+# Cloud Build needs for source deploys, the service's runtime service account,
+# and the Secret Manager secrets it reads (created here if missing, values typed
+# hidden and never printed). Safe to run again; existing secrets are left as
+# they are.
 
 set -euo pipefail
 
@@ -17,8 +18,11 @@ terminal: it asks for the secret values.
 
 Options:
   --project ID      Google Cloud project ID (env GCP_PROJECT_ID; asked if unset)
-  --region REGION   Cloud Run region (env GCP_REGION, default europe-west1)
   --service NAME    Cloud Run service (env SERVICE, default liftbig-api)
+  --service-account EMAIL
+                    Service account the service runs as (env RUNTIME_SA,
+                    default liftbig-api-runtime@<project>.iam.gserviceaccount.com;
+                    created when it is that default and missing)
   -h, --help        Show this help
 EOF
 }
@@ -30,18 +34,18 @@ die() {
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --project | --region | --service)
+    --project | --service | --service-account)
       [ $# -ge 2 ] || die "$1 needs a value"
       case "$1" in
         --project) GCP_PROJECT_ID=$2 ;;
-        --region) GCP_REGION=$2 ;;
         --service) SERVICE=$2 ;;
+        --service-account) RUNTIME_SA=$2 ;;
       esac
       shift
       ;;
     --project=*) GCP_PROJECT_ID=${1#*=} ;;
-    --region=*) GCP_REGION=${1#*=} ;;
     --service=*) SERVICE=${1#*=} ;;
+    --service-account=*) RUNTIME_SA=${1#*=} ;;
     -h | --help)
       usage
       exit 0
@@ -55,7 +59,6 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-GCP_REGION=${GCP_REGION:-europe-west1}
 SERVICE=${SERVICE:-liftbig-api}
 
 [ -t 0 ] || die "run this in a terminal; it asks for secret values"
@@ -79,9 +82,9 @@ fi
 project_number="$(gcloud projects describe "$GCP_PROJECT_ID" --format='value(projectNumber)')"
 compute_sa="${project_number}-compute@developer.gserviceaccount.com"
 
-echo "Enabling the Cloud Run, Cloud Build, Artifact Registry and Secret Manager APIs..."
+echo "Enabling the Cloud Run, Cloud Build, Artifact Registry, Secret Manager and IAM APIs..."
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
-  artifactregistry.googleapis.com secretmanager.googleapis.com \
+  artifactregistry.googleapis.com secretmanager.googleapis.com iam.googleapis.com \
   --project="$GCP_PROJECT_ID"
 
 # Source deploys build as the Compute Engine default service account.
@@ -92,12 +95,19 @@ for role in roles/run.builder roles/storage.objectViewer; do
     --condition=None --quiet >/dev/null
 done
 
-# The service reads its secrets as its runtime service account: the one set on
-# an existing service, otherwise the Compute Engine default.
-runtime_sa="$(gcloud run services describe "$SERVICE" --project="$GCP_PROJECT_ID" \
-  --region="$GCP_REGION" --format='value(spec.template.spec.serviceAccountName)' \
-  2>/dev/null || true)"
-runtime_sa=${runtime_sa:-$compute_sa}
+# The service reads its secrets as its runtime service account, the same one
+# scripts/deploy.sh deploys with. It gets no project roles, only the secrets.
+default_runtime_sa="liftbig-api-runtime@$GCP_PROJECT_ID.iam.gserviceaccount.com"
+runtime_sa=${RUNTIME_SA:-$default_runtime_sa}
+if ! gcloud iam service-accounts describe "$runtime_sa" --project="$GCP_PROJECT_ID" \
+  >/dev/null 2>&1; then
+  [ "$runtime_sa" = "$default_runtime_sa" ] ||
+    die "service account $runtime_sa not found; create it or leave RUNTIME_SA unset"
+  echo "Creating the runtime service account $runtime_sa..."
+  gcloud iam service-accounts create liftbig-api-runtime --project="$GCP_PROJECT_ID" \
+    --display-name="liftbig-api runtime" \
+    --description="Runtime identity for the $SERVICE Cloud Run service" >/dev/null
+fi
 
 read_secret() {
   local name=$1 value
@@ -123,6 +133,22 @@ read_secret() {
     gcloud secrets create "$name" --project="$GCP_PROJECT_ID" --data-file=- >/dev/null
 }
 
+# IAM is eventually consistent: a service account created a moment ago may not
+# be found yet, so retry with backoff (about 2.5 minutes in all).
+grant_secret_access() {
+  local name=$1 delay
+  for delay in 5 10 20 40 80; do
+    gcloud secrets add-iam-policy-binding "$name" --project="$GCP_PROJECT_ID" \
+      --member="serviceAccount:$runtime_sa" \
+      --role=roles/secretmanager.secretAccessor >/dev/null 2>&1 && return 0
+    echo "Granting $runtime_sa access to $name failed; retrying in ${delay}s..." >&2
+    sleep "$delay"
+  done
+  gcloud secrets add-iam-policy-binding "$name" --project="$GCP_PROJECT_ID" \
+    --member="serviceAccount:$runtime_sa" \
+    --role=roles/secretmanager.secretAccessor >/dev/null
+}
+
 for name in "${SECRETS[@]}"; do
   if gcloud secrets describe "$name" --project="$GCP_PROJECT_ID" >/dev/null 2>&1; then
     echo "Secret $name exists; left unchanged."
@@ -130,9 +156,7 @@ for name in "${SECRETS[@]}"; do
     read_secret "$name"
     echo "Created secret $name."
   fi
-  gcloud secrets add-iam-policy-binding "$name" --project="$GCP_PROJECT_ID" \
-    --member="serviceAccount:$runtime_sa" \
-    --role=roles/secretmanager.secretAccessor >/dev/null
+  grant_secret_access "$name"
 done
 
 echo
