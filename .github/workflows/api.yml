@@ -119,6 +119,7 @@ jobs:
     env:
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
       GCP_REGION: ${{ vars.GCP_REGION }}
+      RUNTIME_SA: ${{ vars.RUNTIME_SA }} # empty: deploy.sh's liftbig-api-runtime default
       MAIL_FROM: ${{ vars.MAIL_FROM }}
       CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
       PRIVACY_OPERATOR_NAME: ${{ vars.PRIVACY_OPERATOR_NAME }}
