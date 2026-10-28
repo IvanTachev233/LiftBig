@@ -3,7 +3,7 @@
 // user who hasn't accepted (or been shown) it is asked again. Each consent
 // wording, old and new, is kept in docs/privacy/consent-texts.md.
 export const TERMS_VERSION = '2026-10-21';
-export const PRIVACY_VERSION = '2026-10-21';
+export const PRIVACY_VERSION = '2026-10-28';
 
 export enum PolicyDocument {
   TERMS = 'terms',

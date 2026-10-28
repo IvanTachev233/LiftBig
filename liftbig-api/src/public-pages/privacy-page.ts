@@ -21,6 +21,7 @@ export function privacyPageHtml(env: NodeJS.ProcessEnv): string {
     body: `
 <h1>Privacy policy</h1>
 <p class="small">${versionLine(PRIVACY_VERSION)}</p>
+<p>What's new in this version: the app and the LiftBig server now send error and crash reports to Sentry, so we can find and fix faults (see "Error and crash reports" below).</p>
 <p>This policy explains what the LiftBig app stores about you, why, on what legal basis, who handles it for us, how long we keep it, and your rights. LiftBig is for people aged 18 or over.</p>
 
 <h2>Who runs LiftBig</h2>
@@ -57,8 +58,18 @@ export function privacyPageHtml(env: NodeJS.ProcessEnv): string {
 </ul>
 <p>Our hosting provider also keeps standard request logs (such as IP address, time and the address requested) to run and protect the service.</p>
 
+<h2>Error and crash reports</h2>
+<p>When the app crashes or the LiftBig server runs into an error, a report goes to our error tracking provider, Sentry, so we can find and fix the fault. A report holds:</p>
+<ul>
+<li><strong>What went wrong</strong>: the type of error, its message and where in the code it happened.</li>
+<li><strong>Version</strong>: the app version, or the server version.</li>
+<li><strong>From the app</strong>: your phone's make and model, Android version, language and time zone, and its state at the time (such as free memory and storage, battery level, screen orientation, and whether it's rooted or an emulator); the screens you opened and the server requests the app made just before the error (the address and the result, not what was sent); and a random id that the reporting tool creates when the app is installed. That id isn't your account, your phone's hardware id or an advertising id, and a new one is made if you reinstall the app. The tool also counts app sessions and whether they ended in a crash.</li>
+<li><strong>From the server</strong>: the kind of request that failed (such as "save a set"), its address without any search terms, your device's browser or app type, the result, and your LiftBig account's internal id (a random code, not your email or name) when you were signed in.</li>
+</ul>
+<p>Reports never include your workouts, sets, notes or other training data, your email address, name or password, your sign-in tokens, or your IP address: the app and the server leave out what you send in a request and its sign-in and cookie headers, the server also removes IP addresses before a report leaves it, and Sentry is set not to store IP addresses.</p>
+
 <h2>On your device</h2>
-<p>The app keeps your sign-in token (in the phone's secure storage), your theme choice, a copy of the workouts and exercises you last opened so you can use them offline, and workout changes waiting to be sent. Waiting changes are removed once they're sent, or after 30 days; the offline copy after 30 days. Uninstalling the app removes all of it. LiftBig uses no cookies, advertising IDs or trackers.</p>
+<p>The app keeps your sign-in token (in the phone's secure storage), your theme choice, a copy of the workouts and exercises you last opened so you can use them offline, and workout changes waiting to be sent. Waiting changes are removed once they're sent, or after 30 days; the offline copy after 30 days. The error reporting tool keeps its random id and any reports waiting to be sent. Uninstalling the app removes all of it. LiftBig uses no cookies, advertising IDs or trackers.</p>
 
 <h2>Why we use it, and our legal basis</h2>
 <table>
@@ -68,6 +79,7 @@ export function privacyPageHtml(env: NodeJS.ProcessEnv): string {
 <tr><td>Store and show your training, work out personal bests, run programs</td><td>Training data</td><td>Contract, and your explicit consent because training data can say something about your health (see below)</td></tr>
 <tr><td>Let you and your coach work together</td><td>Name, email, coach link, invites, the workouts your coach assigns you</td><td>Contract, and your explicit consent for training data</td></tr>
 <tr><td>Keep accounts secure: wrong-password locks, signing out other devices, request logs</td><td>Sign-in security data, sessions, request logs</td><td>Legitimate interests: protecting your account and the service</td></tr>
+<tr><td>Find and fix crashes and errors</td><td>Error and crash reports</td><td>Legitimate interests: keeping LiftBig working for you. Reports leave out your training data, email, name and IP address</td></tr>
 <tr><td>Keep a record of what you agreed to and chose</td><td>Acceptance and consent records</td><td>Legitimate interests: being able to show what you agreed to and chose, which the law expects of us for consent</td></tr>
 <tr><td>Use your videos to train and improve lift analysis (only once video features exist)</td><td>Videos you upload and what's measured from them</td><td>Your consent (<code>video_training</code>), off unless you turn it on</td></tr>
 <tr><td>Email you LiftBig news and offers</td><td>Email address, name</td><td>Your consent (<code>product_emails</code>), off unless you turn it on</td></tr>
@@ -95,6 +107,7 @@ export function privacyPageHtml(env: NodeJS.ProcessEnv): string {
 <li><strong>Google Cloud</strong> (Cloud Run, Belgium) hosts the LiftBig server and its request logs.</li>
 <li><strong>Neon</strong> hosts the database where your data is stored (AWS London, UK).</li>
 <li><strong>Resend</strong> sends our emails: it receives your email address and the email we send you, and stores its records in the United States.</li>
+<li><strong>Sentry</strong> receives and stores the error and crash reports (EU data region, Frankfurt, Germany).</li>
 </ul>
 </li>
 <li><strong>Exercise videos</strong>: some exercises show a video from <strong>YouTube</strong> or <strong>Vimeo</strong>. When you open such an exercise, the player loads from that service, which receives your IP address and device information and may store cookies under its own privacy policy. LiftBig doesn't send them anything about you.</li>
@@ -102,12 +115,12 @@ export function privacyPageHtml(env: NodeJS.ProcessEnv): string {
 </ul>
 
 <h2>Data outside the UK</h2>
-<p>Your data is stored in the UK (the Neon database is in London). Some of our providers process data outside the UK: Google Cloud runs the LiftBig server in the EU, which the UK recognises as giving adequate protection. Resend stores its records in the United States, and Neon and Google may process data elsewhere to run their services; those transfers are covered by the safeguards in each provider's data processing agreement. Ask us for details.</p>
+<p>Your data is stored in the UK (the Neon database is in London). Some of our providers process data outside the UK: Google Cloud runs the LiftBig server in the EU and Sentry stores error and crash reports in the EU (Germany), which the UK recognises as giving adequate protection. Resend stores its records in the United States, and Neon, Google and Sentry (a US company) may process data elsewhere to run their services; those transfers are covered by the safeguards in each provider's data processing agreement. Ask us for details.</p>
 
 <h2>What we don't do</h2>
 <ul>
 <li>No ads.</li>
-<li>No analytics or tracking.</li>
+<li>No analytics or tracking. Error and crash reports are used only to find and fix faults.</li>
 <li>We don't sell your data or share it with anyone other than the people and providers above.</li>
 <li>No automated decisions that have legal or similarly significant effects on you.</li>
 </ul>
@@ -121,6 +134,7 @@ export function privacyPageHtml(env: NodeJS.ProcessEnv): string {
 <tr><td>Sessions</td><td>Until you sign out or the session ends (30 days unused, 90 days at most); removed at your next sign-in, or with your account</td></tr>
 <tr><td>Invites</td><td>Until accepted, or until the coach or the invited person deletes their account</td></tr>
 <tr><td>Request logs</td><td>30 days</td></tr>
+<tr><td>Error and crash reports</td><td>Deleted automatically within 90 days</td></tr>
 <tr><td>Database backups</td><td>Overwritten within 7 days</td></tr>
 </tbody>
 </table>
@@ -131,6 +145,7 @@ export function privacyPageHtml(env: NodeJS.ProcessEnv): string {
 <li><strong>Client</strong>: your account and everything in it are deleted: workouts, sets, lift records, program enrollments, settings, email codes, sessions, acceptance and consent records, and pending invites to your email.</li>
 <li><strong>Coach</strong>: your account is anonymised: your email, name and password are removed and it can no longer sign in. Your own workouts, your invites, and your acceptance and consent records are deleted and your clients are unlinked from you. The exercises you created, the programs you wrote and the workouts you assigned stay in your clients' history, without your name or email.</li>
 </ul>
+<p>Request logs, error and crash reports and backups aren't deleted with your account; they're deleted on the schedule in "How long we keep it".</p>
 
 <h2>Your rights</h2>
 <p>You can ask us to:</p>

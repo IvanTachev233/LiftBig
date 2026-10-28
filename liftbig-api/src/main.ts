@@ -1,3 +1,5 @@
+// Must stay the first import: Sentry starts before Nest and Express load
+import './instrument';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';

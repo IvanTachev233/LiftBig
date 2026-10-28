@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_FILTER } from '@nestjs/core';
+import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -17,6 +19,7 @@ import { databaseConfig } from './config/database.config';
 
 @Module({
   imports: [
+    SentryModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
     }),
@@ -33,6 +36,10 @@ import { databaseConfig } from './config/database.config';
     HealthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    // Reports unexpected errors (not HttpExceptions) to Sentry when it runs
+    { provide: APP_FILTER, useClass: SentryGlobalFilter },
+    AppService,
+  ],
 })
 export class AppModule {}

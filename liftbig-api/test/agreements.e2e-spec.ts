@@ -420,6 +420,27 @@ describe('Agreements (e2e)', () => {
       expect((res.body as Payload).needsAcceptance).toEqual([]);
     });
 
+    it('lists only the privacy policy for a user who accepted the 2026-10-21 version (Sentry update)', async () => {
+      const user = await createExistingUser(app);
+      await accept(user, SIGN_UP_AGREEMENT).expect(200);
+      // Everyone who signed up or accepted before T1 A3c holds this version
+      await dataSource
+        .getRepository(PolicyAcceptance)
+        .update(
+          { userId: user.id, document: PolicyDocument.PRIVACY },
+          { version: '2026-10-21' },
+        );
+
+      expect(PRIVACY_VERSION).not.toBe('2026-10-21');
+      expect(
+        ((await getMe(user).expect(200)).body as Payload).needsAcceptance,
+      ).toEqual(['privacy']);
+      const res = await accept(user, {
+        acceptTerms: { privacy: PRIVACY_VERSION },
+      }).expect(200);
+      expect((res.body as Payload).needsAcceptance).toEqual([]);
+    });
+
     it.each([
       ['an old Terms version', { acceptTerms: { terms: '2026-01-01' } }],
       [

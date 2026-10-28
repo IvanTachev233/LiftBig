@@ -124,6 +124,7 @@ jobs:
       CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
       PRIVACY_OPERATOR_NAME: ${{ vars.PRIVACY_OPERATOR_NAME }}
       PRIVACY_CONTACT_EMAIL: ${{ vars.PRIVACY_CONTACT_EMAIL }}
+      SENTRY_DSN: ${{ vars.SENTRY_DSN }} # empty: error reports off (deploy.sh removes it)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: auth
