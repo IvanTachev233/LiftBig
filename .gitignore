@@ -12,15 +12,19 @@ keystore.properties
 liftbig_dump.sql
 *.zip
 
-# Planning, docs, design and tooling files: kept in the working folder, not published
+# Planning, notes and tooling: the private notes repo is cloned at /notes/; the root
+# CLAUDE.md (an import stub), Plans.md and .harness link into it. Only docs/privacy/ is published.
+/notes/
 /Project Specification.*
 /CLAUDE.md
 /Plans.md
 /spec.md
-/docs/
+/docs/*
+!/docs/privacy/
 /liftbig-design-handoff/
 /App icon*.png
-/.harness/
+/.harness
+/.claude-code-harness.config.yaml
 /.trail/
 /.github/modernize/
 /deploy_backend.sh
@@ -38,3 +42,4 @@ Plans.md.bak.*
 
 # Claude Code settings and state, at any depth
 .claude/
+.agents/
