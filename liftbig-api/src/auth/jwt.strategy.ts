@@ -2,6 +2,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as Sentry from '@sentry/nestjs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuthUser, JwtPayload } from './auth-user.interface';
@@ -31,6 +32,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user || (payload.ver ?? 0) !== user.tokenVersion) {
       throw new UnauthorizedException();
     }
+    // Error reports from this request carry the account id, nothing else
+    Sentry.setUser({ id: payload.sub });
     return {
       id: payload.sub,
       email: payload.email,

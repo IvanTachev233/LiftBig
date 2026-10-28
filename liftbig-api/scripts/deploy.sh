@@ -14,6 +14,8 @@ API_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SECRETS=(DATABASE_URL JWT_SECRET MAIL_PROVIDER_KEY)
 # Must be set; CORS_ORIGINS may be set to an empty string for "none".
 REQUIRED=(GCP_PROJECT_ID MAIL_FROM CORS_ORIGINS PRIVACY_OPERATOR_NAME PRIVACY_CONTACT_EMAIL)
+# May be unset or empty: the deploy then removes it from the service.
+OPTIONAL=(SENTRY_DSN)
 # Separates env vars on the gcloud command line (`gcloud topic escaping`), so
 # values may contain commas, e.g. CORS_ORIGINS.
 D=';;'
@@ -44,6 +46,12 @@ Env vars (required; CORS_ORIGINS may be empty):
   CORS_ORIGINS           Extra web origins, comma-separated exact URLs
   PRIVACY_OPERATOR_NAME  Who runs the app, shown on /privacy
   PRIVACY_CONTACT_EMAIL  Contact email shown on /privacy
+
+Env vars (optional):
+  SENTRY_DSN             Sentry project DSN; unset or empty turns error
+                         reports off (the deploy removes it from the service)
+  SENTRY_RELEASE         Release named in error reports (default: GITHUB_SHA,
+                         else the API folder's git HEAD)
 
 Secrets (Secret Manager, latest version): DATABASE_URL, JWT_SECRET,
 MAIL_PROVIDER_KEY. The runtime service account reads them.
@@ -77,13 +85,21 @@ is_required() {
   return 1
 }
 
-# Reads the REQUIRED keys from a dotenv file (KEY=value, optional `export`,
+is_optional() {
+  local name
+  for name in "${OPTIONAL[@]}"; do
+    [ "$name" = "$1" ] && return 0
+  done
+  return 1
+}
+
+# Reads the REQUIRED and OPTIONAL keys from a dotenv file (KEY=value, optional `export`,
 # quotes and trailing comments) without running it, so the file's other values,
 # such as secrets, are never loaded. Keys already in the environment are kept.
 load_env_file() {
   local file=$1 name line key value
   local from_env=" " loaded=()
-  for name in "${REQUIRED[@]}"; do
+  for name in "${REQUIRED[@]}" "${OPTIONAL[@]}"; do
     is_set "$name" && from_env+="$name "
   done
   while IFS= read -r line || [ -n "$line" ]; do
@@ -91,7 +107,7 @@ load_env_file() {
     [[ "$line" =~ ^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]] || continue
     key=${BASH_REMATCH[2]}
     value=${BASH_REMATCH[3]}
-    is_required "$key" || continue
+    is_required "$key" || is_optional "$key" || continue
     [[ "$from_env" == *" $key "* ]] && continue
     if [[ "$value" =~ ^\"(.*)\"[[:space:]]*(#.*)?$ ]] || [[ "$value" =~ ^\'(.*)\'[[:space:]]*(#.*)?$ ]]; then
       value=${BASH_REMATCH[1]}
@@ -194,17 +210,33 @@ for name in "${REQUIRED[@]}"; do
     *"$D"* | *$'\n'*) die "$name must not contain '$D' or a line break" ;;
   esac
 done
+SENTRY_DSN=${SENTRY_DSN:-}
+[ -z "$SENTRY_DSN" ] || [[ "$SENTRY_DSN" =~ ^https://[A-Za-z0-9]+@[A-Za-z0-9.-]+/[0-9]+$ ]] ||
+  die "SENTRY_DSN must be a Sentry DSN (https://<key>@<host>/<project id>) or empty"
+# Error reports name the deployed commit.
+SENTRY_RELEASE=${SENTRY_RELEASE:-${GITHUB_SHA:-$(git -C "$API_DIR" rev-parse HEAD 2>/dev/null || true)}}
+[[ "$SENTRY_RELEASE" =~ ^[A-Za-z0-9._-]*$ ]] ||
+  die "SENTRY_RELEASE may contain only letters, digits, '.', '_' and '-'"
 
 env_vars="^${D}^MAIL_FROM=$MAIL_FROM${D}CORS_ORIGINS=$CORS_ORIGINS"
 env_vars+="${D}PRIVACY_OPERATOR_NAME=$PRIVACY_OPERATOR_NAME${D}PRIVACY_CONTACT_EMAIL=$PRIVACY_CONTACT_EMAIL"
 # Schema changes only through migrations; personal bests are already backfilled.
 env_vars+="${D}NODE_ENV=production${D}TYPEORM_SYNC=false${D}RUN_MIGRATIONS=true${D}BACKFILL_PBS=false"
+[ -z "$SENTRY_RELEASE" ] || env_vars+="${D}SENTRY_RELEASE=$SENTRY_RELEASE"
 
 secret_refs=""
 for name in "${SECRETS[@]}"; do
   secret_refs+="${secret_refs:+,}$name=$name:latest"
 done
 secret_names="$(IFS=,; echo "${SECRETS[*]}")"
+removed_vars=$secret_names
+# Without a DSN the API sends no error reports; removing it turns off a
+# service that had one.
+if [ -n "$SENTRY_DSN" ]; then
+  env_vars+="${D}SENTRY_DSN=$SENTRY_DSN"
+else
+  removed_vars+=",SENTRY_DSN"
+fi
 # A new revision gets traffic only once /health answers 2xx (the database is
 # reachable). Migrations run before the port opens and Neon may be waking up,
 # so it keeps the 240 s that the default TCP probe allows: 24 tries, 10 s apart.
@@ -219,7 +251,7 @@ cmd=(
   --source="$API_DIR"
   --allow-unauthenticated
   --service-account="$RUNTIME_SA"
-  --remove-env-vars="$secret_names"
+  --remove-env-vars="$removed_vars"
   --update-env-vars="$env_vars"
   --set-secrets="$secret_refs"
   --startup-probe="$startup_probe"

@@ -52,6 +52,8 @@ Other scripts: `npm run start` (no watch), `npm run start:debug`, `npm run build
 | `PRIVACY_CONTACT_EMAIL` | unset | Contact email on the `/privacy` and `/terms` pages. Unset: the pages show `[CONTACT EMAIL]` |
 | `APP_MIN_VERSION_CODE` | unset | Lowest Android versionCode still supported, from `GET /app-config`: older builds show a blocking "Update LiftBig" screen. Unset: no minimum. Anything but a whole number from 1 stops the API at startup |
 | `APP_LATEST_VERSION_CODE` | unset | The newest versionCode on Play: older builds are offered the update once per start (dismissible). Unset: no offer |
+| `SENTRY_DSN` | unset | Sentry project DSN: unexpected errors (not 4xx) are reported to Sentry, scrubbed (see [Error reports](#error-reports-sentry)). Unset or blank: nothing is reported, as in local runs, CI and tests |
+| `SENTRY_RELEASE` | unset | Release named in error reports; `deploy.sh` sets the git commit |
 
 Locally, every variable above can live in a `.env` file in this folder: `src/config/database.config.ts` loads it when it exists (it runs before `@nestjs/config`), and variables already set in the shell, Docker or Cloud Run win over it. That covers `npm run start:dev`, the tests and the migration commands. `.env` is gitignored; [`.env.example`](.env.example) is the committed reference. Never put `DATABASE_URL` or other production values in it.
 
@@ -102,7 +104,7 @@ Replacing `JWT_SECRET` signs every user out.
 
 ### Deploy
 
-The script reads `GCP_PROJECT_ID`, `MAIL_FROM`, `CORS_ORIGINS`, `PRIVACY_OPERATOR_NAME` and `PRIVACY_CONTACT_EMAIL` from the API's `.env` (`--env-file PATH` for another file); it reads only those keys, never the file's secrets. Values already in the environment win:
+The script reads `GCP_PROJECT_ID`, `MAIL_FROM`, `CORS_ORIGINS`, `PRIVACY_OPERATOR_NAME`, `PRIVACY_CONTACT_EMAIL` and, when present, `SENTRY_DSN` from the API's `.env` (`--env-file PATH` for another file); it reads only those keys, never the file's secrets. Values already in the environment win:
 
 ```bash
 # .env (gitignored)
@@ -130,6 +132,8 @@ In a terminal, the script asks for any value still not set, shows the command an
 | `CORS_ORIGINS` | env var | required, may be empty | Extra allowed web origins |
 | `PRIVACY_OPERATOR_NAME` | env var | required | Shown on `/privacy` and `/terms` |
 | `PRIVACY_CONTACT_EMAIL` | env var | required | Shown on `/privacy` and `/terms` |
+| `SENTRY_DSN` | env var | optional | Turns error reports on; unset or empty removes it from the service, which turns them off |
+| `SENTRY_RELEASE` | env var | `GITHUB_SHA`, else the git `HEAD` | Release named in error reports |
 | `NODE_ENV`, `TYPEORM_SYNC`, `RUN_MIGRATIONS`, `BACKFILL_PBS` | env var | `production`, `false`, `true`, `false` | Set by the script |
 | `DATABASE_URL` | secret | Secret Manager `DATABASE_URL:latest` | Neon connection URL |
 | `JWT_SECRET` | secret | Secret Manager `JWT_SECRET:latest` | Signs access tokens |
@@ -150,13 +154,21 @@ The script sets a startup probe (`--startup-probe`): a new revision gets traffic
 
 With `NODE_ENV=production` the API logs one JSON object per line, which Cloud Logging reads as `jsonPayload`: `severity` (the log level: `INFO`, `WARNING`, `ERROR`, ...), `message`, `context`, `time`, and the stack in `stack_trace` (a logged exception keeps its stack trace in `message`), so Error Reporting groups exceptions. Filter on `jsonPayload.message` and `severity`, for example `severity>=ERROR`. TypeORM's own lines, such as `Migration "..." failed`, stay plain text (`textPayload`). Locally the API logs Nest's usual text.
 
+### Error reports (Sentry)
+
+With `SENTRY_DSN` set, `src/instrument.ts` (the first import in `main.ts`) starts Sentry, and a global filter reports every error that isn't an `HttpException` (so not 4xx answers, 503 from `/health` or validation errors) before Nest answers 500 as usual. Reports carry the stack trace, the release, the method, the path without its query string, the `user-agent`, `content-type`, `content-length` and `accept` headers, and the account id of a signed-in request; never the body, other headers (`Authorization`, cookies, `X-Forwarded-For`), the query string, stack-frame variables or an IP address. The full list and the console settings (EU data storage, IP storage off) are in `docs/privacy/records-of-processing.md` § Sentry settings; the privacy policy describes the same, so a change to what's sent needs both updated. No tracing, profiling or logs. A `SENTRY_DSN` in `.env` turns reports on for local runs too (environment `development`), so keep it out of `.env` unless you mean that.
+
+To check a DSN, send one test event through the same setup: `SENTRY_DSN=<dsn> npx ts-node scripts/sentry-test-event.ts`. In Sentry → Issues, "LiftBig Sentry test event" should show the user as `sentry-test-user` only and none of the test request's body, `Authorization`, cookie, `X-Forwarded-For` or `?email=` query.
+
+To turn reports off in production, delete the `SENTRY_DSN` variable of the `production` environment and redeploy (Actions → API → Run workflow); the deploy removes it from the service.
+
 ### Running from the pipeline
 
 [`.github/workflows/api.yml`](../.github/workflows/api.yml) at the repo root tests the API on pull requests and, after the tests pass, deploys every merge to `master` that changes `liftbig-api/` or the workflow (Actions → API → Run workflow redeploys by hand). Its `ci-ok` job is the one check the `master` ruleset requires. The tests start with `npm audit --omit=dev --audit-level=high`, so a high or critical advisory in a runtime dependency also stops the deploy until it's fixed (`package.json` `overrides` pins `multer` 2.5.0 under `@nestjs/platform-express` until a Nest 11 release ships it; remove it then). It runs the same script with no changes. Give it the inputs as env vars (none of them are secret) and authenticate `gcloud` as a deploy service account through **Workload Identity Federation**, so there is no service account key file to store. On GitHub Actions that means `permissions: id-token: write`, then `google-github-actions/auth` with `workload_identity_provider` and `service_account`, then `google-github-actions/setup-gcloud`, then `scripts/deploy.sh`. Without a terminal it never waits for input. After the deploy, a smoke check fetches `/health` from the service URL and fails the job on anything but 2xx.
 
 The deploy service account needs `roles/run.sourceDeveloper` and `roles/serviceusage.serviceUsageConsumer` on the project, and `roles/iam.serviceAccountUser` on the runtime service account (`liftbig-api-runtime`), which it attaches to each revision. Set up the runtime service account, its secret access and this grant before a change to it merges: until they exist, deploys fail and Cloud Run keeps serving the previous revision. Leave its `roles/iam.serviceAccountUser` on the Compute Engine default service account in place while deploys build from source: Cloud Build runs as that account. It never needs access to the secret values; the runtime service account reads them.
 
-The workflow passes `RUNTIME_SA` from the `production` environment's variables; when it isn't set, the script's default applies. To go back to another runtime service account, set `RUNTIME_SA` to it and run the workflow, or pick it in Cloud Run → the service → Edit & deploy new revision → Security (the next pipeline deploy switches back to `RUNTIME_SA`).
+The workflow passes `RUNTIME_SA` and `SENTRY_DSN` from the `production` environment's variables, and `deploy.sh` takes the release from `GITHUB_SHA`. For `RUNTIME_SA`, when it isn't set, the script's default applies. To go back to another runtime service account, set `RUNTIME_SA` to it and run the workflow, or pick it in Cloud Run → the service → Edit & deploy new revision → Security (the next pipeline deploy switches back to `RUNTIME_SA`).
 
 ## Deploying the card tables and assigned workouts
 

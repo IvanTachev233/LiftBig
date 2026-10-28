@@ -148,7 +148,16 @@ describe('Public pages (e2e)', () => {
         'acceptance and consent records',
         'within one month',
         'href="https://ico.org.uk/make-a-complaint"',
-        `Version ${PRIVACY_VERSION} · Last updated 21 October 2026`,
+        `Version ${PRIVACY_VERSION} · Last updated 28 October 2026`,
+        // Error and crash reports (T1 A3b)
+        "What's new in this version",
+        'Error and crash reports',
+        'Sentry',
+        'Frankfurt, Germany',
+        'random id',
+        'Deleted automatically within 90 days',
+        'Find and fix crashes and errors',
+        'Error and crash reports are used only to find and fix faults',
       ]) {
         expect(text).toContain(item);
       }
