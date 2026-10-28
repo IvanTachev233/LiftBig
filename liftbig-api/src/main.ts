@@ -2,9 +2,14 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import { CloudLogger } from './common/cloud-logger';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    // Cloud Run reads JSON log lines; local runs keep Nest's readable text
+    logger:
+      process.env.NODE_ENV === 'production' ? new CloudLogger() : undefined,
+  });
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
   app.set('etag', false);
   // Exact deployed web origins, comma-separated (e.g. https://liftbig.web.app)
