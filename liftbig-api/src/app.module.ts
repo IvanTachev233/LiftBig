@@ -12,6 +12,7 @@ import { UsersModule } from './users/users.module';
 import { PublicPagesModule } from './public-pages/public-pages.module';
 import { AppConfigModule } from './app-config/app-config.module';
 import { PoliciesModule } from './policies/policies.module';
+import { HealthModule } from './health/health.module';
 import { databaseConfig } from './config/database.config';
 
 @Module({
@@ -29,6 +30,7 @@ import { databaseConfig } from './config/database.config';
     PublicPagesModule,
     AppConfigModule,
     PoliciesModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

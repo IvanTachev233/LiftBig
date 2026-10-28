@@ -205,6 +205,10 @@ for name in "${SECRETS[@]}"; do
   secret_refs+="${secret_refs:+,}$name=$name:latest"
 done
 secret_names="$(IFS=,; echo "${SECRETS[*]}")"
+# A new revision gets traffic only once /health answers 2xx (the database is
+# reachable). Migrations run before the port opens and Neon may be waking up,
+# so it keeps the 240 s that the default TCP probe allows: 24 tries, 10 s apart.
+startup_probe="httpGet.path=/health,initialDelaySeconds=0,timeoutSeconds=5,periodSeconds=10,failureThreshold=24"
 
 # --remove-env-vars runs before the secrets are set, so a service that still has
 # one of these as a plain value switches to the secret in the same deploy.
@@ -218,6 +222,7 @@ cmd=(
   --remove-env-vars="$secret_names"
   --update-env-vars="$env_vars"
   --set-secrets="$secret_refs"
+  --startup-probe="$startup_probe"
 )
 [ "$INTERACTIVE" = true ] || cmd+=(--quiet)
 

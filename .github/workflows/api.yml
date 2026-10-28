@@ -136,12 +136,12 @@ jobs:
         run: gcloud auth list --filter=status:ACTIVE --format='value(account)'
       - name: Deploy # uploads only liftbig-api/ (deploy.sh passes --source=<API folder>)
         run: scripts/deploy.sh --non-interactive
-      - name: Smoke check
+      - name: Smoke check # 200 only when the new revision reaches the database
         run: |
           url=$(gcloud run services describe liftbig-api \
             --project="$GCP_PROJECT_ID" --region="$GCP_REGION" \
             --format='value(status.url)')
-          curl -fsS -o /dev/null -w '%{http_code} /privacy\n' "$url/privacy"
+          curl -fsS -o /dev/null -w '%{http_code} /health\n' "$url/health"
 
   # The one required check: passes when every job it needs passed or was skipped by path.
   ci-ok:
