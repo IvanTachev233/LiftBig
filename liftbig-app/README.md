@@ -6,7 +6,7 @@ This folder (`liftbig-app/`) is the mobile/web app: Ionic 8 + Angular 20, packag
 
 ## Prerequisites
 
-- **Node.js 22** (22.12 or newer). The version is pinned in [`.nvmrc`](.nvmrc), so `nvm use` picks it up. Angular 20 needs `^20.19 || ^22.12 || >=24`, and the Capacitor 8 CLI needs 22 or newer.
+- **Node.js 24**. The version is pinned in [`.nvmrc`](.nvmrc), so `nvm use` picks it up; the Dockerfiles, CI and the API use the same major. Angular 20 needs `^20.19 || ^22.12 || >=24`, and the Capacitor 8 CLI needs 22 or newer.
 - **Docker** with the Compose plugin (`docker compose`, not `docker-compose`), for PostgreSQL and the optional containerized stack.
 - For device builds only: Android Studio and/or Xcode (see [Running on a device](#running-on-a-device)).
 

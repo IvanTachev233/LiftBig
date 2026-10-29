@@ -8,7 +8,7 @@ Stack: NestJS 11, TypeORM 0.3, PostgreSQL 15. The mobile/web client is next to i
 
 ## Prerequisites
 
-- **Node.js 22** (NestJS 11 needs 20.11 or newer; the app pins 22 in `liftbig-app/.nvmrc`, so use that for both).
+- **Node.js 24**, pinned in [`.nvmrc`](.nvmrc) (`nvm use`). The Dockerfile and CI use the same major, and so does the app.
 - **PostgreSQL**, most easily through the repo's Docker stack: `docker compose up -d postgres` from the repo root or `liftbig-app/`. It listens on host port **5433**.
 
 ## Run locally
