@@ -6,6 +6,8 @@ Status: **approved by Ivan Tachev, 2026-10-21**. Reflects the code on 2026-10-21
 
 2026-10-28 (T1 A3b): error and crash reports with Sentry (P10, Sentry processor, device storage rows, § Error reports check, § Sentry settings, item-by-item rows, O7, O8). Status: **approved by Ivan Tachev, 2026-10-28**, with privacy policy version `2026-10-28`; ADR 0019 stays Proposed. Describes the configuration that A3c (API) and A3e (app) must build; nothing is sent before they ship.
 
+2026-11-01 (T1 A3e): P10's app device details completed from the first test events (screen, processor, kernel version, connection type, boot time, the app's granted permissions and start time) and the app line of § Sentry settings matched to the build. Status: **approved by Ivan Tachev, 2026-11-01**; the privacy policy is unchanged (its "such as" list covers them).
+
 Small organisations can skip some Art. 30 records, but not when processing is regular or includes special category data; both apply here, so this record is kept in full.
 
 ## Controller
