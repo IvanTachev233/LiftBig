@@ -131,6 +131,10 @@ npx cap open android    # or: npx cap open ios
 
 `npx cap run android` (or `ios`) syncs, builds and deploys to a connected device or emulator in one step.
 
+### Error and crash reports (Sentry)
+
+Device builds also send error and crash reports to the Sentry project `liftbig-app` (EU), whose DSN is `sentryDsn` in `environment.prod.ts` (a DSN is public by design). `ng serve`, unit tests and the Docker build have an empty `sentryDsn`, so they send nothing. `src/app/core/sentry.ts` holds the settings and scrubbers, and `AndroidManifest.xml` turns off the native SDK's own breadcrumbs; what may be sent is fixed by `docs/privacy/records-of-processing.md` § Sentry settings, so change the two together. Releases are `com.liftbig.app@<versionName>+<versionCode>` with the versionCode as dist, both from `android/app/build.gradle`.
+
 ## Release build
 
 Google Play takes a signed Android App Bundle (`.aab`), built against the production API. The signing values come from `android/keystore.properties`, which is gitignored. Release builds stop with a message naming what is missing (the file, a value or the keystore); debug builds don't need the file.

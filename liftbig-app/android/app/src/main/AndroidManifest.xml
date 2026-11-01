@@ -33,6 +33,16 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- Sentry's native Android SDK (via @sentry/capacitor): no breadcrumbs of its own, so
+             native crash reports hold only the route changes and API calls the JS layer keeps
+             (records of processing § Sentry settings) -->
+        <meta-data android:name="io.sentry.breadcrumbs.activity-lifecycle" android:value="false" />
+        <meta-data android:name="io.sentry.breadcrumbs.app-lifecycle" android:value="false" />
+        <meta-data android:name="io.sentry.breadcrumbs.system-events" android:value="false" />
+        <meta-data android:name="io.sentry.breadcrumbs.app-components" android:value="false" />
+        <meta-data android:name="io.sentry.breadcrumbs.user-interaction" android:value="false" />
+        <meta-data android:name="io.sentry.breadcrumbs.network-events" android:value="false" />
     </application>
 
     <!-- Permissions -->
