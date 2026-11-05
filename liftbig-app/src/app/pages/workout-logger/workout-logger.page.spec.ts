@@ -2091,6 +2091,31 @@ describe('WorkoutLoggerPage', () => {
       expect(req.request.body).toEqual({ id: squat.sets[1].id, reps: 5, weight: 102.06, made: true });
       req.flush({ id: squat.sets[1].id });
     });
+
+    // Past these the server's int4 and numeric(6,2) columns can't store the value
+    it('caps typed actual reps and weight at what the server stores', () => {
+      loadAssigned();
+
+      enterActual(0, 'actualReps', 56361537411);
+      expect(resultBody('a1', 's1')).toEqual({ made: true, actualReps: 2147483647, actualWeight: null });
+      enterActual(0, 'actualWeight', 99999);
+      expect(resultBody('a1', 's1')).toEqual({ made: true, actualReps: 2147483647, actualWeight: 9999.99 });
+      expect(current().cards[0].sets[0].actualWeight).toBe(9999.99);
+    });
+
+    it('caps the weight and reps of an added set; in pounds, 22046.2 lb is 9999.99 kg', () => {
+      TestBed.inject(WeightUnitService).setUnit('lb');
+      loadAssigned();
+      const squat = current().cards[1];
+      squat.newWeight = 99999;
+      squat.newReps = 56361537411;
+      component.addSetToExercise(squat);
+      const req = httpTesting.expectOne(
+        (r) => r.method === 'POST' && r.url === `${workoutsUrl}/a1/cards/c2/sets`,
+      );
+      expect(req.request.body).toEqual({ id: squat.sets[1].id, reps: 2147483647, weight: 9999.99, made: true });
+      req.flush({ id: squat.sets[1].id });
+    });
   });
 
   describe('program workout', () => {
@@ -3179,6 +3204,18 @@ describe('WorkoutLoggerPage', () => {
         commit(rows()[0].querySelector('ion-input.set-reps')!, '7.6');
         expect(patchBody('w130').exercises[0].sets[0]).toEqual(
           jasmine.objectContaining({ reps: 8, weight: 102.06 }),
+        );
+      });
+
+      it('caps a typed weight and reps at what the server stores', () => {
+        createComponentWithNoId();
+        loadWorkout('w135', [card('c1', 'ex1', 'Bench Press', [5])]);
+
+        commit(rows()[0].querySelector('ion-input.set-weight')!, '-56361537411');
+        expect(patchBody('w135').exercises[0].sets[0]).toEqual(jasmine.objectContaining({ weight: -9999.99 }));
+        commit(rows()[0].querySelector('ion-input.set-reps')!, '56361537411');
+        expect(patchBody('w135').exercises[0].sets[0]).toEqual(
+          jasmine.objectContaining({ reps: 2147483647, weight: -9999.99 }),
         );
       });
 

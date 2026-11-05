@@ -74,7 +74,7 @@ npm run format      # Prettier
 
 > Deploying changes production data. Talk to the maintainer before deploying.
 
-Production runs on **Google Cloud Run**; the app's production build points at its `*.run.app` URL. [`scripts/deploy.sh`](scripts/deploy.sh) uploads this folder (`liftbig-api/`, not the whole repo) and Cloud Build builds it with the `Dockerfile`. Files ignored by `.gitignore` (`.env`, dumps, `node_modules`, `dist`) are not uploaded.
+Production runs on **Google Cloud Run** at `https://api.liftbig.co` (a Cloud Run domain mapping, ADR 0016), which app builds from versionCode 4 call. Older installed builds call the service's `*.run.app` URL, so never rename or delete the service; the pipeline's smoke check calls `/health` on both. [`scripts/deploy.sh`](scripts/deploy.sh) uploads this folder (`liftbig-api/`, not the whole repo) and Cloud Build builds it with the `Dockerfile`. Files ignored by `.gitignore` (`.env`, dumps, `node_modules`, `dist`) are not uploaded.
 
 Every deploy sets `NODE_ENV=production`, `TYPEORM_SYNC=false` and `RUN_MIGRATIONS=true`, so **production schema changes only through migrations** in `src/migrations`, run on startup. An entity change without a migration is not applied in production, even though local dev (no `NODE_ENV`) syncs it automatically. Deploys also set `BACKFILL_PBS=false`.
 
@@ -169,6 +169,55 @@ To turn reports off in production, delete the `SENTRY_DSN` variable of the `prod
 The deploy service account needs `roles/run.sourceDeveloper` and `roles/serviceusage.serviceUsageConsumer` on the project, and `roles/iam.serviceAccountUser` on the runtime service account (`liftbig-api-runtime`), which it attaches to each revision. Set up the runtime service account, its secret access and this grant before a change to it merges: until they exist, deploys fail and Cloud Run keeps serving the previous revision. Leave its `roles/iam.serviceAccountUser` on the Compute Engine default service account in place while deploys build from source: Cloud Build runs as that account. It never needs access to the secret values; the runtime service account reads them.
 
 The workflow passes `RUNTIME_SA` and `SENTRY_DSN` from the `production` environment's variables, and `deploy.sh` takes the release from `GITHUB_SHA`. For `RUNTIME_SA`, when it isn't set, the script's default applies. To go back to another runtime service account, set `RUNTIME_SA` to it and run the workflow, or pick it in Cloud Run → the service → Edit & deploy new revision → Security (the next pipeline deploy switches back to `RUNTIME_SA`).
+
+## Rollback
+
+Three cases: a bad API release, a failed migration, and lost or damaged data. The alerts (uptime check on `/health`, 5xx rate, p95 latency, instances at the maximum, failed migration, and Sentry's new or regressed issue) email the maintainer; the Cloud Monitoring dashboard shows requests, 5xx, latency, instances and uptime.
+
+### A bad API release
+
+The usual way back is a revert: revert the merge on `master` through a PR, and the pipeline tests and deploys the previous code.
+
+When that's too slow, send all traffic to the previous revision. In the console: Cloud Run → `liftbig-api` → Revisions → the previous revision → Manage traffic → 100%. Or:
+
+```bash
+gcloud run revisions list --service=liftbig-api --project=<project-id> --region=europe-west1
+gcloud run services update-traffic liftbig-api --project=<project-id> --region=europe-west1 \
+  --to-revisions=<previous-revision>=100
+```
+
+While traffic is pinned to a revision, the pipeline's `/health` smoke check reaches that revision, not the new one, and a new revision may be deployed with 0% of the traffic (Cloud Run → Revisions shows it). Once the fix is deployed, send traffic back to the newest revision:
+
+```bash
+gcloud run services update-traffic liftbig-api --project=<project-id> --region=europe-west1 --to-latest
+```
+
+Going back to an older revision doesn't undo its migrations: the older code runs on the newer schema. That's fine when the migration only adds tables or columns. When it drops or renames them, fix forward, or restore the database to before the deploy (below) and run the matching older revision.
+
+### A failed migration
+
+Migrations run at startup, before the port opens, all pending ones in one transaction. A failure logs `Migration "..." failed` (the failed-migration alert matches it), rolls the whole transaction back, and the revision never passes its startup probe on `/health`, so the previous revision keeps serving and the data is unchanged. Fix the migration and deploy again.
+
+### Restoring the database (Neon)
+
+Neon can restore a branch to any moment inside the project's history window: 6 hours on the Free plan, up to 7 days on Launch and 30 days on Scale (Neon docs, read 2026-11-01). Neon → the project → Settings shows the current window. Anything older is gone, so act within the window.
+
+1. Find the moment to go back to. Look before restoring: Branches → New branch → parent `production`, **Past data**, a date and time; connect to the branch and query it. Delete the branch afterwards.
+2. Restore: open the `production` branch's **Backup & Restore** page, pick the date and time, check with **Preview data** (read-only tables, SQL or a schema diff), then **Restore**. It overwrites every database on the branch; anything written after that moment is lost. Neon keeps the state just before the restore as a branch named `production_old_<timestamp>`, so a wrong restore can be undone; delete it once it's no longer needed.
+3. The branch stays the same, so `DATABASE_URL` doesn't change. If the restore goes back past a migration, run an API revision that matches that schema first: a newer revision runs the migration again on its next start.
+
+### Restore drill
+
+Done once before the Play production rollout (T1 A3d) and again after a change of Neon plan or region, it checks that a past state can be read back without touching production:
+
+1. Neon → the project → Branches → **New branch**: parent `production`, **Past data** at about 1 hour ago, auto-delete after 1 hour.
+2. In the branch's SQL Editor (or `psql` with its connection string), run `SELECT count(*) FROM "user";` and `SELECT count(*) FROM workout;`, and compare them with production: equal, or lower by what was added in the last hour.
+3. Delete the branch (Branches → the branch → ⋮ → Delete).
+4. Note the date, the restore time picked, the two counts and the history window below.
+
+| Date | Restore point | Counts (user, workout): branch / production | History window |
+| --- | --- | --- | --- |
+| 2026-11-01, 07:21 (Ivan) | about 1 hour before | not recorded | not recorded (Free plan: 6 hours) |
 
 ## Deploying the card tables and assigned workouts
 

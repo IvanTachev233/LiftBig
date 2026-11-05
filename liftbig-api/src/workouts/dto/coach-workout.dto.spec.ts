@@ -194,3 +194,54 @@ describe('UpdateCoachWorkoutDto', () => {
     ).toContain('id');
   });
 });
+
+// Past these the int4 and numeric(6,2) columns fail, which was a 500
+describe('coach set and card numbers stay within their columns', () => {
+  const INT_MAX = 2147483647;
+  const INT_MIN = -2147483648;
+
+  it.each([
+    ['reps', { reps: INT_MAX + 1 }],
+    ['order', { reps: 5, order: INT_MAX + 1 }],
+    ['order', { reps: 5, order: INT_MIN - 1 }],
+    ['weight', { reps: 5, weight: 10000 }],
+    ['weight', { reps: 5, weight: -10000 }],
+  ])('rejects a set %s past its column', async (property, set) => {
+    const dto = plainToInstance(
+      CreateCoachWorkoutDto,
+      createBody({ exercises: [card({ sets: [set] })] }),
+    );
+    expect(
+      setErrors(await validate(dto, whitelist)).map((e) => e.property),
+    ).toEqual([property]);
+  });
+
+  it('accepts a set at every column limit', async () => {
+    const dto = plainToInstance(
+      CreateCoachWorkoutDto,
+      createBody({
+        exercises: [
+          card({
+            order: INT_MIN,
+            sets: [{ reps: INT_MAX, weight: 9999.99, order: INT_MAX }],
+          }),
+        ],
+      }),
+    );
+    expect(await validate(dto, whitelist)).toHaveLength(0);
+  });
+
+  it.each([INT_MAX + 1, INT_MIN - 1])(
+    'rejects a card order of %p',
+    async (order) => {
+      const dto = plainToInstance(
+        CreateCoachWorkoutDto,
+        createBody({ exercises: [card({ order })] }),
+      );
+      const errors = await validate(dto, whitelist);
+      expect(
+        errors[0]?.children?.[0]?.children?.map((e) => e.property),
+      ).toEqual(['order']);
+    },
+  );
+});
