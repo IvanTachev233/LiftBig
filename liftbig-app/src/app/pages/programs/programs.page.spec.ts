@@ -130,6 +130,72 @@ describe('ProgramsPage', () => {
     expect(fixture.nativeElement.querySelector('.programs-error')).toBeTruthy();
   });
 
+  describe('coming back to the page', () => {
+    const spinner = () => fixture.nativeElement.querySelector('.browse ion-spinner');
+    const error = () => fixture.nativeElement.querySelector('.programs-error');
+    const chip = (i: number) =>
+      fixture.nativeElement.querySelectorAll('.sport-chips .chip')[i] as HTMLElement;
+    const fail = { status: 500, statusText: 'Error' };
+
+    /** Enters again and returns the pending programs request of the first sport */
+    function reenter() {
+      component.ionViewWillEnter();
+      http.expectOne(`${api}/program-enrollments/active`).flush({ active: null });
+      http.expectOne(`${api}/sports`).flush([weightlifting, powerlifting]);
+      fixture.detectChanges();
+      return http.expectOne(`${api}/sports/s1/programs`);
+    }
+
+    beforeEach(() => enter([weightlifting, powerlifting], [program('p1', 'Weightlifting A')]));
+
+    it('keeps the shown programs while they reload, with no spinner', () => {
+      const req = reenter();
+      expect(programNames()).toEqual(['Weightlifting A']);
+      expect(spinner()).toBeNull();
+
+      req.flush([program('p1', 'Weightlifting A'), program('p4', 'Weightlifting B')]);
+      fixture.detectChanges();
+      expect(programNames()).toEqual(['Weightlifting A', 'Weightlifting B']);
+    });
+
+    it('keeps the shown programs when the reload fails', () => {
+      reenter().flush('', fail);
+      fixture.detectChanges();
+      expect(programNames()).toEqual(['Weightlifting A']);
+      expect(error()).toBeNull();
+    });
+
+    it('keeps the shown programs when the sports fail to reload', () => {
+      component.ionViewWillEnter();
+      http.expectOne(`${api}/program-enrollments/active`).flush({ active: null });
+      http.expectOne(`${api}/sports`).flush('', fail);
+      fixture.detectChanges();
+      expect(programNames()).toEqual(['Weightlifting A']);
+      expect(error()).toBeNull();
+    });
+
+    it('shows the spinner when another sport is chosen, then its programs', () => {
+      chip(1).click();
+      fixture.detectChanges();
+      expect(spinner()).toBeTruthy();
+      expect(programNames()).toEqual([]);
+
+      http.expectOne(`${api}/sports/s2/programs`).flush([program('p2', 'Powerlifting A')]);
+      fixture.detectChanges();
+      expect(programNames()).toEqual(['Powerlifting A']);
+    });
+
+    it("ignores a late reload failure of the sport the user left", () => {
+      const req = reenter();
+      chip(1).click();
+      req.flush('', fail);
+      http.expectOne(`${api}/sports/s2/programs`).flush([program('p2', 'Powerlifting A')]);
+      fixture.detectChanges();
+      expect(error()).toBeNull();
+      expect(programNames()).toEqual(['Powerlifting A']);
+    });
+  });
+
   it('links each program to its detail page', () => {
     enter([weightlifting], [program('p1', 'Sample')]);
     const link = fixture.debugElement
