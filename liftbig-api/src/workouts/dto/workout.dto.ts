@@ -26,7 +26,7 @@ import {
   ExerciseCategory,
 } from '../../common/exercise-categories';
 import { Forbidden } from '../../common/forbidden.decorator';
-import { INT4_MAX, INT4_MIN } from '../../common/int4';
+import { INT4_MAX } from '../../common/int4';
 import { MAX_WEIGHT_KG } from '../../lifts/dto/lift.dto';
 
 export class CreateWorkoutDto {
@@ -75,24 +75,24 @@ export class WorkoutSetInput {
   @ApiProperty({
     type: Number,
     nullable: true,
-    minimum: -MAX_WEIGHT_KG,
+    minimum: 0,
     maximum: MAX_WEIGHT_KG,
   })
   @ValidateIf((_, value) => value !== null)
   @IsNumber()
-  @Min(-MAX_WEIGHT_KG)
+  @Min(0)
   @Max(MAX_WEIGHT_KG)
   weight: number | null;
 
   @ApiPropertyOptional({
     type: 'integer',
-    minimum: INT4_MIN,
+    minimum: 1,
     maximum: INT4_MAX,
     description: 'Set number inside the card; defaults to its position',
   })
   @IsOptional()
   @IsInt()
-  @Min(INT4_MIN)
+  @Min(1)
   @Max(INT4_MAX)
   order?: number;
 
@@ -120,12 +120,12 @@ export class WorkoutSetInput {
   @ApiPropertyOptional({
     type: Number,
     nullable: true,
-    minimum: -MAX_WEIGHT_KG,
+    minimum: 0,
     maximum: MAX_WEIGHT_KG,
   })
   @IsOptional()
   @IsNumber()
-  @Min(-MAX_WEIGHT_KG)
+  @Min(0)
   @Max(MAX_WEIGHT_KG)
   actualWeight?: number | null;
 }
@@ -148,12 +148,12 @@ export class WorkoutExerciseInput {
 
   @ApiProperty({
     type: 'integer',
-    minimum: INT4_MIN,
+    minimum: 1,
     maximum: INT4_MAX,
     description: 'Card position',
   })
   @IsInt()
-  @Min(INT4_MIN)
+  @Min(1)
   @Max(INT4_MAX)
   order: number;
 
@@ -226,12 +226,12 @@ export class AddSetDto {
   @ApiPropertyOptional({
     type: Number,
     nullable: true,
-    minimum: -MAX_WEIGHT_KG,
+    minimum: 0,
     maximum: MAX_WEIGHT_KG,
   })
   @IsOptional()
   @IsNumber()
-  @Min(-MAX_WEIGHT_KG)
+  @Min(0)
   @Max(MAX_WEIGHT_KG)
   weight?: number | null;
 
@@ -255,12 +255,12 @@ export class AddSetDto {
   @ApiPropertyOptional({
     type: Number,
     nullable: true,
-    minimum: -MAX_WEIGHT_KG,
+    minimum: 0,
     maximum: MAX_WEIGHT_KG,
   })
   @IsOptional()
   @IsNumber()
-  @Min(-MAX_WEIGHT_KG)
+  @Min(0)
   @Max(MAX_WEIGHT_KG)
   actualWeight?: number | null;
 }
@@ -291,12 +291,12 @@ export class SetResultDto {
   @ApiPropertyOptional({
     type: Number,
     nullable: true,
-    minimum: -MAX_WEIGHT_KG,
+    minimum: 0,
     maximum: MAX_WEIGHT_KG,
   })
   @IsOptional()
   @IsNumber()
-  @Min(-MAX_WEIGHT_KG)
+  @Min(0)
   @Max(MAX_WEIGHT_KG)
   actualWeight?: number | null;
 

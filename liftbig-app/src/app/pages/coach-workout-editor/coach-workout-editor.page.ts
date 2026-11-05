@@ -549,6 +549,10 @@ export class CoachWorkoutEditorPage implements OnInit {
       this.presentToast('Every set needs at least 1 rep', 'danger');
       return;
     }
+    if (this.exerciseGroups.some((g) => g.sets.some((s) => Number(s.weight) < 0))) {
+      this.presentToast("Weights can't be negative", 'danger');
+      return;
+    }
 
     // Cards and sets keep their ids so the API updates them in place and
     // keeps the client's results; results are never sent

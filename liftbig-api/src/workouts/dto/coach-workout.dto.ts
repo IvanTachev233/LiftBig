@@ -14,7 +14,7 @@ import {
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Forbidden } from '../../common/forbidden.decorator';
-import { INT4_MAX, INT4_MIN } from '../../common/int4';
+import { INT4_MAX } from '../../common/int4';
 import { MAX_WEIGHT_KG } from '../../lifts/dto/lift.dto';
 
 // One planned set. Results belong to the client and are rejected here.
@@ -36,12 +36,12 @@ export class CoachSetInput {
   @ApiPropertyOptional({
     type: Number,
     nullable: true,
-    minimum: -MAX_WEIGHT_KG,
+    minimum: 0,
     maximum: MAX_WEIGHT_KG,
   })
   @IsOptional()
   @IsNumber()
-  @Min(-MAX_WEIGHT_KG)
+  @Min(0)
   @Max(MAX_WEIGHT_KG)
   weight?: number | null;
 
@@ -52,13 +52,13 @@ export class CoachSetInput {
 
   @ApiPropertyOptional({
     type: 'integer',
-    minimum: INT4_MIN,
+    minimum: 1,
     maximum: INT4_MAX,
     description: 'Set number inside the card; defaults to its position',
   })
   @IsOptional()
   @IsInt()
-  @Min(INT4_MIN)
+  @Min(1)
   @Max(INT4_MAX)
   order?: number;
 
@@ -88,12 +88,12 @@ export class CoachCardInput {
 
   @ApiProperty({
     type: 'integer',
-    minimum: INT4_MIN,
+    minimum: 1,
     maximum: INT4_MAX,
     description: 'Card position',
   })
   @IsInt()
-  @Min(INT4_MIN)
+  @Min(1)
   @Max(INT4_MAX)
   order: number;
 

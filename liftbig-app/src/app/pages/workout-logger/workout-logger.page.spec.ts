@@ -3207,16 +3207,18 @@ describe('WorkoutLoggerPage', () => {
         );
       });
 
-      it('caps a typed weight and reps at what the server stores', () => {
+      it('caps a typed weight and reps at what the server stores, and a negative weight at 0', () => {
         createComponentWithNoId();
         loadWorkout('w135', [card('c1', 'ex1', 'Bench Press', [5])]);
 
-        commit(rows()[0].querySelector('ion-input.set-weight')!, '-56361537411');
-        expect(patchBody('w135').exercises[0].sets[0]).toEqual(jasmine.objectContaining({ weight: -9999.99 }));
+        commit(rows()[0].querySelector('ion-input.set-weight')!, '56361537411');
+        expect(patchBody('w135').exercises[0].sets[0]).toEqual(jasmine.objectContaining({ weight: 9999.99 }));
         commit(rows()[0].querySelector('ion-input.set-reps')!, '56361537411');
         expect(patchBody('w135').exercises[0].sets[0]).toEqual(
-          jasmine.objectContaining({ reps: 2147483647, weight: -9999.99 }),
+          jasmine.objectContaining({ reps: 2147483647, weight: 9999.99 }),
         );
+        commit(rows()[0].querySelector('ion-input.set-weight')!, '-20');
+        expect(patchBody('w135').exercises[0].sets[0]).toEqual(jasmine.objectContaining({ weight: 0 }));
       });
 
       it('a cleared or zero reps entry keeps the set as it was and sends nothing', () => {

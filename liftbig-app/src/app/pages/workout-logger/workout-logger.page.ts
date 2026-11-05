@@ -735,7 +735,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
 
   /**
    * A typed number, or null: whole = reps (0 or more), else a weight in the
-   * user's unit; both capped at what the API stores
+   * user's unit (0 or more); both capped at what the API stores
    */
   private toNumber(value: unknown, whole = false): number | null {
     if (value === null || value === undefined || value === '') return null;
@@ -743,7 +743,7 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     if (Number.isNaN(n)) return null;
     if (whole) return Math.min(Math.max(0, Math.round(n)), MAX_REPS);
     const max = this.units.toInput(MAX_WEIGHT_KG)!;
-    return Math.min(Math.max(n, -max), max);
+    return Math.min(Math.max(n, 0), max);
   }
 
   updateWorkoutName() {

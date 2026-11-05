@@ -433,6 +433,21 @@ describe('CoachWorkoutEditorPage', () => {
     });
   }
 
+  it('does not save a set with a negative weight, and shows a danger toast', () => {
+    setup({ clientId: 'c1' });
+    component.workoutName = 'Week 1';
+    component.addExercises([{ id: 'ex1', name: 'Bench Press' }]);
+    component.exerciseGroups[0].sets[0].weight = -5;
+
+    component.save();
+
+    httpTesting.expectNone(createUrl);
+    expect(toastControllerSpy.create).toHaveBeenCalledWith(
+      jasmine.objectContaining({ message: "Weights can't be negative", color: 'danger' }),
+    );
+    expect(navigateSpy).not.toHaveBeenCalled();
+  });
+
   it('sends typed reps as a whole number', () => {
     setup({ clientId: 'c1' });
     component.workoutName = 'Week 1';
