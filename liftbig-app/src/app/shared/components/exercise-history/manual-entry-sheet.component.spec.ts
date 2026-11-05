@@ -57,6 +57,37 @@ describe('ManualEntrySheetComponent', () => {
     );
   });
 
+  const weightError = () =>
+    (fixture.nativeElement.querySelector('.weight-error') as HTMLElement | null)?.textContent?.trim() ?? '';
+
+  it('says under the weight why it is out of range and keeps the button disabled', () => {
+    expect(weightError()).toBe('');
+
+    component.weight = 10000;
+    fixture.detectChanges();
+    expect(weightError()).toBe('At most 9999.99 kg');
+    expect(primary().disabled).toBeTrue();
+    component.add();
+    expect(modalCtrl.dismiss).not.toHaveBeenCalled();
+
+    component.weight = 0.004;
+    fixture.detectChanges();
+    expect(weightError()).toBe('At least 0.01 kg');
+    expect(primary().disabled).toBeTrue();
+
+    component.weight = 9999.99;
+    fixture.detectChanges();
+    expect(weightError()).toBe('');
+    expect(primary().disabled).toBeFalse();
+  });
+
+  it('gives the weight limit in pounds for a pound user', () => {
+    TestBed.inject(WeightUnitService).setUnit('lb');
+    component.weight = 22046.3;
+    fixture.detectChanges();
+    expect(weightError()).toBe('At most 22046.2 lb');
+  });
+
   it('does not confirm while invalid', () => {
     component.add();
     expect(modalCtrl.dismiss).not.toHaveBeenCalled();

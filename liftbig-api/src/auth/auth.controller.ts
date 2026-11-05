@@ -12,6 +12,7 @@ import {
 import type { AuthenticatedRequest } from './auth-user.interface';
 import { AuthService } from './auth.service';
 import {
+  CreateInviteDto,
   ForgotPasswordDto,
   LoginDto,
   RefreshTokenDto,
@@ -127,10 +128,10 @@ export class AuthController {
   @Roles('COACH')
   @ApiOperation({ summary: 'Send an invite to a client' })
   async createInvite(
-    @Body() body: { email: string },
+    @Body() dto: CreateInviteDto,
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.authService.createInvite(req.user.id, body.email);
+    return this.authService.createInvite(req.user.id, dto.email);
   }
 
   @Get('invites')

@@ -18,6 +18,9 @@
     [label]="'Weight (' + units.unit() + ')'"
     [(ngModel)]="weight"
   ></ion-input>
+  @if (weightError; as error) {
+    <p class="field-error weight-error" role="alert">{{ error }}</p>
+  }
   <ion-input
     class="input-field entry-date-input"
     type="date"

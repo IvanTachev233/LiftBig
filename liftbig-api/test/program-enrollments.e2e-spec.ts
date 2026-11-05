@@ -229,6 +229,22 @@ describe('Program enrollments (e2e)', () => {
     }).expect(400);
   });
 
+  it('takes maxes from 0.01 kg to 9999.99 kg only', async () => {
+    // 0.004 kg would be stored as 0 kg, and every target with it
+    await enroll(client, { maxes: maxes(0.004) }).expect(400);
+    await enroll(client, { maxes: maxes(10000) }).expect(400);
+    const enrollment = (
+      await enroll(client, { maxes: maxes(0.01, 9999.99) }).expect(201)
+    ).body as EnrollmentView;
+    const recalculate = (squat: number) =>
+      as(client).post(`/program-enrollments/${enrollment.id}/recalculate`, {
+        maxes: maxes(squat),
+      });
+    await recalculate(0.009).expect(400);
+    await recalculate(10000).expect(400);
+    await recalculate(0.01).expect(201);
+  });
+
   it('rejects a start date before yesterday', async () => {
     await enroll(client, { startDate: addDays(todayUtc(), -2) }).expect(400);
     await enroll(client, { startDate: '2026-02-30' }).expect(400);

@@ -7,6 +7,7 @@ import {
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute, Router, RouterLink, convertToParamMap, provideRouter } from '@angular/router';
 import { environment } from '../../../environments/environment';
+import { loadIonicElements } from '../../shared/ionic.testing';
 import { AcceptInvitePage } from './accept-invite.page';
 
 describe('AcceptInvitePage', () => {
@@ -29,6 +30,10 @@ describe('AcceptInvitePage', () => {
     fixture = TestBed.createComponent(AcceptInvitePage);
     fixture.detectChanges();
   }
+
+  // Ionic must not load element code inside the fakeAsync test below (CI,
+  // 2026-11-05: ion-spinner's load timed out at the fake clock's flush)
+  beforeEach(() => loadIonicElements(['ion-button', 'ion-content', 'ion-icon', 'ion-spinner']));
 
   afterEach(() => http.verify());
 

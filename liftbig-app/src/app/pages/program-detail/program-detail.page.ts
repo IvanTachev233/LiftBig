@@ -10,6 +10,7 @@ import {
 } from '@ionic/angular';
 import { LiftService } from '../../core/lift.service';
 import { localDay } from '../../core/local-date';
+import { isStorableWeight, weightInputError } from '../../core/server-limits';
 import {
   ProgramDetail,
   ProgramExercise,
@@ -94,11 +95,16 @@ export class ProgramDetailPage implements ViewWillEnter {
       : `${line} @ ${exercise.percentOf1RM}% of ${exercise.referenceLabel}`;
   }
 
+  /** Why a typed max can't be stored, shown under its field; '' when it can */
+  maxError(exerciseId: string): string {
+    return weightInputError(this.maxes[exerciseId], this.units);
+  }
+
   get canStart(): boolean {
     return (
       !!this.program &&
       !this.starting &&
-      Object.values(this.maxes).every((max) => max !== null && Number(max) > 0)
+      Object.values(this.maxes).every((max) => isStorableWeight(max, this.units))
     );
   }
 

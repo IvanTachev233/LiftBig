@@ -1,6 +1,7 @@
 import { Component, Input, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { IonicModule, ModalController } from '@ionic/angular';
+import { isStorableWeight, weightInputError } from '../../core/server-limits';
 import { WeightUnitService } from '../../core/weight-unit.service';
 import { BottomSheetComponent } from '../../shared/ui/bottom-sheet.component';
 
@@ -17,17 +18,22 @@ import { BottomSheetComponent } from '../../shared/ui/bottom-sheet.component';
     >
       <div class="maxes-grid">
         @for (lift of lifts; track lift.id) {
-          <ion-input
-            type="number"
-            inputmode="decimal"
-            class="input-field max-input num"
-            labelPlacement="stacked"
-            placeholder="—"
-            [label]="lift.label"
-            [(ngModel)]="maxes[lift.id]"
-          >
-            <span slot="end" class="unit-suffix">{{ units.unit() }}</span>
-          </ion-input>
+          <div class="max-field">
+            <ion-input
+              type="number"
+              inputmode="decimal"
+              class="input-field max-input num"
+              labelPlacement="stacked"
+              placeholder="—"
+              [label]="lift.label"
+              [(ngModel)]="maxes[lift.id]"
+            >
+              <span slot="end" class="unit-suffix">{{ units.unit() }}</span>
+            </ion-input>
+            @if (maxError(lift.id); as error) {
+              <p class="field-error" role="alert">{{ error }}</p>
+            }
+          </div>
         }
       </div>
     </app-bottom-sheet>
@@ -61,8 +67,13 @@ export class RecalculateSheetComponent {
   /** 1RM per lift id in the user's unit; prefilled while the sheet is open */
   @Input() maxes: Record<string, number | null> = {};
 
+  /** Why a typed max can't be stored, shown under its field; '' when it can */
+  maxError(id: string): string {
+    return weightInputError(this.maxes[id], this.units);
+  }
+
   get valid(): boolean {
-    return this.lifts.every((l) => this.maxes[l.id] !== null && Number(this.maxes[l.id]) > 0);
+    return this.lifts.every((l) => isStorableWeight(this.maxes[l.id], this.units));
   }
 
   confirm() {

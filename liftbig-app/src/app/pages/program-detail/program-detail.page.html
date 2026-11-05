@@ -31,17 +31,22 @@
         </div>
         <div class="maxes-grid">
           @for (lift of p.referenceLifts; track lift.exerciseId) {
-            <ion-input
-              type="number"
-              inputmode="decimal"
-              class="input-field max-input num"
-              labelPlacement="stacked"
-              placeholder="—"
-              [label]="lift.label"
-              [(ngModel)]="maxes[lift.exerciseId]"
-            >
-              <span slot="end" class="unit-suffix">{{ units.unit() }}</span>
-            </ion-input>
+            <div class="max-field">
+              <ion-input
+                type="number"
+                inputmode="decimal"
+                class="input-field max-input num"
+                labelPlacement="stacked"
+                placeholder="—"
+                [label]="lift.label"
+                [(ngModel)]="maxes[lift.exerciseId]"
+              >
+                <span slot="end" class="unit-suffix">{{ units.unit() }}</span>
+              </ion-input>
+              @if (maxError(lift.exerciseId); as error) {
+                <p class="field-error" role="alert">{{ error }}</p>
+              }
+            </div>
           }
         </div>
       </section>

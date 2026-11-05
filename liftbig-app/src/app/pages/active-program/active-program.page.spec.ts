@@ -10,6 +10,7 @@ import { ToastController } from '@ionic/angular';
 import { ConfirmSheetService } from '../../shared/ui/confirm-sheet.component';
 import { BottomSheetService } from '../../shared/ui/bottom-sheet.service';
 import { environment } from '../../../environments/environment';
+import { loadIonicElements } from '../../shared/ionic.testing';
 import { Enrollment } from '../../core/program.service';
 import { Workout, WorkoutStatus } from '../../core/workout.service';
 import { WeightUnitService } from '../../core/weight-unit.service';
@@ -140,6 +141,25 @@ describe('ActiveProgramPage', () => {
   }
 
   afterEach(() => http.verify());
+  // Ionic must not load element code inside the fakeAsync test below
+  beforeEach(() =>
+    loadIonicElements([
+      'ion-back-button',
+      'ion-button',
+      'ion-buttons',
+      'ion-content',
+      'ion-header',
+      'ion-icon',
+      'ion-input',
+      'ion-label',
+      'ion-modal',
+      'ion-segment',
+      'ion-segment-button',
+      'ion-spinner',
+      'ion-toolbar',
+    ]),
+  );
+
 
   const page = {
     all: (selector: string) =>
