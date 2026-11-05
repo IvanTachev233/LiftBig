@@ -65,20 +65,24 @@ export class ProgramsPage implements ViewWillEnter {
         const first = kept ?? sports[0];
         if (first) this.selectSport(first.id);
       },
-      error: () => (this.failed = true),
+      // A failed reload keeps the list that is already shown
+      error: () => (this.failed = this.programs === null),
     });
   }
 
+  /** Another sport clears the list (spinner); the shown sport reloads behind its list */
   selectSport(sportId: string | null) {
     if (!sportId) return;
+    if (sportId !== this.selectedSportId) this.programs = null;
     this.selectedSportId = sportId;
-    this.programs = null;
     this.failed = false;
     this.programService.getPrograms(sportId).subscribe({
       next: (programs) => {
         if (this.selectedSportId === sportId) this.programs = programs;
       },
-      error: () => (this.failed = true),
+      error: () => {
+        if (this.selectedSportId === sportId) this.failed = this.programs === null;
+      },
     });
   }
 
