@@ -1,5 +1,6 @@
 import { Component, OnDestroy, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import {
   IonicModule,
   ModalController,
@@ -267,9 +268,11 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
           return this.cache.read(`workout:${id}`, this.workoutService.getWorkout(id), listed).pipe(
             // The request may have signed in a user whose copy now shows
             map((w) => this.toLoggerWorkout(this.copies.get(id) ?? w)),
-            catchError(() => {
+            catchError((error: unknown) => {
               const copy = this.copies.get(id);
-              return copy ? of(this.toLoggerWorkout(copy)) : EMPTY;
+              if (copy) return of(this.toLoggerWorkout(copy));
+              if (error instanceof HttpErrorResponse && error.status === 404) this.gone(id);
+              return EMPTY;
             }),
           );
         }
@@ -1128,6 +1131,13 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
 
   private answered(sentAt: number) {
     this.pbAnsweredAt = Math.max(this.pbAnsweredAt, sentAt);
+  }
+
+  /** Deleted on the server, e.g. a planned session of an abandoned program */
+  private gone(id: string) {
+    this.cache.forgetWorkout(id);
+    void this.showToast('This workout no longer exists');
+    this.router.navigate([this.dashboardUrl()]);
   }
 
   private async showToast(message: string) {
