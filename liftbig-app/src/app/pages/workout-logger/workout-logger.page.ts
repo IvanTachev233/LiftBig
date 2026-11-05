@@ -49,6 +49,7 @@ import {
 import { ActiveWorkoutService } from '../../core/active-workout.service';
 import { AuthService } from '../../core/auth.service';
 import { newClientId } from '../../core/client-id';
+import { MAX_REPS, MAX_WEIGHT_KG } from '../../core/server-limits';
 import { OutboxEntry, OutboxResult, OutboxService } from '../../core/outbox.service';
 import { WorkoutCopyService } from '../../core/workout-copy.service';
 import { ReadCacheService } from '../../core/read-cache.service';
@@ -522,9 +523,9 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
 
     const set: LoggerSet = {
       id: newClientId(),
-      weight: this.units.toKg(card.newWeight),
+      weight: this.units.toKg(this.toNumber(card.newWeight)),
       // The API takes whole reps
-      reps: Math.max(1, Math.round(Number(card.newReps))),
+      reps: Math.max(1, this.toNumber(card.newReps, true) ?? 1),
       made: true,
       actualReps: null,
       actualWeight: null,
@@ -732,11 +733,17 @@ export class WorkoutLoggerPage implements OnInit, OnDestroy {
     this.send(workout, 'POST', `/workouts/${workout.id}/cards/${card.id}/sets`, body);
   }
 
+  /**
+   * A typed number, or null: whole = reps (0 or more), else a weight in the
+   * user's unit (0 or more); both capped at what the API stores
+   */
   private toNumber(value: unknown, whole = false): number | null {
     if (value === null || value === undefined || value === '') return null;
     const n = Number(value);
     if (Number.isNaN(n)) return null;
-    return whole ? Math.max(0, Math.round(n)) : n;
+    if (whole) return Math.min(Math.max(0, Math.round(n)), MAX_REPS);
+    const max = this.units.toInput(MAX_WEIGHT_KG)!;
+    return Math.min(Math.max(n, 0), max);
   }
 
   updateWorkoutName() {

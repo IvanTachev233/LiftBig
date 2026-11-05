@@ -12,6 +12,7 @@ import { authInterceptor } from './core/auth.interceptor';
 import { ThemeService } from './core/theme.service';
 import { startUp } from './core/startup';
 import { AppUpdateService } from './core/app-update.service';
+import { sentryProviders } from './core/sentry';
 import { AppUpdateScreenComponent } from './shared/components/app-update-screen/app-update-screen.component';
 import { TermsUpdateScreenComponent } from './shared/components/terms-update-screen/terms-update-screen.component';
 
@@ -33,6 +34,7 @@ import { TermsUpdateScreenComponent } from './shared/components/terms-update-scr
     provideAppInitializer(() => inject(ThemeService).init()),
     // Not awaited: the version check never holds up routing
     provideAppInitializer(() => void inject(AppUpdateService).start()),
+    ...sentryProviders(),
   ],
   bootstrap: [AppComponent],
 })

@@ -138,11 +138,14 @@ jobs:
       - name: Deploy # uploads only liftbig-api/ (deploy.sh passes --source=<API folder>)
         run: scripts/deploy.sh --non-interactive
       - name: Smoke check # 200 only when the new revision reaches the database
+        # The run.app URL (older installed builds) first, then the domain (versionCode 4 on)
         run: |
           url=$(gcloud run services describe liftbig-api \
             --project="$GCP_PROJECT_ID" --region="$GCP_REGION" \
             --format='value(status.url)')
-          curl -fsS -o /dev/null -w '%{http_code} /health\n' "$url/health"
+          for base in "$url" https://api.liftbig.co; do
+            curl -fsS -o /dev/null -w "%{http_code} $base/health\n" "$base/health"
+          done
 
   # The one required check: passes when every job it needs passed or was skipped by path.
   ci-ok:

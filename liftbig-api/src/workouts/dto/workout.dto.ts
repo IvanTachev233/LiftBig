@@ -11,6 +11,7 @@ import {
   IsUUID,
   IsUrl,
   IsArray,
+  Max,
   MaxLength,
   Min,
   ValidateIf,
@@ -25,6 +26,8 @@ import {
   ExerciseCategory,
 } from '../../common/exercise-categories';
 import { Forbidden } from '../../common/forbidden.decorator';
+import { INT4_MAX } from '../../common/int4';
+import { MAX_WEIGHT_KG } from '../../lifts/dto/lift.dto';
 
 export class CreateWorkoutDto {
   @ApiPropertyOptional({
@@ -63,22 +66,34 @@ export class WorkoutSetInput {
   @IsUUID()
   id?: string;
 
-  @ApiProperty({ type: 'integer', minimum: 1 })
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: INT4_MAX })
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   reps: number;
 
-  @ApiProperty({ type: Number, nullable: true })
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    minimum: 0,
+    maximum: MAX_WEIGHT_KG,
+  })
   @ValidateIf((_, value) => value !== null)
   @IsNumber()
+  @Min(0)
+  @Max(MAX_WEIGHT_KG)
   weight: number | null;
 
   @ApiPropertyOptional({
     type: 'integer',
+    minimum: 1,
+    maximum: INT4_MAX,
     description: 'Set number inside the card; defaults to its position',
   })
   @IsOptional()
   @IsInt()
+  @Min(1)
+  @Max(INT4_MAX)
   order?: number;
 
   @ApiPropertyOptional({
@@ -90,15 +105,28 @@ export class WorkoutSetInput {
   @IsBoolean()
   made?: boolean | null;
 
-  @ApiPropertyOptional({ type: 'integer', nullable: true, minimum: 0 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    minimum: 0,
+    maximum: INT4_MAX,
+  })
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   actualReps?: number | null;
 
-  @ApiPropertyOptional({ type: Number, nullable: true })
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    minimum: 0,
+    maximum: MAX_WEIGHT_KG,
+  })
   @IsOptional()
   @IsNumber()
+  @Min(0)
+  @Max(MAX_WEIGHT_KG)
   actualWeight?: number | null;
 }
 
@@ -118,8 +146,15 @@ export class WorkoutExerciseInput {
   @IsUUID()
   exerciseId: string;
 
-  @ApiProperty({ type: 'integer', description: 'Card position' })
+  @ApiProperty({
+    type: 'integer',
+    minimum: 1,
+    maximum: INT4_MAX,
+    description: 'Card position',
+  })
   @IsInt()
+  @Min(1)
+  @Max(INT4_MAX)
   order: number;
 
   // Cards sharing the same value form one superset.
@@ -182,14 +217,22 @@ export class AddSetDto {
   @IsUUID()
   id?: string;
 
-  @ApiProperty({ type: 'integer', minimum: 1 })
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: INT4_MAX })
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   reps: number;
 
-  @ApiPropertyOptional({ type: Number, nullable: true })
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    minimum: 0,
+    maximum: MAX_WEIGHT_KG,
+  })
   @IsOptional()
   @IsNumber()
+  @Min(0)
+  @Max(MAX_WEIGHT_KG)
   weight?: number | null;
 
   @ApiPropertyOptional({ type: Boolean, nullable: true })
@@ -197,15 +240,28 @@ export class AddSetDto {
   @IsBoolean()
   made?: boolean | null;
 
-  @ApiPropertyOptional({ type: 'integer', nullable: true, minimum: 0 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    minimum: 0,
+    maximum: INT4_MAX,
+  })
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   actualReps?: number | null;
 
-  @ApiPropertyOptional({ type: Number, nullable: true })
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    minimum: 0,
+    maximum: MAX_WEIGHT_KG,
+  })
   @IsOptional()
   @IsNumber()
+  @Min(0)
+  @Max(MAX_WEIGHT_KG)
   actualWeight?: number | null;
 }
 
@@ -220,15 +276,28 @@ export class SetResultDto {
   @IsBoolean()
   made?: boolean | null;
 
-  @ApiPropertyOptional({ type: 'integer', nullable: true, minimum: 0 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    minimum: 0,
+    maximum: INT4_MAX,
+  })
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   actualReps?: number | null;
 
-  @ApiPropertyOptional({ type: Number, nullable: true })
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    minimum: 0,
+    maximum: MAX_WEIGHT_KG,
+  })
   @IsOptional()
   @IsNumber()
+  @Min(0)
+  @Max(MAX_WEIGHT_KG)
   actualWeight?: number | null;
 
   @Forbidden()

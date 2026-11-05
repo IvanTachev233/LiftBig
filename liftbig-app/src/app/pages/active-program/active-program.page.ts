@@ -191,12 +191,16 @@ export class ActiveProgramPage implements ViewWillEnter {
       maxes[id] = this.units.toInput(active.maxesSnapshot[id]);
     }
     this.maxes = maxes;
-    this.liftService.getBests(this.lifts).subscribe((bests) => {
-      for (const best of bests) {
-        if (best.exerciseId in maxes) {
-          maxes[best.exerciseId] = this.units.toInput(best.weightKg);
+    this.liftService.getBests(this.lifts).subscribe({
+      next: (bests) => {
+        for (const best of bests) {
+          if (best.exerciseId in maxes) {
+            maxes[best.exerciseId] = this.units.toInput(best.weightKg);
+          }
         }
-      }
+      },
+      // The prefill is optional: the snapshot maxes stay
+      error: () => undefined,
     });
     const { data, role } = await this.bottomSheet.open<Record<string, number | null>>(
       RecalculateSheetComponent,

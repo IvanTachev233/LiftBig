@@ -1,4 +1,5 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { config } from 'rxjs';
 import { provideHttpClient } from '@angular/common/http';
 import {
   HttpTestingController,
@@ -195,6 +196,22 @@ describe('ActiveProgramPage', () => {
     fixture.detectChanges();
     expect(page.count('.session-done')).toBe(1);
   });
+
+  it('keeps the snapshot maxes in Recalculate when the best-lifts prefill fails, and reports nothing', fakeAsync(() => {
+    const unhandled = jasmine.createSpy('onUnhandledError');
+    config.onUnhandledError = unhandled;
+    try {
+      setup();
+      component.openRecalculate();
+      const snapshot = { ...component.maxes };
+      http.expectOne((r) => r.url === `${api}/lifts/best`).error(new ProgressEvent('error'));
+      tick();
+      expect(component.maxes).toEqual(snapshot);
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      config.onUnhandledError = null;
+    }
+  }));
 
   it('prefills Recalculate with the current bests and refreshes the targets', () => {
     setup();

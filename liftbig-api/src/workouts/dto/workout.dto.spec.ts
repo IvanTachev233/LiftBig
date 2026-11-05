@@ -394,3 +394,86 @@ describe('AddSetDto', () => {
     expect(errors.map((e) => e.property)).toEqual(['reps']);
   });
 });
+
+// Past the top the int4 and numeric(6,2) columns fail, which was a 500;
+// weights are never negative and orders count from 1
+describe('set and card numbers stay within their columns', () => {
+  const INT_MAX = 2147483647;
+  const WEIGHT_MAX = 9999.99;
+
+  const cardErrors = async (cardBody: Record<string, unknown>) => {
+    const dto = plainToInstance(UpdateWorkoutDto, { exercises: [cardBody] });
+    const errors = await validate(dto, { whitelist: true });
+    return errors[0]?.children?.[0]?.children ?? [];
+  };
+  const setErrors = async (set: Record<string, unknown>) =>
+    (await cardErrors(card({ sets: [set] })))[0]?.children?.[0]?.children ?? [];
+
+  it.each([
+    ['reps', { reps: INT_MAX + 1, weight: 100 }],
+    ['order', { reps: 5, weight: 100, order: INT_MAX + 1 }],
+    ['order', { reps: 5, weight: 100, order: 0 }],
+    ['actualReps', { reps: 5, weight: 100, actualReps: INT_MAX + 1 }],
+    ['weight', { reps: 5, weight: 10000 }],
+    ['weight', { reps: 5, weight: -0.01 }],
+    ['actualWeight', { reps: 5, weight: 100, actualWeight: 10000 }],
+    ['actualWeight', { reps: 5, weight: 100, actualWeight: -0.01 }],
+  ])('rejects a set %s past its column', async (property, set) => {
+    expect((await setErrors(set)).map((e) => e.property)).toEqual([property]);
+  });
+
+  it('accepts a set at every column limit', async () => {
+    const set = {
+      reps: INT_MAX,
+      weight: WEIGHT_MAX,
+      order: 1,
+      actualReps: INT_MAX,
+      actualWeight: 0,
+    };
+    expect(await setErrors(set)).toHaveLength(0);
+  });
+
+  it.each([INT_MAX + 1, 0, -1])('rejects a card order of %p', async (order) => {
+    expect((await cardErrors(card({ order }))).map((e) => e.property)).toEqual([
+      'order',
+    ]);
+  });
+
+  it.each([
+    ['reps', { reps: INT_MAX + 1 }],
+    ['weight', { reps: 5, weight: 10000 }],
+    ['actualReps', { reps: 5, actualReps: INT_MAX + 1 }],
+    ['actualWeight', { reps: 5, actualWeight: -0.01 }],
+  ])('AddSetDto rejects %s past its column', async (property, body) => {
+    const errors = await validate(plainToInstance(AddSetDto, body), strict);
+    expect(errors.map((e) => e.property)).toEqual([property]);
+  });
+
+  it('AddSetDto accepts the column limits', async () => {
+    const body = {
+      reps: INT_MAX,
+      weight: 0,
+      actualReps: INT_MAX,
+      actualWeight: WEIGHT_MAX,
+    };
+    expect(
+      await validate(plainToInstance(AddSetDto, body), strict),
+    ).toHaveLength(0);
+  });
+
+  it.each([
+    ['actualReps', { actualReps: INT_MAX + 1 }],
+    ['actualWeight', { actualWeight: 10000 }],
+    ['actualWeight', { actualWeight: -0.01 }],
+  ])('SetResultDto rejects %s past its column', async (property, body) => {
+    const errors = await validate(plainToInstance(SetResultDto, body), strict);
+    expect(errors.map((e) => e.property)).toEqual([property]);
+  });
+
+  it('SetResultDto accepts the column limits', async () => {
+    const body = { actualReps: INT_MAX, actualWeight: WEIGHT_MAX };
+    expect(
+      await validate(plainToInstance(SetResultDto, body), strict),
+    ).toHaveLength(0);
+  });
+});

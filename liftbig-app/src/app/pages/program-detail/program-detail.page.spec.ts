@@ -1,4 +1,5 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { config } from 'rxjs';
 import { provideHttpClient } from '@angular/common/http';
 import {
   HttpTestingController,
@@ -85,7 +86,7 @@ describe('ProgramDetailPage', () => {
     sessions: sessions(),
   };
 
-  function setup(unit: 'kg' | 'lb' = 'kg', bests: object[] = []) {
+  function setup(unit: 'kg' | 'lb' = 'kg', bests: object[] | 'offline' = []) {
     confirmSpy = jasmine.createSpyObj('ConfirmSheetService', ['confirm']);
     const toastCtrl = jasmine.createSpyObj('ToastController', ['create']);
     toastCtrl.create.and.resolveTo({ present: () => Promise.resolve() });
@@ -111,11 +112,24 @@ describe('ProgramDetailPage', () => {
     fixture.detectChanges();
     component.ionViewWillEnter();
     http.expectOne(`${api}/programs/p1`).flush(program);
-    http
-      .expectOne((r) => r.url === `${api}/lifts/best`)
-      .flush(bests);
+    const best = http.expectOne((r) => r.url === `${api}/lifts/best`);
+    if (bests === 'offline') best.error(new ProgressEvent('error'));
+    else best.flush(bests);
     fixture.detectChanges();
   }
+
+  it('leaves the maxes empty when the best-lifts prefill fails, and reports nothing', fakeAsync(() => {
+    const unhandled = jasmine.createSpy('onUnhandledError');
+    config.onUnhandledError = unhandled;
+    try {
+      setup('kg', 'offline');
+      tick();
+      expect(component.maxes).toEqual({ squat: null, bench: null });
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      config.onUnhandledError = null;
+    }
+  }));
 
   afterEach(() => {
     http.verify();

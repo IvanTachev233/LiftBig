@@ -73,12 +73,16 @@ export class ProgramDetailPage implements ViewWillEnter {
     // Prefills each max with the user's best 1RM
     this.liftService
       .getBests(program.referenceLifts.map((lift) => lift.exerciseId))
-      .subscribe((bests) => {
-        for (const best of bests) {
-          if (best.exerciseId in this.maxes && this.maxes[best.exerciseId] === null) {
-            this.maxes[best.exerciseId] = this.units.toInput(best.weightKg);
+      .subscribe({
+        next: (bests) => {
+          for (const best of bests) {
+            if (best.exerciseId in this.maxes && this.maxes[best.exerciseId] === null) {
+              this.maxes[best.exerciseId] = this.units.toInput(best.weightKg);
+            }
           }
-        }
+        },
+        // The prefill is optional: the maxes stay empty to type in
+        error: () => undefined,
       });
   }
 

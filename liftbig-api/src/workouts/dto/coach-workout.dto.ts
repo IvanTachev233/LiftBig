@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   Min,
   ValidateIf,
   ValidateNested,
@@ -13,6 +14,8 @@ import {
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Forbidden } from '../../common/forbidden.decorator';
+import { INT4_MAX } from '../../common/int4';
+import { MAX_WEIGHT_KG } from '../../lifts/dto/lift.dto';
 
 // One planned set. Results belong to the client and are rejected here.
 export class CoachSetInput {
@@ -24,14 +27,22 @@ export class CoachSetInput {
   @IsUUID()
   id?: string;
 
-  @ApiProperty({ type: 'integer', minimum: 1 })
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: INT4_MAX })
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   reps: number;
 
-  @ApiPropertyOptional({ type: Number, nullable: true })
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    minimum: 0,
+    maximum: MAX_WEIGHT_KG,
+  })
   @IsOptional()
   @IsNumber()
+  @Min(0)
+  @Max(MAX_WEIGHT_KG)
   weight?: number | null;
 
   @ApiPropertyOptional({ type: String, nullable: true })
@@ -41,10 +52,14 @@ export class CoachSetInput {
 
   @ApiPropertyOptional({
     type: 'integer',
+    minimum: 1,
+    maximum: INT4_MAX,
     description: 'Set number inside the card; defaults to its position',
   })
   @IsOptional()
   @IsInt()
+  @Min(1)
+  @Max(INT4_MAX)
   order?: number;
 
   @Forbidden()
@@ -71,8 +86,15 @@ export class CoachCardInput {
   @IsUUID()
   exerciseId: string;
 
-  @ApiProperty({ type: 'integer', description: 'Card position' })
+  @ApiProperty({
+    type: 'integer',
+    minimum: 1,
+    maximum: INT4_MAX,
+    description: 'Card position',
+  })
   @IsInt()
+  @Min(1)
+  @Max(INT4_MAX)
   order: number;
 
   // Cards sharing the same value form one superset.
