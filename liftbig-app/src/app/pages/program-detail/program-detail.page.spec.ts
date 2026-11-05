@@ -14,6 +14,7 @@ import {
 import { ToastController } from '@ionic/angular';
 import { ConfirmSheetService } from '../../shared/ui/confirm-sheet.component';
 import { environment } from '../../../environments/environment';
+import { loadIonicElements } from '../../shared/ionic.testing';
 import { ProgramDetail } from '../../core/program.service';
 import { WeightUnitService } from '../../core/weight-unit.service';
 import { ProgramDetailPage } from './program-detail.page';
@@ -117,6 +118,24 @@ describe('ProgramDetailPage', () => {
     else best.flush(bests);
     fixture.detectChanges();
   }
+
+  // Ionic must not load element code inside the fakeAsync test below
+  beforeEach(() =>
+    loadIonicElements([
+      'ion-back-button',
+      'ion-button',
+      'ion-buttons',
+      'ion-content',
+      'ion-datetime',
+      'ion-footer',
+      'ion-header',
+      'ion-icon',
+      'ion-input',
+      'ion-modal',
+      'ion-spinner',
+      'ion-toolbar',
+    ]),
+  );
 
   it('leaves the maxes empty when the best-lifts prefill fails, and reports nothing', fakeAsync(() => {
     const unhandled = jasmine.createSpy('onUnhandledError');
