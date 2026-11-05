@@ -1,18 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import {
-  IsInt,
-  IsNumber,
-  IsOptional,
-  IsPositive,
-  IsUUID,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsUUID, Max, Min } from 'class-validator';
 import { IsCalendarDate } from '../../common/is-calendar-date.decorator';
 
 // Largest value a numeric(6,2) weight column holds.
 export const MAX_WEIGHT_KG = 9999.99;
+// Smallest 1RM: a lower weight would be stored as 0 kg.
+export const MIN_WEIGHT_KG = 0.01;
 
 export class BestLiftsQueryDto {
   @ApiPropertyOptional({
@@ -42,9 +36,9 @@ export class CreateRepMaxDto {
   @Max(3)
   reps: number;
 
-  @ApiProperty()
+  @ApiProperty({ minimum: MIN_WEIGHT_KG, maximum: MAX_WEIGHT_KG })
   @IsNumber()
-  @IsPositive()
+  @Min(MIN_WEIGHT_KG)
   @Max(MAX_WEIGHT_KG)
   weightKg: number;
 

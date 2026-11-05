@@ -1,6 +1,7 @@
 import { Component, Input, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { IonicModule, ModalController } from '@ionic/angular';
+import { isStorableWeight, weightInputError } from '../../../core/server-limits';
 import { WeightUnitService } from '../../../core/weight-unit.service';
 import { BottomSheetComponent } from '../../ui/bottom-sheet.component';
 
@@ -37,11 +38,14 @@ export class ManualEntrySheetComponent implements OnInit {
     this.achievedOn = this.entry.achievedOn || this.today;
   }
 
+  /** Why the typed weight can't be stored, shown under the field; '' when it can */
+  get weightError(): string {
+    return weightInputError(this.weight, this.units);
+  }
+
   get valid(): boolean {
     return (
-      this.weight !== null &&
-      (this.weight as unknown) !== '' &&
-      Number(this.weight) > 0 &&
+      isStorableWeight(this.weight, this.units) &&
       !!this.achievedOn &&
       this.achievedOn <= this.today
     );

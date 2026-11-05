@@ -203,6 +203,30 @@ describe('ProgramDetailPage', () => {
       expect(startButton().disabled).toBeFalse();
     });
 
+    it('says under a max why it is out of range and keeps Start disabled', () => {
+      setup();
+      fillMaxes(140, 100);
+      expect(all('.maxes .field-error')).toEqual([]);
+
+      fillMaxes(10000, 0.004);
+      expect(startButton().disabled).toBeTrue();
+      expect(all('.maxes .max-field:nth-child(1) .field-error')).toEqual(['At most 9999.99 kg']);
+      expect(all('.maxes .max-field:nth-child(2) .field-error')).toEqual(['At least 0.01 kg']);
+      component.start();
+      http.expectNone(`${api}/program-enrollments`);
+
+      fillMaxes(9999.99, 0.01);
+      expect(all('.maxes .field-error')).toEqual([]);
+      expect(startButton().disabled).toBeFalse();
+    });
+
+    it('gives the max limit in pounds for a pound user', () => {
+      setup('lb');
+      fillMaxes(22046.3, 225);
+      expect(all('.maxes .field-error')).toEqual(['At most 22046.2 lb']);
+      expect(startButton().disabled).toBeTrue();
+    });
+
     it('sends maxes typed in pounds as kg', () => {
       setup('lb');
       fillMaxes(315, 225);

@@ -107,3 +107,8 @@ export class RefreshTokenDto {
   @MaxLength(100)
   refresh_token: string;
 }
+
+export class CreateInviteDto {
+  @IsEmail()
+  email: string;
+}

@@ -134,10 +134,19 @@ describe('Lifts (e2e)', () => {
     expect(empty).toMatchObject({ best: null, entries: [] });
   });
 
+  it('takes manual entries from 0.01 kg to 9999.99 kg', async () => {
+    await manual(client, 1, 0.01).expect(201);
+    await manual(client, 2, 9999.99).expect(201);
+  });
+
   it('validates manual entries', async () => {
     await manual(client, 4, 100).expect(400);
     await manual(client, 0, 100).expect(400);
     await manual(client, 1, 0).expect(400);
+    // Under 0.01 kg would be stored as 0 kg; past 9999.99 kg doesn't fit
+    await manual(client, 1, 0.004).expect(400);
+    await manual(client, 1, 0.009).expect(400);
+    await manual(client, 1, 10000).expect(400);
     await manual(client, 1, 100, '2026-13-01').expect(400);
     await manual(client, 1, 100, '2999-01-01').expect(400);
     await manual(

@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ModalController } from '@ionic/angular';
+import { WeightUnitService } from '../../core/weight-unit.service';
 import { RecalculateSheetComponent } from './recalculate-sheet.component';
 
 describe('RecalculateSheetComponent', () => {
@@ -37,5 +38,33 @@ describe('RecalculateSheetComponent', () => {
     component.maxes['bench'] = 100;
     component.confirm();
     expect(modalCtrl.dismiss).toHaveBeenCalledOnceWith({ squat: 140, bench: 100 }, 'confirm');
+  });
+
+  const errors = () =>
+    Array.from<HTMLElement>(fixture.nativeElement.querySelectorAll('.max-field')).map(
+      (field) => field.querySelector('.field-error')?.textContent?.trim() ?? '',
+    );
+
+  it('says under a max why it is out of range and does not confirm', () => {
+    expect(errors()).toEqual(['', '']);
+
+    component.maxes = { squat: 10000, bench: 0.004 };
+    fixture.detectChanges();
+    expect(errors()).toEqual(['At most 9999.99 kg', 'At least 0.01 kg']);
+    component.confirm();
+    expect(modalCtrl.dismiss).not.toHaveBeenCalled();
+
+    component.maxes = { squat: 9999.99, bench: 0.01 };
+    fixture.detectChanges();
+    expect(errors()).toEqual(['', '']);
+    component.confirm();
+    expect(modalCtrl.dismiss).toHaveBeenCalledOnceWith({ squat: 9999.99, bench: 0.01 }, 'confirm');
+  });
+
+  it('gives the limits in pounds for a pound user', () => {
+    TestBed.inject(WeightUnitService).setUnit('lb');
+    component.maxes = { squat: 22046.3, bench: 0.01 };
+    fixture.detectChanges();
+    expect(errors()).toEqual(['At most 22046.2 lb', 'At least 0.02 lb']);
   });
 });

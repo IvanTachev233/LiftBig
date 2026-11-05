@@ -5,13 +5,13 @@ import {
   IsBoolean,
   IsNumber,
   IsOptional,
-  IsPositive,
   IsUUID,
   Max,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { IsCalendarDate } from '../../common/is-calendar-date.decorator';
-import { MAX_WEIGHT_KG } from '../../lifts/dto/lift.dto';
+import { MAX_WEIGHT_KG, MIN_WEIGHT_KG } from '../../lifts/dto/lift.dto';
 
 // A 1RM entered for a lift, in kg.
 export class MaxInput {
@@ -19,9 +19,9 @@ export class MaxInput {
   @IsUUID()
   exerciseId: string;
 
-  @ApiProperty()
+  @ApiProperty({ minimum: MIN_WEIGHT_KG, maximum: MAX_WEIGHT_KG })
   @IsNumber()
-  @IsPositive()
+  @Min(MIN_WEIGHT_KG)
   @Max(MAX_WEIGHT_KG)
   weightKg: number;
 }

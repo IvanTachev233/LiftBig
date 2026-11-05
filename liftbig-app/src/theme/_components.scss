@@ -288,7 +288,14 @@ ion-input.input-field {
   }
 }
 
-// Search: <ion-searchbar class="search-field">, a 44px filled field
+// Why a field's value is refused, under the field: <p class="field-error" role="alert">
+.field-error {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--danger-text);
+}
+
+// Search:<ion-searchbar class="search-field">, a 44px filled field
 ion-searchbar.search-field {
   --background: var(--surface-2);
   --color: var(--text);
