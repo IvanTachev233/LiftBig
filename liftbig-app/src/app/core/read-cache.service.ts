@@ -87,6 +87,42 @@ export class ReadCacheService {
     this.put(userId, `workout:${workout.id}`, workout);
   }
 
+  /**
+   * A program was started or abandoned: the API deleted the planned sessions
+   * of every other enrollment, so the stored answers drop them too
+   */
+  programChanged(activeEnrollmentId: string | null) {
+    this.drop((w) => w.status === 'PLANNED' && !!w.program && w.program.enrollmentId !== activeEnrollmentId);
+  }
+
+  /** A workout the API no longer has */
+  forgetWorkout(id: string) {
+    this.drop((w) => w.id === id);
+  }
+
+  /** Removes matching workouts from the signed-in user's list and opened workouts */
+  private drop(gone: (workout: Workout) => boolean) {
+    const userId = this.auth.currentUser()?.id;
+    const cache = userId ? this.caches()[userId] : undefined;
+    if (!userId || !cache || !this.started) return;
+    const stored: Workout[] = [...((cache.workouts?.value as Workout[] | undefined) ?? [])];
+    for (const key of Object.keys(cache) as ReadCacheKey[]) {
+      const opened = key.startsWith('workout:') ? (cache[key]?.value as Workout | undefined) : undefined;
+      if (opened) stored.push(opened);
+    }
+    const ids = new Set(stored.filter(gone).map((w) => w.id));
+    if (!ids.size) return;
+    this.caches.update((all) => {
+      const rest = { ...all[userId] };
+      const listed = rest.workouts;
+      // Not a new answer: the list keeps the time it was read
+      if (listed) rest.workouts = { ...listed, value: (listed.value as Workout[]).filter((w) => !ids.has(w.id)) };
+      for (const id of ids) delete rest[`workout:${id}`];
+      return { ...all, [userId]: rest };
+    });
+    void this.persist(userId);
+  }
+
   private answer<T>(userId: string, key: ReadCacheKey): T | undefined {
     return this.caches()[userId]?.[key]?.value as T | undefined;
   }

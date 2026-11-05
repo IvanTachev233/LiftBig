@@ -178,6 +178,49 @@ describe('ReadCacheService', () => {
     expect(cache.get<Workout>('workout:w1')?.status).toBe('COMPLETED');
   }));
 
+  it('drops the stored planned sessions of every enrollment but the active one, also after a restart', fakeAsync(() => {
+    const session = (id: string, status: WorkoutStatus, enrollmentId: string): Workout => ({
+      ...workout(id, status),
+      source: 'program',
+      program: { enrollmentId, name: 'Program' },
+    });
+    launch();
+    readList().answer([
+      session('old-planned', 'PLANNED', 'e1'),
+      session('old-started', 'IN_PROGRESS', 'e1'),
+      session('old-done', 'COMPLETED', 'e1'),
+      session('new-planned', 'PLANNED', 'e2'),
+      workout('manual'),
+    ]);
+    cache.read('workout:old-planned', client.get(`${url}/old-planned`)).subscribe();
+    http.expectOne(`${url}/old-planned`).flush(session('old-planned', 'PLANNED', 'e1'));
+
+    // Started a new program (e2): e1 was abandoned, its planned sessions deleted
+    cache.programChanged('e2');
+    expect(ids(cache.get('workouts'))).toEqual(['old-started', 'old-done', 'new-planned', 'manual']);
+    expect(cache.get('workout:old-planned')).toBeUndefined();
+
+    // Abandoned e2: no active program
+    cache.programChanged(null);
+    expect(ids(cache.get('workouts'))).toEqual(['old-started', 'old-done', 'manual']);
+
+    launch();
+    const offline = readList();
+    offline.offline();
+    expect(ids(offline.result())).toEqual(['old-started', 'old-done', 'manual']);
+  }));
+
+  it('forgets one workout from the list and the opened workouts', fakeAsync(() => {
+    launch();
+    readList().answer([workout('w1'), workout('w2')]);
+    cache.read('workout:w1', client.get(`${url}/w1`)).subscribe();
+    http.expectOne(`${url}/w1`).flush(workout('w1'));
+
+    cache.forgetWorkout('w1');
+    expect(ids(cache.get('workouts'))).toEqual(['w2']);
+    expect(cache.get('workout:w1')).toBeUndefined();
+  }));
+
   it("forgets a user's answers, also ones stored by an earlier run", fakeAsync(() => {
     launch();
     readList().answer([workout('w1')]);

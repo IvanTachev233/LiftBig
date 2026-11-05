@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { tap } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { ReadCacheService } from './read-cache.service';
 import { Workout } from './workout.service';
 
 export interface RequiredLift {
@@ -126,6 +128,7 @@ export function sessionPosition(
 @Injectable({ providedIn: 'root' })
 export class ProgramService {
   private http = inject(HttpClient);
+  private cache = inject(ReadCacheService);
   private api = environment.apiUrl;
 
   getSports() {
@@ -141,9 +144,12 @@ export class ProgramService {
     return this.http.get<ProgramDetail>(`${this.api}/programs/${id}`);
   }
 
-  // 409 while another program is active, unless abandonCurrent is set
+  // 409 while another program is active, unless abandonCurrent is set.
+  // Starting or abandoning deletes planned sessions; the read cache drops them too
   enroll(body: EnrollRequest) {
-    return this.http.post<Enrollment>(`${this.api}/program-enrollments`, body);
+    return this.http
+      .post<Enrollment>(`${this.api}/program-enrollments`, body)
+      .pipe(tap((enrollment) => this.cache.programChanged(enrollment.id)));
   }
 
   getActive() {
@@ -153,10 +159,9 @@ export class ProgramService {
   }
 
   abandon(id: string) {
-    return this.http.post<Enrollment>(
-      `${this.api}/program-enrollments/${id}/abandon`,
-      {},
-    );
+    return this.http
+      .post<Enrollment>(`${this.api}/program-enrollments/${id}/abandon`, {})
+      .pipe(tap(() => this.cache.programChanged(null)));
   }
 
   // New maxes rewrite the targets of PLANNED workouts only

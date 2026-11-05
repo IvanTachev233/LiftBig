@@ -32,6 +32,7 @@ import { ExerciseHistoryModalComponent } from '../../shared/components/exercise-
 import { OverflowMenuService } from '../../shared/ui/overflow-menu.service';
 import { OUTBOX_PLATFORM, OutboxService } from '../../core/outbox.service';
 import { FakeOutboxPlatform, InstantOutbox } from '../../core/outbox.testing';
+import { ReadCacheService } from '../../core/read-cache.service';
 
 describe('WorkoutLoggerPage', () => {
   let component: WorkoutLoggerPage;
@@ -382,6 +383,36 @@ describe('WorkoutLoggerPage', () => {
     httpTesting.expectNone(
       (req) => req.method === 'GET' && req.url === `${workoutsUrl}/${id}`,
     );
+  });
+
+  it('a workout the API no longer has is dropped from the read cache, said so, and left for the dashboard', () => {
+    const forget = spyOn(TestBed.inject(ReadCacheService), 'forgetWorkout');
+    createComponentWithNoId();
+
+    queryParamsSubject.next({ id: 'gone' });
+    httpTesting
+      .expectOne((req) => req.method === 'GET' && req.url === `${workoutsUrl}/gone`)
+      .flush({ message: 'Workout not found' }, { status: 404, statusText: 'Not Found' });
+
+    expect(forget).toHaveBeenCalledOnceWith('gone');
+    expect(toastControllerSpy.create).toHaveBeenCalledOnceWith(
+      jasmine.objectContaining({ message: 'This workout no longer exists' }),
+    );
+    expect(router.navigate).toHaveBeenCalledOnceWith([component.dashboardUrl()]);
+  });
+
+  it('a workout that cannot be loaded without a connection is not called gone', () => {
+    const forget = spyOn(TestBed.inject(ReadCacheService), 'forgetWorkout');
+    createComponentWithNoId();
+
+    queryParamsSubject.next({ id: 'w-offline' });
+    httpTesting
+      .expectOne((req) => req.method === 'GET' && req.url === `${workoutsUrl}/w-offline`)
+      .error(new ProgressEvent('error'), { status: 0, statusText: '' });
+
+    expect(forget).not.toHaveBeenCalled();
+    expect(toastControllerSpy.create).not.toHaveBeenCalled();
+    expect(router.navigate).not.toHaveBeenCalled();
   });
 
   it('adding a second set, including one added while the create POST is still pending, sends no additional POST', () => {
