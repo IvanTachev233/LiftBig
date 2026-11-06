@@ -105,7 +105,20 @@ export interface EnrollRequest {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** A program workout's week from the start date and its place in that week, both from 1 */
+/**
+ * A program workout's week and place in that week from its template session,
+ * as the API sends them; null from older APIs or when the session is gone
+ */
+export function templateSlot(workout: Pick<Workout, 'program'>): { week: number; day: number } | null {
+  const { week, day } = workout.program ?? {};
+  return week && day ? { week, day } : null;
+}
+
+/**
+ * A program workout's week and its place in that week, both from 1. From the
+ * API's template slot when it sends one, so a session moved to another day
+ * keeps its label; else from the dates (older APIs).
+ */
 export function sessionPosition(
   enrollment: Pick<Enrollment, 'startDate' | 'workouts'>,
   workoutId: string,
@@ -115,6 +128,8 @@ export function sessionPosition(
     Math.floor(Math.round((Date.parse(workout.date.slice(0, 10)) - start) / DAY_MS) / 7) + 1;
   const workout = enrollment.workouts.find((w) => w.id === workoutId);
   if (!workout) return null;
+  const slot = templateSlot(workout);
+  if (slot) return slot;
   const week = weekOf(workout);
   const day =
     enrollment.workouts

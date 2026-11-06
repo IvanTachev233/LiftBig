@@ -18,6 +18,7 @@ import { Workout, WorkoutStatus } from '../workouts/entities/workout.entity';
 import {
   CARD_RELATIONS,
   setIdsOf,
+  programSlotsOf,
   toWorkoutView,
 } from '../workouts/workout-cards';
 import { buildSchedule } from './domain/schedule';
@@ -339,6 +340,7 @@ async function enrollmentView(
   });
   const { program } = enrollment;
   const pbs = await lifts.pbSetIds(manager, setIdsOf(workouts));
+  const slots = await programSlotsOf(manager, workouts);
   return {
     id: enrollment.id,
     status: enrollment.status,
@@ -355,7 +357,12 @@ async function enrollmentView(
       sessionsPerWeek: program.sessionsPerWeek,
     },
     workouts: workouts.map((workout) =>
-      toWorkoutView(workout, new Map([[enrollment.id, program.name]]), pbs),
+      toWorkoutView(
+        workout,
+        new Map([[enrollment.id, program.name]]),
+        pbs,
+        slots,
+      ),
     ),
   };
 }

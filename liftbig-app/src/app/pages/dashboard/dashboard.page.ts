@@ -1,6 +1,6 @@
 import { Component, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonicModule, ViewWillEnter } from '@ionic/angular';
+import { IonicModule, ToastController, ViewWillEnter } from '@ionic/angular';
 import { Router, RouterModule } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../core/auth.service';
@@ -11,13 +11,36 @@ import { ProfileService } from '../../core/profile.service';
 import { WeightUnitService } from '../../core/weight-unit.service';
 import { WorkoutCopyService } from '../../core/workout-copy.service';
 import { ReadCacheService } from '../../core/read-cache.service';
+import { localDay } from '../../core/local-date';
+import { StatusLabel, workoutStatusLabel } from '../../shared/ui/workout-status';
+import { StatusPillComponent } from '../../shared/ui/status-pill.component';
 import { DateBlockRowComponent } from '../../shared/ui/date-block-row.component';
 import { WeekStripComponent } from '../../shared/ui/week-strip.component';
 import { LargeTitleComponent } from '../../shared/ui/large-title.component';
 import { TabHeaderComponent } from '../../shared/ui/tab-header.component';
-import { StripDay, greeting, recentPr, todayWorkout, upNext, weekStrip } from './today';
+import {
+  DayAction,
+  StripDay,
+  dayAction,
+  dayWorkouts,
+  emptyDayText,
+  greeting,
+  recentPr,
+  todayOthers,
+  todayWorkout,
+  upNext,
+  weekStrip,
+} from './today';
 
-// Today: week strip, today's session, up next and a recent PR
+const ACTION_TEXT: Record<DayAction, string> = {
+  view: 'View',
+  resume: 'Resume',
+  start: 'Start session',
+  'start-today': 'Start today',
+};
+
+// Today: week strip (a day picker), today's session or the selected day's
+// sessions, up next and a recent PR
 @Component({
   selector: 'app-dashboard',
   templateUrl: './dashboard.page.html',
@@ -31,6 +54,7 @@ import { StripDay, greeting, recentPr, todayWorkout, upNext, weekStrip } from '.
     WeekStripComponent,
     TabHeaderComponent,
     LargeTitleComponent,
+    StatusPillComponent,
   ],
 })
 export class DashboardPage implements ViewWillEnter, OnDestroy {
@@ -42,6 +66,7 @@ export class DashboardPage implements ViewWillEnter, OnDestroy {
   private auth = inject(AuthService);
   private copies = inject(WorkoutCopyService);
   private cache = inject(ReadCacheService);
+  private toastController = inject(ToastController);
   readonly units = inject(WeightUnitService);
 
   now = new Date();
@@ -49,8 +74,21 @@ export class DashboardPage implements ViewWillEnter, OnDestroy {
   name: string | null = null;
   active: Enrollment | null = null;
   strip: StripDay[] = weekStrip([], this.now);
+  // The weeks either side, shown beside the strip while it is dragged
+  stripBefore: StripDay[] = weekStrip([], this.now, -1);
+  stripAfter: StripDay[] = weekStrip([], this.now, 1);
   today: Workout | null = null;
+  // Today's other open workouts, as rows under the Today card
+  others: Workout[] = [];
   next: Workout[] = [];
+  // The day picked in the strip (YYYY-MM-DD) and the shown week, in weeks
+  // from the current one; each visit opens on today
+  selectedDay = localDay(this.now);
+  weekOffset = 0;
+  // The selected day's workouts when it isn't today
+  dayList: Workout[] = [];
+  // A Start today waiting on the API
+  moving: string | null = null;
   doneToday = false;
   pr: BestLift | null = null;
   prName: string | null = null;
@@ -68,8 +106,12 @@ export class DashboardPage implements ViewWillEnter, OnDestroy {
     this.requests.unsubscribe();
     this.requests = new Subscription();
     this.now = new Date();
+    this.selectedDay = localDay(this.now);
+    this.weekOffset = 0;
+    this.moving = null;
     const userId = this.auth.currentUser()?.id;
     if (userId !== this.shownFor) this.clear(userId);
+    else this.refresh();
     const forUser =
       <T>(apply: (value: T) => void) =>
       (value: T) => {
@@ -136,6 +178,80 @@ export class DashboardPage implements ViewWillEnter, OnDestroy {
     return 'Today';
   }
 
+  get todaySelected(): boolean {
+    return this.selectedDay === localDay(this.now);
+  }
+
+  /** The Today button shows away from the current week or today */
+  get awayFromToday(): boolean {
+    return this.weekOffset !== 0 || !this.todaySelected;
+  }
+
+  /** The selected day as a local date, for its eyebrow */
+  get selectedDate(): Date {
+    const [year, month, date] = this.selectedDay.split('-').map(Number);
+    return new Date(year, month - 1, date);
+  }
+
+  get emptyText(): string {
+    return emptyDayText(this.selectedDay, this.now);
+  }
+
+  selectDay(day: string) {
+    this.selectedDay = day;
+    this.refresh();
+  }
+
+  /** Another week; the selected day stays, so the day panel keeps showing it */
+  changeWeek(delta: number) {
+    this.weekOffset += delta;
+    this.refresh();
+  }
+
+  backToToday() {
+    this.weekOffset = 0;
+    this.selectedDay = localDay(this.now);
+    this.refresh();
+  }
+
+  status(workout: Workout): StatusLabel {
+    return workoutStatusLabel(workout, 'CLIENT', this.now);
+  }
+
+  actionText(workout: Workout): string {
+    return ACTION_TEXT[dayAction(workout, this.now)];
+  }
+
+  /** A day panel button: View, Resume or Start open the logger; Start today moves it to today first */
+  act(workout: Workout) {
+    if (dayAction(workout, this.now) !== 'start-today') {
+      this.open(workout);
+      return;
+    }
+    if (this.moving) return;
+    this.moving = workout.id;
+    const date = localDay(this.now);
+    const userId = this.auth.currentUser()?.id;
+    // Part of this visit: leaving the page or signing out drops it
+    this.requests.add(
+      this.workoutService.updateWorkout(workout.id, { date }).subscribe({
+        next: (moved) => {
+          this.moving = null;
+          if (this.auth.currentUser()?.id !== userId) return;
+          // Reads without a connection show it on today too
+          if (userId) this.cache.adopt(userId, moved);
+          this.workouts = this.workouts.map((w) => (w.id === workout.id ? { ...w, date: moved.date } : w));
+          this.refresh();
+          this.open(workout);
+        },
+        error: () => {
+          this.moving = null;
+          this.presentToast("Couldn't move the session to today");
+        },
+      }),
+    );
+  }
+
   /** "Coach · Kim" or "Program · name"; nothing for an own workout */
   sub(workout: Workout): string | null {
     return sourceBadge(workout);
@@ -173,10 +289,20 @@ export class DashboardPage implements ViewWillEnter, OnDestroy {
   }
 
   private refresh() {
-    this.strip = weekStrip(this.workouts, this.now);
+    this.strip = weekStrip(this.workouts, this.now, this.weekOffset);
+    this.stripBefore = weekStrip(this.workouts, this.now, this.weekOffset - 1);
+    this.stripAfter = weekStrip(this.workouts, this.now, this.weekOffset + 1);
     this.today = todayWorkout(this.workouts, this.now);
+    this.others = todayOthers(this.workouts, this.now);
     this.next = upNext(this.workouts, this.now);
-    this.doneToday = this.strip.some((d) => d.today && d.dot === 'done');
+    const ofToday = dayWorkouts(this.workouts, localDay(this.now));
+    this.doneToday = !this.today && ofToday.some((w) => w.status === 'COMPLETED');
+    this.dayList = this.todaySelected ? [] : dayWorkouts(this.workouts, this.selectedDay);
+  }
+
+  private async presentToast(message: string) {
+    const toast = await this.toastController.create({ message, duration: 2500, color: 'danger' });
+    await toast.present();
   }
 
   /** The PR's exercise name: from the loaded workouts, else from the exercise list */

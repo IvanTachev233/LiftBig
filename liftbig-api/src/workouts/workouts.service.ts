@@ -40,6 +40,7 @@ import {
   lockWorkout,
   markStarted,
   programNamesOf,
+  programSlotsOf,
   refreshTotal,
   saveCardsInPlace,
   setIdsOf,
@@ -52,7 +53,25 @@ import {
   LiftRecordsService,
   RecordedExercise,
 } from '../lifts/lift-records.service';
-import { wallClockDateOf } from '../common/calendar-date';
+import { addDays, todayUtc, wallClockDateOf } from '../common/calendar-date';
+
+// A plan-locked workout may still be moved to today when it is PLANNED and
+// on another day. Today is the UTC date or one day either side, so a client
+// in any time zone can send its own local today. The day checked is the one
+// stored, so a date-time's offset can't move it further.
+function canMoveToToday(
+  workout: Pick<Workout, 'status' | 'date'>,
+  date: string,
+): boolean {
+  const day = wallClockDateOf(new Date(date));
+  const today = todayUtc();
+  return (
+    workout.status === WorkoutStatus.PLANNED &&
+    wallClockDateOf(workout.date) !== day &&
+    day >= addDays(today, -1) &&
+    day <= addDays(today, 1)
+  );
+}
 
 // A set returned by a set write, with the pb flags and start time of its
 // whole workout so the caller needs no reload.
@@ -192,8 +211,9 @@ export class WorkoutsService {
   }
 
   // Self-made: every field, cards saved in place by id. Assigned or from a
-  // program: status only. Completing the last workout of a program
-  // completes its enrollment.
+  // program: status only, or a body of only `date` that moves a PLANNED one
+  // to today. Completing the last workout of a program completes its
+  // enrollment.
   async update(
     id: string,
     updateWorkoutDto: UpdateWorkoutDto,
@@ -213,7 +233,15 @@ export class WorkoutsService {
       }
       const changesPlan =
         cards !== undefined || Object.keys(patch).some((k) => k !== 'status');
-      if (isPlanLocked(workout) && changesPlan) {
+      const onlyDate =
+        cards === undefined &&
+        date !== undefined &&
+        Object.keys(patch).length === 1;
+      if (
+        isPlanLocked(workout) &&
+        changesPlan &&
+        !(onlyDate && canMoveToToday(workout, date))
+      ) {
         throw new ForbiddenException(
           workout.programEnrollmentId
             ? 'Only the status of a program workout can be changed'
@@ -374,9 +402,12 @@ export class WorkoutsService {
 
   private async toViews(workouts: Workout[]): Promise<Workout[]> {
     const manager = this.workoutRepo.manager;
-    const names = await programNamesOf(manager, workouts);
-    const pbs = await this.lifts.pbSetIds(manager, setIdsOf(workouts));
-    return workouts.map((workout) => toWorkoutView(workout, names, pbs));
+    const [names, slots, pbs] = await Promise.all([
+      programNamesOf(manager, workouts),
+      programSlotsOf(manager, workouts),
+      this.lifts.pbSetIds(manager, setIdsOf(workouts)),
+    ]);
+    return workouts.map((workout) => toWorkoutView(workout, names, pbs, slots));
   }
 
   private async setResultView(

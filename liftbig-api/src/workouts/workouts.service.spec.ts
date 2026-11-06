@@ -18,6 +18,7 @@ import { Workout, WorkoutStatus } from './entities/workout.entity';
 import { Exercise } from './entities/exercise.entity';
 import { AuthUser } from '../auth/auth-user.interface';
 import { LiftRecordsService } from '../lifts/lift-records.service';
+import { addDays, todayUtc } from '../common/calendar-date';
 import {
   createFakeWorkoutDb,
   liftRecordsStub,
@@ -998,6 +999,137 @@ describe('WorkoutsService', () => {
         service.remove('assigned-1', clientNoCoach),
       ).rejects.toBeInstanceOf(NotFoundException);
       noWrites();
+    });
+  });
+
+  // A plan-locked PLANNED workout may be moved to today (UTC ± 1 day for
+  // the client's time zone) with a body of only `date`.
+  describe('assigned workouts — moving a planned one to today', () => {
+    const today = todayUtc();
+    // The driver reads workout.date as a local wall-clock time
+    const placeOn = (day: string, status = WorkoutStatus.PLANNED) =>
+      Object.assign(fake.workout('assigned-1')!, {
+        date: new Date(`${day}T00:00:00`),
+        status,
+      });
+    const move = (body: Record<string, unknown>, by = clientOfCoach1) =>
+      service.update('assigned-1', plainToInstance(UpdateWorkoutDto, body), by);
+    const lifts = () =>
+      (service as unknown as { lifts: { reconcileWorkout: jest.Mock } }).lifts;
+
+    it.each([
+      ['a missed', -3, today],
+      ['a future', 5, today],
+      ['a missed', -3, addDays(today, -1)],
+      ['a future', 5, addDays(today, 1)],
+      ['a missed', -3, `${today}T09:30:00.000Z`],
+    ])(
+      'moves %s workout (%i days away) to %s, writing only its date',
+      async (_label, offset, target) => {
+        placeOn(addDays(today, offset));
+        const result = await move({ date: target });
+        expect(fake.writes).toEqual([
+          {
+            op: 'update',
+            entity: 'Workout',
+            criteria: { id: 'assigned-1' },
+            values: { date: new Date(target) },
+          },
+        ]);
+        expect(result.status).toBe(WorkoutStatus.PLANNED);
+        expect(result.assignedById).toBe('coach-1');
+        expect(result.name).toBe('Push');
+        expect(fake.cardsOf('assigned-1')).toHaveLength(2);
+        expect(lifts().reconcileWorkout).toHaveBeenCalledWith(
+          fake.manager,
+          'assigned-1',
+          [],
+        );
+      },
+    );
+
+    it.each([WorkoutStatus.IN_PROGRESS, WorkoutStatus.COMPLETED])(
+      '403s on moving a %s workout and writes nothing',
+      async (status) => {
+        placeOn(addDays(today, -3), status);
+        await expect(move({ date: today })).rejects.toBeInstanceOf(
+          ForbiddenException,
+        );
+        noWrites();
+      },
+    );
+
+    it.each([
+      ['two days back', -2],
+      ['two days ahead', 2],
+      ['a year ahead', 365],
+    ])('403s on a new date %s of today', async (_label, offset) => {
+      placeOn(addDays(today, -3));
+      await expect(
+        move({ date: addDays(today, offset) }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      noWrites();
+    });
+
+    // The day checked is the one stored: tomorrow 23:30 at UTC-5 is the
+    // day after tomorrow in UTC
+    it('403s on a date-time whose offset stores it outside today ± 1', async () => {
+      placeOn(addDays(today, -3));
+      await expect(
+        move({ date: `${addDays(today, 1)}T23:30:00-05:00` }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      noWrites();
+    });
+
+    it('403s when the workout is already on the new date', async () => {
+      placeOn(today);
+      await expect(move({ date: today })).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      noWrites();
+    });
+
+    it.each([
+      ['status', { status: 'IN_PROGRESS' }],
+      ['name', { name: 'x' }],
+      ['notes', { notes: 'x' }],
+      ['null notes', { notes: null }],
+      ['exercises', { exercises: [] }],
+    ])(
+      '403s on a date sent with %s and writes nothing',
+      async (_label, extra) => {
+        placeOn(addDays(today, -3));
+        await expect(move({ date: today, ...extra })).rejects.toBeInstanceOf(
+          ForbiddenException,
+        );
+        noWrites();
+      },
+    );
+
+    it("404s on another client's workout", async () => {
+      placeOn(addDays(today, -3));
+      await expect(move({ date: today }, clientNoCoach)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      noWrites();
+    });
+
+    it('still lets a self-made workout take any date and status', async () => {
+      fake.workout('workout-1')!.status = WorkoutStatus.IN_PROGRESS;
+      const result = await service.update(
+        'workout-1',
+        plainToInstance(UpdateWorkoutDto, { date: '2031-06-15' }),
+        coach1,
+      );
+      expect(fake.writes).toEqual([
+        {
+          op: 'update',
+          entity: 'Workout',
+          criteria: { id: 'workout-1' },
+          values: { date: new Date('2031-06-15') },
+        },
+      ]);
+      expect(result.status).toBe(WorkoutStatus.IN_PROGRESS);
     });
   });
 

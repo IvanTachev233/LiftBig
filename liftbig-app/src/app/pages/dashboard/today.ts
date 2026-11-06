@@ -16,6 +16,19 @@ function addDays(date: Date, days: number): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
 }
 
+/** A YYYY-MM-DD day moved by whole days on the device calendar */
+export function shiftDay(day: string, days: number): string {
+  const [year, month, date] = day.split('-').map(Number);
+  return localDay(new Date(year, month - 1, date + days));
+}
+
+/** Today card order: in progress, then program, then coach, then the rest */
+function rank(workout: Workout): number {
+  if (workout.status === 'IN_PROGRESS') return 0;
+  const source = workoutSource(workout);
+  return source === 'program' ? 1 : source === 'coach' ? 2 : 3;
+}
+
 /** "Morning, Alex" by the device's hour; "Good morning" without a name */
 export function greeting(now: Date, name: string | null | undefined): string {
   const hour = now.getHours();
@@ -25,13 +38,13 @@ export function greeting(now: Date, name: string | null | undefined): string {
 }
 
 /**
- * Monday to Sunday of the current week. A day's dot: open when a workout is
- * in progress or planned and past, else done when one is completed, else
- * planned when one is still to come.
+ * Monday to Sunday of the current week, or of the week `offset` weeks from
+ * it. A day's dot: open when a workout is in progress or planned and past,
+ * else done when one is completed, else planned when one is still to come.
  */
-export function weekStrip(workouts: Workout[], now: Date): StripDay[] {
+export function weekStrip(workouts: Workout[], now: Date, offset = 0): StripDay[] {
   const today = localDay(now);
-  const monday = addDays(now, -((now.getDay() + 6) % 7));
+  const monday = addDays(now, -((now.getDay() + 6) % 7) + offset * 7);
   return WEEKDAYS.map((weekday, i) => {
     const date = addDays(monday, i);
     const day = localDay(date);
@@ -52,18 +65,41 @@ export function weekStrip(workouts: Workout[], now: Date): StripDay[] {
   });
 }
 
+/** Every workout of a day in Today card order */
+export function dayWorkouts(workouts: Workout[], day: string): Workout[] {
+  return workouts.filter((w) => dayOf(w) === day).sort((a, b) => rank(a) - rank(b));
+}
+
+/** Today's open workouts in Today card order */
+function openToday(workouts: Workout[], now: Date): Workout[] {
+  return dayWorkouts(workouts, localDay(now)).filter((w) => w.status !== 'COMPLETED');
+}
+
 /** Today's workout to start: in progress, then program, then coach, then other planned */
 export function todayWorkout(workouts: Workout[], now: Date): Workout | null {
-  const today = localDay(now);
-  const rank = (w: Workout) => {
-    if (w.status === 'IN_PROGRESS') return 0;
-    const source = workoutSource(w);
-    return source === 'program' ? 1 : source === 'coach' ? 2 : 3;
-  };
-  const candidates = workouts
-    .filter((w) => dayOf(w) === today && w.status !== 'COMPLETED')
-    .sort((a, b) => rank(a) - rank(b));
-  return candidates[0] ?? null;
+  return openToday(workouts, now)[0] ?? null;
+}
+
+/** Today's other open workouts, listed under the Today card */
+export function todayOthers(workouts: Workout[], now: Date): Workout[] {
+  return openToday(workouts, now).slice(1);
+}
+
+/**
+ * A day panel workout's button: View a completed one, Resume one in
+ * progress, Start one planned today, else Start today (moves it to today)
+ */
+export type DayAction = 'view' | 'resume' | 'start' | 'start-today';
+
+export function dayAction(workout: Workout, now: Date): DayAction {
+  if (workout.status === 'COMPLETED') return 'view';
+  if (workout.status === 'IN_PROGRESS') return 'resume';
+  return dayOf(workout) === localDay(now) ? 'start' : 'start-today';
+}
+
+/** The text of a day without workouts */
+export function emptyDayText(day: string, now: Date): 'Rest day' | 'Nothing planned' {
+  return day > localDay(now) ? 'Nothing planned' : 'Rest day';
 }
 
 /** The next planned workouts after today, soonest first */

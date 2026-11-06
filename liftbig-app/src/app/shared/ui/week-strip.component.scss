@@ -1,23 +1,78 @@
 :host {
+  position: relative;
   display: block;
+  // Vertical scrolling stays with the page; horizontal drags change the week
+  touch-action: pan-y;
 }
 
-ol {
+// Previous/next week: hidden until focused from a keyboard, then above the
+// strip's edge
+.week-nav:focus-visible {
+  bottom: 100%;
+  width: auto;
+  height: auto;
+  padding: 4px 10px;
+  clip: auto;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  z-index: 1;
+
+  &.next {
+    right: 0;
+  }
+}
+
+// Clips the neighbouring weeks to the strip, leaving room for focus rings
+.week-viewport {
+  position: relative;
+  clip-path: inset(-8px -5px);
+}
+
+ol,
+.week-peek {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
+}
+
+ol {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.week-day {
+// One gap beyond either side, out of the clip until the row moves
+.week-peek {
+  position: absolute;
+  top: 0;
+  width: 100%;
+
+  &.prev {
+    right: calc(100% + 6px);
+  }
+
+  &.next {
+    left: calc(100% + 6px);
+  }
+}
+
+// The neighbouring weeks' days look the same, without being buttons
+.week-day,
+.peek-day {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: clamp(3px, 3px + 3 * var(--fluid-h), 6px);
+  width: 100%;
   padding: clamp(4px, 4px + 4 * var(--fluid-h), 8px) 0;
+  border: 0;
   border-radius: 12px;
+  background: none;
+  font: inherit;
+  cursor: pointer;
 
   span {
     color: var(--text);
@@ -50,6 +105,12 @@ ol {
 
   &[data-dot='planned'] .week-dot {
     background: var(--icon-muted);
+  }
+
+  // Another day selected: outlined; today keeps its fill
+  &.selected:not(.today) {
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 1.5px var(--accent-text);
   }
 
   &.today {

@@ -6,6 +6,7 @@ import {
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { Router, provideRouter } from '@angular/router';
+import { ToastController } from '@ionic/angular';
 import { DashboardPage } from './dashboard.page';
 import { Workout, WorkoutCard, WorkoutSource, WorkoutStatus } from '../../core/workout.service';
 import { BestLift } from '../../core/lift.service';
@@ -485,6 +486,268 @@ describe('DashboardPage (Today)', () => {
     it('is hidden for an older best', () => {
       enter({ bests: [best('2026-09-25')] });
       expect(el('.pr-banner')).toBeNull();
+    });
+  });
+
+  describe('selecting days and weeks', () => {
+    // Week of Mon 5 to Sun 11 Oct; today is Saturday 10
+    const dayButton = (i: number) => all('app-week-strip ol .week-day')[i] as HTMLButtonElement;
+    function select(i: number) {
+      dayButton(i).click();
+      fixture.detectChanges();
+    }
+    function press(text: string) {
+      const button = all('app-week-strip button').find((b) => b.textContent!.trim() === text)!;
+      button.click();
+      fixture.detectChanges();
+    }
+    const panelRows = () =>
+      parts('.day-panel .day-workout', ['.title-card', '.day-badge', 'app-status-pill', '.day-action']);
+    const todayButton = () => el('.back-to-today');
+    let toastCtrl: ToastController;
+
+    beforeEach(() => {
+      toastCtrl = TestBed.inject(ToastController);
+      spyOn(toastCtrl, 'create').and.resolveTo({ present: () => Promise.resolve() } as HTMLIonToastElement);
+    });
+
+    it("selects a past day: its completed workout shows View, a missed one Start today, in Today card order", () => {
+      enter({
+        workouts: [
+          workout('own', '2026-10-07', 'COMPLETED', 'manual', [card('Squat', 3, 5, 100)]),
+          workout('missed', '2026-10-07', 'PLANNED', 'program', [card('Snatch', 5, 2, 62.5)]),
+          workout('coach', '2026-10-07', 'IN_PROGRESS', 'coach'),
+          workout('today', '2026-10-10'),
+        ],
+      });
+      select(2);
+
+      expect(dayButton(2).classList).toContain('selected');
+      expect(text('.day-panel .eyebrow')).toBe('Wed 7 Oct');
+      expect(el('.today-card')).toBeNull();
+      expect(el('.empty-workout-btn')).toBeNull();
+      expect(panelRows()).toEqual([
+        ['Workout coach', 'Coach · Kim', 'In progress', 'Resume'],
+        ['Workout missed', 'Program · Sample', 'Missed', 'Start today'],
+        ['Workout own', 'Done', 'View'],
+      ]);
+      expect(parts('.day-panel .day-workout:nth-child(3) .plan-row', PLAN)).toEqual([['Squat', '3 × 5', '100 kg']]);
+      // The large title keeps today's date
+      expect(text('.today-date')).toBe('Saturday, 10 October');
+
+      (el('.day-panel .day-workout:nth-child(3) .day-action') as HTMLElement).click();
+      expect(router.navigate).toHaveBeenCalledWith(['/workout-logger'], { queryParams: { id: 'own' } });
+      (el('.day-panel .day-workout:nth-child(1) .day-action') as HTMLElement).click();
+      expect(router.navigate).toHaveBeenCalledWith(['/workout-logger'], { queryParams: { id: 'coach' } });
+    });
+
+    it('Start today moves the workout to the local today, then opens it in the logger', () => {
+      const missed = workout('missed', '2026-10-07', 'PLANNED', 'program');
+      enter({ workouts: [missed] });
+      select(2);
+      (el('.day-panel .day-action') as HTMLElement).click();
+
+      const req = httpMock.expectOne(`${api}/workouts/missed`);
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body).toEqual({ date: '2026-10-10' });
+      expect(router.navigate).not.toHaveBeenCalled();
+      req.flush({ ...missed, date: '2026-10-10T00:00:00.000Z' });
+      fixture.detectChanges();
+
+      expect(router.navigate).toHaveBeenCalledWith(['/workout-logger'], { queryParams: { id: 'missed' } });
+      // Its dot moves to today
+      expect(dayButton(2).getAttribute('data-dot')).toBeNull();
+      expect(dayButton(5).getAttribute('data-dot')).toBe('planned');
+    });
+
+    it('a failed Start today shows an error toast, stays put and leaves the workout on its day', async () => {
+      enter({ workouts: [workout('missed', '2026-10-07')] });
+      select(2);
+      (el('.day-panel .day-action') as HTMLElement).click();
+      httpMock.expectOne(`${api}/workouts/missed`).flush('offline', { status: 0, statusText: 'Unknown Error' });
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(toastCtrl.create).toHaveBeenCalledWith(
+        jasmine.objectContaining({ color: 'danger', message: "Couldn't move the session to today" }),
+      );
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(dayButton(2).getAttribute('data-dot')).toBe('open');
+      expect(panelRows()[0]).toContain('Start today');
+    });
+
+    it('Start today belongs to its visit: leaving drops the request, so it never opens the logger later', () => {
+      enter({ workouts: [workout('missed', '2026-10-07')] });
+      select(2);
+      (el('.day-panel .day-action') as HTMLElement).click();
+      const req = httpMock.expectOne(`${api}/workouts/missed`);
+
+      enter({ workouts: [workout('missed', '2026-10-07')] });
+      expect(req.cancelled).toBeTrue();
+      expect(router.navigate).not.toHaveBeenCalled();
+      expect(dayButton(2).getAttribute('data-dot')).toBe('open');
+    });
+
+    it('keeps the moved workout for reads without a connection', () => {
+      TestBed.inject(AuthService).setSession(fakeToken('CLIENT', { id: 'u1' }));
+      const adopt = spyOn(TestBed.inject(ReadCacheService), 'adopt');
+      const missed = workout('missed', '2026-10-07');
+      enter({ workouts: [missed] });
+      select(2);
+      (el('.day-panel .day-action') as HTMLElement).click();
+      const moved = { ...missed, date: '2026-10-10T00:00:00.000Z' };
+      httpMock.expectOne(`${api}/workouts/missed`).flush(moved);
+
+      expect(adopt).toHaveBeenCalledWith('u1', jasmine.objectContaining({ id: 'missed', date: moved.date }));
+      localStorage.removeItem('access_token');
+    });
+
+    it('a future day shows Start today for a planned workout, and Nothing planned when empty', () => {
+      enter({ workouts: [workout('later', '2026-10-11', 'PLANNED', 'coach')] });
+      select(6);
+      expect(text('.day-panel .eyebrow')).toBe('Sun 11 Oct');
+      expect(panelRows()).toEqual([['Workout later', 'Coach · Kim', 'Planned', 'Start today']]);
+
+      press('Next week');
+      select(6);
+      expect(text('.day-panel .eyebrow')).toBe('Sun 18 Oct');
+      expect(text('.day-panel .day-empty')).toBe('Nothing planned');
+    });
+
+    it('an empty past day says Rest day without Empty workout', () => {
+      enter();
+      select(0);
+      expect(text('.day-panel .day-empty')).toBe('Rest day');
+      expect(el('.empty-workout-btn')).toBeNull();
+    });
+
+    // Spec § LB-35 (Ivan, 2026-11-06): changing the week never changes the selected day
+    describe('changing the week keeps the selected day', () => {
+      const nums = () => all('app-week-strip ol .week-day').map((d) => d.querySelector('.week-num')!.textContent!.trim());
+      const selectedDays = () => all('app-week-strip ol .week-day.selected');
+
+      it("shows that week's days and dots with none selected, and the panel stays on today", () => {
+        enter({
+          workouts: [workout('old', '2026-09-30', 'COMPLETED'), workout('today', '2026-10-10'), workout('soon', '2026-10-14')],
+        });
+        press('Next week');
+
+        expect(nums()).toEqual(['12', '13', '14', '15', '16', '17', '18']);
+        expect(dayButton(2).getAttribute('data-dot')).toBe('planned');
+        expect(selectedDays().length).toBe(0);
+        expect(el('.day-panel')).toBeNull();
+        expect(text('.today-card .title-card')).toBe('Workout today');
+
+        press('Previous week');
+        press('Previous week');
+        expect(nums()).toEqual(['28', '29', '30', '1', '2', '3', '4']);
+        expect(dayButton(2).getAttribute('data-dot')).toBe('done');
+        expect(all('app-week-strip ol .today').length).toBe(0);
+        expect(selectedDays().length).toBe(0);
+        expect(text('.today-card .title-card')).toBe('Workout today');
+      });
+
+      it('paging back and forth lands on the current week with today still selected', () => {
+        enter();
+        press('Previous week');
+        press('Previous week');
+        press('Next week');
+        press('Next week');
+
+        expect(nums()).toEqual(['5', '6', '7', '8', '9', '10', '11']);
+        expect(dayButton(5).classList).toContain('today');
+        expect(dayButton(5).classList).toContain('selected');
+        expect(selectedDays().length).toBe(1);
+        expect(todayButton()).toBeNull();
+        expect(el('.today-card')).toBeTruthy();
+      });
+
+      it('keeps another selected day in the panel while a later week shows', () => {
+        enter({ workouts: [workout('own', '2026-10-07', 'COMPLETED')] });
+        select(2);
+        press('Next week');
+
+        expect(text('.day-panel .eyebrow')).toBe('Wed 7 Oct');
+        expect(panelRows()).toEqual([['Workout own', 'Done', 'View']]);
+        expect(selectedDays().length).toBe(0);
+
+        press('Previous week');
+        expect(dayButton(2).classList).toContain('selected');
+        expect(text('.day-panel .eyebrow')).toBe('Wed 7 Oct');
+      });
+    });
+
+    it('gives the strip the weeks either side of the shown one, with their dots', () => {
+      enter({ workouts: [workout('old', '2026-09-30', 'COMPLETED'), workout('soon', '2026-10-14')] });
+      const peekDays = (side: 'prev' | 'next') => all(`app-week-strip .week-peek.${side} .peek-day`);
+      const peekNums = (side: 'prev' | 'next') => peekDays(side).map((d) => d.querySelector('.week-num')!.textContent!.trim());
+
+      expect(peekNums('prev')).toEqual(['28', '29', '30', '1', '2', '3', '4']);
+      expect(peekDays('prev')[2].getAttribute('data-dot')).toBe('done');
+      expect(peekNums('next')).toEqual(['12', '13', '14', '15', '16', '17', '18']);
+      expect(peekDays('next')[2].getAttribute('data-dot')).toBe('planned');
+
+      press('Next week');
+      expect(peekNums('prev')).toEqual(['5', '6', '7', '8', '9', '10', '11']);
+      expect(peekDays('prev')[5].classList).toContain('today');
+      expect(peekNums('next')).toEqual(['19', '20', '21', '22', '23', '24', '25']);
+    });
+
+    it('shows the Today button only away from today, and it goes back to today', () => {
+      enter({ workouts: [workout('today', '2026-10-10')] });
+      expect(todayButton()).toBeNull();
+
+      select(1);
+      expect(todayButton()).toBeTruthy();
+      select(5);
+      expect(todayButton()).toBeNull();
+
+      press('Next week');
+      expect(all('app-week-strip ol .week-day.selected').length).toBe(0);
+      expect(text('.today-card .title-card')).toBe('Workout today');
+      expect(todayButton()).toBeTruthy();
+      todayButton().click();
+      fixture.detectChanges();
+
+      expect(todayButton()).toBeNull();
+      expect(dayButton(5).classList).toContain('today');
+      expect(dayButton(5).classList).toContain('selected');
+      expect(text('.today-card .title-card')).toBe('Workout today');
+      expect(el('.day-panel')).toBeNull();
+    });
+
+    it('opens on the current week with today selected on each visit', () => {
+      enter();
+      press('Previous week');
+      select(3);
+      enter();
+      expect(dayButton(5).classList).toContain('today');
+      expect(dayButton(5).classList).toContain('selected');
+      expect(todayButton()).toBeNull();
+      expect(el('.today-card')).toBeTruthy();
+    });
+
+    it("lists today's other open workouts as rows under the Today card that open them", () => {
+      enter({
+        workouts: [
+          workout('prog', '2026-10-10', 'PLANNED', 'program'),
+          workout('own', '2026-10-10'),
+          workout('coach', '2026-10-10', 'PLANNED', 'coach'),
+          workout('done', '2026-10-10', 'COMPLETED'),
+        ],
+      });
+      expect(text('.today-card .title-card')).toBe('Workout prog');
+      expect(parts('.today-others .other-row', ['.row-title', '.row-sub'])).toEqual([
+        ['Workout coach', 'Coach · Kim'],
+        ['Workout own'],
+      ]);
+      (all('.today-others .other-row')[1] as HTMLElement).click();
+      expect(router.navigate).toHaveBeenCalledWith(['/workout-logger'], { queryParams: { id: 'own' } });
+    });
+
+    it('shows no other rows when today has one open workout', () => {
+      enter({ workouts: [workout('own', '2026-10-10')] });
+      expect(el('.today-others')).toBeNull();
     });
   });
 
