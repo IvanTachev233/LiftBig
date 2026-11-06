@@ -82,12 +82,16 @@
   align-items: center;
   justify-content: center;
   gap: 2px;
+  box-sizing: border-box;
   width: 72px;
   height: 72px;
+  padding: 4px;
   border: 1px dashed var(--line-strong);
   border-radius: var(--radius-md);
   color: var(--text-soft);
   font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
   cursor: pointer;
 
   input {
