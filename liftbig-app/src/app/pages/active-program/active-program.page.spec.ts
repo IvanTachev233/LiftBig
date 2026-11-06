@@ -367,6 +367,44 @@ describe('ActiveProgramPage', () => {
       expect(fixture.nativeElement.querySelector('ion-segment').value).toBe(2);
     });
 
+    it("keeps a session moved to another day in its program week, after that week's other sessions", () => {
+      const moved: Workout = {
+        ...workout('w2', '2026-10-21', 'PLANNED'),
+        program: { enrollmentId: 'en1', name: 'Sample', week: 1, day: 2 },
+      };
+      setup(
+        enrollment([
+          workout('w1', '2026-10-14', 'COMPLETED'),
+          moved,
+          workout('w3', '2026-10-21', 'PLANNED'),
+          workout('w4', '2026-10-23', 'PLANNED'),
+        ]),
+      );
+      expect(component.weeks.map((w) => [w.week, w.sessions.map((s) => s.id)])).toEqual([
+        [1, ['w1', 'w2']],
+        [2, ['w3', 'w4']],
+      ]);
+    });
+
+    it('places a session without a template slot by its date', () => {
+      const slot = (w: Workout, week: number, day: number): Workout => ({
+        ...w,
+        program: { enrollmentId: 'en1', name: 'Sample', week, day },
+      });
+      setup(
+        enrollment([
+          slot(workout('w1', '2026-10-14', 'COMPLETED'), 1, 1),
+          slot(workout('w2', '2026-10-16', 'PLANNED'), 1, 2),
+          workout('orphan', '2026-10-23', 'PLANNED'),
+          slot(workout('w3', '2026-10-21', 'PLANNED'), 2, 1),
+        ]),
+      );
+      expect(component.weeks.map((w) => [w.week, w.sessions.map((s) => s.id)])).toEqual([
+        [1, ['w1', 'w2']],
+        [2, ['w3', 'orphan']],
+      ]);
+    });
+
     it('opens on week 1 before the program starts', () => {
       setup();
       expect(component.selectedWeek).toBe(1);

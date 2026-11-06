@@ -47,6 +47,29 @@ describe('sessionPosition', () => {
   it('gives null for a workout that is not in the enrollment', () => {
     expect(sessionPosition(enrollment, 'other')).toBeNull();
   });
+
+  // The API gives the slot from the template session, so a session moved to
+  // another day keeps its label
+  it('uses the week and day from the API for a moved workout', () => {
+    const moved: Workout = {
+      ...workout('moved', '2026-01-22'),
+      program: { enrollmentId: 'en1', name: 'P', week: 1, day: 2 },
+    };
+    const withMoved = { ...enrollment, workouts: [...enrollment.workouts, moved] };
+    expect(sessionPosition(withMoved, 'moved')).toEqual({ week: 1, day: 2 });
+  });
+
+  it('falls back to the dates when the API sends no week and day', () => {
+    const noSlot: Workout = {
+      ...workout('w3-a', '2026-01-21'),
+      program: { enrollmentId: 'en1', name: 'P', week: null, day: null },
+    };
+    const older = {
+      ...enrollment,
+      workouts: enrollment.workouts.map((w) => (w.id === 'w3-a' ? noSlot : w)),
+    };
+    expect(sessionPosition(older, 'w3-a')).toEqual({ week: 3, day: 1 });
+  });
 });
 
 // The read cache keeps the workout list shown without a connection; a program

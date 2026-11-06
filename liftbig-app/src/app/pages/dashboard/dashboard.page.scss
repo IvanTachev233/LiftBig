@@ -10,7 +10,8 @@ app-week-strip {
   margin-bottom: var(--gap-section);
 }
 
-.today-card {
+.today-card,
+.day-workout {
   display: flex;
   flex-direction: column;
   gap: clamp(10px, 10px + 6 * var(--fluid-h), 16px);

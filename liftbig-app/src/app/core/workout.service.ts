@@ -65,8 +65,15 @@ export interface Workout {
   assignedById: string | null;
   assignedBy: { id: string; name: string | null } | null;
   source?: WorkoutSource;
-  // The program enrollment of a program workout
-  program?: { enrollmentId: string; name: string } | null;
+  // The program enrollment of a program workout, with its week and its place
+  // among that week's sessions from the template (absent from older APIs;
+  // null when the template session is gone)
+  program?: {
+    enrollmentId: string;
+    name: string;
+    week?: number | null;
+    day?: number | null;
+  } | null;
   // A set of this workout is a personal best
   hasPb?: boolean;
   // Sorted by card order, sets by set order

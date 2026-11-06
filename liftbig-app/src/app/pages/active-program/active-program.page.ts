@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { IonicModule, ToastController, ViewWillEnter } from '@ionic/angular';
 import { LiftService } from '../../core/lift.service';
-import { Enrollment, ProgramService } from '../../core/program.service';
+import { Enrollment, ProgramService, templateSlot } from '../../core/program.service';
 import { Workout } from '../../core/workout.service';
 import { WeightUnitService } from '../../core/weight-unit.service';
 import { localDay } from '../../core/local-date';
@@ -97,17 +97,20 @@ export class ActiveProgramPage implements ViewWillEnter {
     }
     const start = Date.parse(this.active.startDate);
     const byWeek = new Map<number, Workout[]>();
+    // The template week and place when the API sends them (a session moved
+    // to another day stays in its week, in its place), else by date
     for (const workout of this.active.workouts) {
       const days = Math.round((Date.parse(this.day(workout)) - start) / DAY_MS);
-      const week = Math.floor(days / 7) + 1;
+      const week = templateSlot(workout)?.week ?? Math.floor(days / 7) + 1;
       byWeek.set(week, [...(byWeek.get(week) ?? []), workout]);
     }
+    const byPlace = (a: Workout, b: Workout) => {
+      const [slotA, slotB] = [templateSlot(a), templateSlot(b)];
+      return slotA && slotB ? slotA.day - slotB.day : this.day(a).localeCompare(this.day(b));
+    };
     this.weeks = [...byWeek]
       .sort(([a], [b]) => a - b)
-      .map(([week, sessions]) => ({
-        week,
-        sessions: [...sessions].sort((a, b) => this.day(a).localeCompare(this.day(b))),
-      }));
+      .map(([week, sessions]) => ({ week, sessions: [...sessions].sort(byPlace) }));
     // The week today falls in; before the start, the first week
     const today = Math.round((Date.parse(localDay(this.now())) - start) / DAY_MS);
     const current = Math.floor(today / 7) + 1;

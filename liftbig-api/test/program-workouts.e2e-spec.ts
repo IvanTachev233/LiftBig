@@ -12,9 +12,16 @@ import { createSportWithExercises } from './e2e-fixtures';
 
 interface WorkoutView {
   id: string;
+  name: string;
+  date: string;
   status: string;
   source: string;
-  program: { enrollmentId: string; name: string } | null;
+  program: {
+    enrollmentId: string;
+    name: string;
+    week: number | null;
+    day: number | null;
+  } | null;
   exercises: { id: string; exerciseId: string; sets: { id: string }[] }[];
 }
 
@@ -157,6 +164,82 @@ describe('Program workouts in the workout API (e2e)', () => {
       .body as WorkoutView[];
     expect(upcoming.filter((w) => w.source === 'program')).toHaveLength(2);
     expect(enrollment.workouts[0].source).toBe('program');
+  });
+
+  it('gives program workouts the week and day of their template session', async () => {
+    const [first, second] = enrollment.workouts;
+    const slots = (workouts: WorkoutView[]) =>
+      Object.fromEntries(
+        workouts
+          .filter((w) => w.program)
+          .map((w) => [w.id, [w.program!.week, w.program!.day]]),
+      );
+    const expected = { [first.id]: [1, 1], [second.id]: [1, 2] };
+
+    expect(slots(enrollment.workouts)).toEqual(expected);
+    expect(
+      slots((await call('get', '/workouts').expect(200)).body as WorkoutView[]),
+    ).toEqual(expected);
+    expect(
+      (await call('get', `/workouts/${second.id}`).expect(200)).body,
+    ).toMatchObject({ program: { week: 1, day: 2 } });
+    const { active } = (
+      await call('get', '/program-enrollments/active').expect(200)
+    ).body as { active: EnrollmentView };
+    expect(slots(active.workouts)).toEqual(expected);
+
+    // The session row is gone (the link is set null when it is deleted)
+    await dataSource
+      .getRepository(Workout)
+      .update({ id: second.id }, { programSessionId: null });
+    expect(
+      (await call('get', `/workouts/${second.id}`).expect(200)).body,
+    ).toMatchObject({
+      program: { enrollmentId: enrollment.id, week: null, day: null },
+    });
+  });
+
+  it('moves a planned program workout to today, keeping its plan and slot', async () => {
+    const today = todayUtc();
+    const [first, second] = enrollment.workouts;
+
+    const moved = (
+      await call('patch', `/workouts/${second.id}`)
+        .send({ date: today })
+        .expect(200)
+    ).body as WorkoutView;
+    expect(moved.date.slice(0, 10)).toBe(today);
+    expect(moved).toMatchObject({
+      status: 'PLANNED',
+      name: second.name,
+      source: 'program',
+      program: { enrollmentId: enrollment.id, week: 1, day: 2 },
+    });
+    expect(moved.exercises.map((c) => c.id)).toEqual(
+      second.exercises.map((c) => c.id),
+    );
+
+    // A missed one moves too; not with other fields, nor to another day
+    await dataSource
+      .getRepository(Workout)
+      .update({ id: first.id }, { date: new Date(addDays(today, -5)) });
+    const path = `/workouts/${first.id}`;
+    await call('patch', path)
+      .send({ date: addDays(today, 3) })
+      .expect(403);
+    await call('patch', path).send({ date: today, name: 'x' }).expect(403);
+    await call('patch', path)
+      .send({ date: today, status: 'IN_PROGRESS' })
+      .expect(403);
+    await call('patch', path).send({ date: today }).expect(200);
+    await call('patch', path).send({ date: today }).expect(403);
+
+    // Once started it stays on its day
+    await call('patch', path).send({ status: 'IN_PROGRESS' }).expect(200);
+    await dataSource
+      .getRepository(Workout)
+      .update({ id: first.id }, { date: new Date(addDays(today, -5)) });
+    await call('patch', path).send({ date: today }).expect(403);
   });
 
   it('completes the enrollment only after its last workout', async () => {

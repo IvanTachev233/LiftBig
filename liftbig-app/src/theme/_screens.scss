@@ -61,6 +61,9 @@ ion-header.tab-header .tab-header-filters {
 }
 
 ion-header.large-title {
+  // Ionic pads the first toolbar of every ion-header for the status bar; the
+  // tab header above the content already has, so this header adds none
+  --ion-safe-area-top: 0px;
   margin-bottom: var(--gap-section);
 
   ion-toolbar {
@@ -80,6 +83,22 @@ ion-header.large-title {
     letter-spacing: -0.02em;
     text-align: start;
     color: var(--text);
+  }
+
+  // An action pinned to the end of the [intro] line (Today's "Today"); out
+  // of the layout, so showing or hiding it moves nothing. It is taller than
+  // the line and reaches into the toolbar below, which Ionic stacks at 10
+  .intro-row {
+    position: relative;
+    z-index: 11;
+  }
+
+  .intro-action {
+    position: absolute;
+    top: 50%;
+    inset-inline-end: 0;
+    height: 32px;
+    transform: translateY(-50%);
   }
 }
 

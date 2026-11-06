@@ -321,7 +321,8 @@ Client and self routes (JWT; only the caller's own workouts, otherwise 404):
 - `POST /workouts`: creates a self-made workout. `assignedById` in the body is ignored.
 - `PATCH /workouts/:id`:
   - Self-made: `name`, `notes`, `date`, `status` and `exercises`. Cards and sets are updated in place by `id`, and results left out of the body are kept. Rows without an id are created, rows left out are deleted, and ids not on this workout get 400.
-  - Assigned: `status` only. Anything else gets 403.
+  - Assigned or from a program: `status` only, or a body of only `date` that moves a PLANNED workout from another day to today (the new day must be today in UTC or one day either side, for the client's time zone). Anything else gets 403.
+  - Program workouts carry `program: { enrollmentId, name, week, day }`: `week` and `day` (its place among that week's sessions, both from 1) come from the template session, so a moved workout keeps them; both are null when the session row is gone.
 - `DELETE /workouts/:id`: self-made only; an assigned workout gets 403.
 - `POST /workouts/:id/cards/:cardId/sets`: adds a set (`reps`, optional `weight`, `made`, `actualReps`, `actualWeight`) to a card of an own workout. Returns 201 with the set.
 - `PATCH /workouts/:id/sets/:setId`: logs a result (`made`, `actualReps`, `actualWeight`). Planned fields (`reps`, `weight`, `notes`) get 400. The first result moves a PLANNED workout to IN_PROGRESS.

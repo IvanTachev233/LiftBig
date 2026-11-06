@@ -6,6 +6,7 @@ import { WorkoutSet } from './entities/workout-set.entity';
 import { Exercise } from './entities/exercise.entity';
 import { User } from '../auth/user.entity';
 import { ProgramEnrollment } from '../programs/entities/program-enrollment.entity';
+import { ProgramTemplateSession } from '../programs/entities/program-template-session.entity';
 import { isExerciseVisible } from './exercise-visibility.util';
 
 export const CARD_RELATIONS = [
@@ -43,9 +44,21 @@ export type CardWriteMode = 'self' | 'planned';
 
 export type WorkoutSource = 'manual' | 'coach' | 'program';
 
+// A program workout's week and its place among that week's sessions, both
+// from 1; null when its template session row is gone.
+export interface ProgramSlot {
+  week: number;
+  day: number;
+}
+
 export type WorkoutView = Workout & {
   source: WorkoutSource;
-  program: { enrollmentId: string; name: string } | null;
+  program: {
+    enrollmentId: string;
+    name: string;
+    week: number | null;
+    day: number | null;
+  } | null;
   hasPb: boolean;
 };
 
@@ -96,12 +109,55 @@ export async function programNamesOf(
   return new Map(enrollments.map((e) => [e.id, e.program.name]));
 }
 
+// Slot by template session id for the program workouts among workouts,
+// from the template rather than the dates, so a moved workout keeps it.
+export async function programSlotsOf(
+  manager: EntityManager,
+  workouts: Workout[],
+): Promise<Map<string, ProgramSlot>> {
+  const ids = [
+    ...new Set(
+      workouts.flatMap((w) =>
+        w.programEnrollmentId && w.programSessionId ? [w.programSessionId] : [],
+      ),
+    ),
+  ];
+  if (ids.length === 0) return new Map();
+  const linked = await manager.find(ProgramTemplateSession, {
+    select: { id: true, programId: true, week: true },
+    where: { id: In(ids) },
+  });
+  const weeks = [
+    ...new Map(
+      linked.map((s) => [
+        `${s.programId}:${s.week}`,
+        { programId: s.programId, week: s.week },
+      ]),
+    ).values(),
+  ];
+  if (weeks.length === 0) return new Map();
+  const siblings = await manager.find(ProgramTemplateSession, {
+    select: { id: true, programId: true, week: true, sessionIndex: true },
+    where: weeks,
+  });
+  const slots = new Map<string, ProgramSlot>();
+  for (const { programId, week } of weeks) {
+    siblings
+      .filter((s) => s.programId === programId && s.week === week)
+      .sort((a, b) => a.sessionIndex - b.sessionIndex)
+      .forEach((s, i) => slots.set(s.id, { week, day: i + 1 }));
+  }
+  return slots;
+}
+
 // Cards by order, then each card's sets by order; the assigning coach is
-// trimmed to id and name; source, program name and pb flags are added.
+// trimmed to id and name; source, program name and slot and pb flags are
+// added.
 export function toWorkoutView(
   workout: Workout,
   programNames: Map<string, string> = new Map(),
   pbSetIds: Set<string> = new Set(),
+  programSlots: Map<string, ProgramSlot> = new Map(),
 ): WorkoutView {
   workout.exercises?.sort((a, b) => a.order - b.order);
   let hasPb = false;
@@ -118,10 +174,18 @@ export function toWorkoutView(
     ? ({ id: coach.id, name: coach.name } as User)
     : null;
   const enrollmentId = workout.programEnrollmentId;
+  const slot = workout.programSessionId
+    ? programSlots.get(workout.programSessionId)
+    : undefined;
   return Object.assign(workout, {
     source: workoutSource(workout),
     program: enrollmentId
-      ? { enrollmentId, name: programNames.get(enrollmentId) ?? '' }
+      ? {
+          enrollmentId,
+          name: programNames.get(enrollmentId) ?? '',
+          week: slot?.week ?? null,
+          day: slot?.day ?? null,
+        }
       : null,
     hasPb,
   });
