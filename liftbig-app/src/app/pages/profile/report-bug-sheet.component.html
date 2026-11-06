@@ -1,0 +1,67 @@
+<app-bottom-sheet
+  title="Report a bug"
+  primaryLabel="Send"
+  [primaryDisabled]="!canSend || saving"
+  [saving]="saving"
+  (primary)="send()"
+>
+  <div class="bug-fields">
+    <label class="field-label" for="bug-description-field">What happened?</label>
+    <textarea
+      id="bug-description-field"
+      class="bug-field"
+      rows="4"
+      [maxlength]="descriptionMax"
+      placeholder="What went wrong?"
+      [(ngModel)]="description"
+    ></textarea>
+
+    <label class="field-label" for="bug-steps-field">Steps to reproduce</label>
+    <textarea
+      id="bug-steps-field"
+      class="bug-field"
+      rows="3"
+      [maxlength]="stepsMax"
+      placeholder="What did you do right before it happened? (optional)"
+      [(ngModel)]="steps"
+    ></textarea>
+
+    <div class="screenshots">
+      <div class="screenshot-list">
+        @for (shot of screenshots; track shot.url; let i = $index) {
+          <div class="screenshot-thumb">
+            <img [src]="shot.url" alt="Screenshot" />
+            <button
+              type="button"
+              class="screenshot-remove"
+              aria-label="Remove screenshot"
+              (click)="removeScreenshot(i)"
+            >
+              <ion-icon name="close" aria-hidden="true"></ion-icon>
+            </button>
+          </div>
+        }
+        @if (remainingSlots > 0 && !adding) {
+          <label class="screenshot-add">
+            <input type="file" accept="image/*" multiple (change)="addScreenshots($event)" />
+            <ion-icon name="camera-outline" aria-hidden="true"></ion-icon>
+            <span>Add screenshot</span>
+          </label>
+        }
+      </div>
+      @if (imageError) {
+        <p class="image-error" role="alert">{{ imageError }}</p>
+      }
+    </div>
+
+    <p class="privacy-line">
+      Your report and screenshots go to the LiftBig team. Screenshots can show your training data, so only add what
+      you're happy to share. Read the
+      <a [href]="privacyUrl" target="_blank" rel="noopener">Privacy Policy</a>.
+    </p>
+
+    @if (error) {
+      <p class="sheet-error" role="alert">{{ error }}</p>
+    }
+  </div>
+</app-bottom-sheet>

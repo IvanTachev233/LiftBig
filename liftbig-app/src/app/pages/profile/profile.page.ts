@@ -14,6 +14,7 @@ import { ConnectCoachSheetComponent } from './connect-coach-sheet.component';
 import { RestTimerSheetComponent } from './rest-timer-sheet.component';
 import { EditProfileSheetComponent } from './edit-profile-sheet.component';
 import { ChangePasswordSheetComponent } from './change-password-sheet.component';
+import { ReportBugSheetComponent } from './report-bug-sheet.component';
 import { AccountActionsService } from './account-actions.service';
 import { initialsOf } from '../../shared/initials';
 import { LargeTitleComponent } from '../../shared/ui/large-title.component';
@@ -127,6 +128,14 @@ export class ProfilePage implements ViewWillEnter {
       label: 'Change password',
     });
     if (role === 'confirm') this.presentToast('Password changed', 'success');
+  }
+
+  /** The sheet sends the report itself; a confirm means the API accepted it */
+  async openReportBug() {
+    const { role } = await this.bottomSheet.open(ReportBugSheetComponent, {
+      label: 'Report a bug',
+    });
+    if (role === 'confirm') this.presentToast('Thanks — your report was sent', 'success');
   }
 
   changeTheme(setting: ThemeSetting) {

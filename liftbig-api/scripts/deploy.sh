@@ -11,11 +11,13 @@ set -euo pipefail
 API_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Container env var = Secret Manager secret of the same name, latest version.
-SECRETS=(DATABASE_URL JWT_SECRET MAIL_PROVIDER_KEY)
+# GITHUB_FEEDBACK_TOKEN needs a version (scripts/gcp-setup.sh only creates the
+# slot) before this script is run, or the revision fails to start.
+SECRETS=(DATABASE_URL JWT_SECRET MAIL_PROVIDER_KEY GITHUB_FEEDBACK_TOKEN)
 # Must be set; CORS_ORIGINS may be set to an empty string for "none".
 REQUIRED=(GCP_PROJECT_ID MAIL_FROM CORS_ORIGINS PRIVACY_OPERATOR_NAME PRIVACY_CONTACT_EMAIL)
 # May be unset or empty: the deploy then removes it from the service.
-OPTIONAL=(SENTRY_DSN)
+OPTIONAL=(SENTRY_DSN BUG_REPORT_BUCKET BUG_REPORTS_ENABLED GITHUB_FEEDBACK_REPO)
 # Separates env vars on the gcloud command line (`gcloud topic escaping`), so
 # values may contain commas, e.g. CORS_ORIGINS.
 D=';;'
@@ -52,9 +54,19 @@ Env vars (optional):
                          reports off (the deploy removes it from the service)
   SENTRY_RELEASE         Release named in error reports (default: GITHUB_SHA,
                          else the API folder's git HEAD)
+  BUG_REPORT_BUCKET      Cloud Storage bucket for bug-report screenshots
+                         (scripts/gcp-setup.sh --bucket); unset or empty
+                         removes it, so screenshots aren't stored
+  BUG_REPORTS_ENABLED    "false" turns the bug-report endpoint off (503);
+                         unset or empty removes it, which means on
+  GITHUB_FEEDBACK_REPO   "owner/repo" bug reports file issues in, e.g.
+                         IvanTachev233/LiftBig-Feedback; unset or empty
+                         removes it
 
 Secrets (Secret Manager, latest version): DATABASE_URL, JWT_SECRET,
-MAIL_PROVIDER_KEY. The runtime service account reads them.
+MAIL_PROVIDER_KEY, GITHUB_FEEDBACK_TOKEN. The runtime service account reads
+them; GITHUB_FEEDBACK_TOKEN needs a version added (scripts/gcp-setup.sh only
+creates the slot) before this script is run.
 EOF
 }
 
@@ -213,6 +225,15 @@ done
 SENTRY_DSN=${SENTRY_DSN:-}
 [ -z "$SENTRY_DSN" ] || [[ "$SENTRY_DSN" =~ ^https://[A-Za-z0-9]+@[A-Za-z0-9.-]+/[0-9]+$ ]] ||
   die "SENTRY_DSN must be a Sentry DSN (https://<key>@<host>/<project id>) or empty"
+# Bug reports (LB-38): unset bucket means screenshots aren't stored, unset
+# BUG_REPORTS_ENABLED means the endpoint is on, unset repo means no issue is filed.
+BUG_REPORT_BUCKET=${BUG_REPORT_BUCKET:-}
+BUG_REPORTS_ENABLED=${BUG_REPORTS_ENABLED:-}
+GITHUB_FEEDBACK_REPO=${GITHUB_FEEDBACK_REPO:-}
+[ -z "$BUG_REPORTS_ENABLED" ] || [ "$BUG_REPORTS_ENABLED" = false ] ||
+  die "BUG_REPORTS_ENABLED must be false or empty (unset means on): $BUG_REPORTS_ENABLED"
+[ -z "$GITHUB_FEEDBACK_REPO" ] || [[ "$GITHUB_FEEDBACK_REPO" =~ ^[^/[:space:]]+/[^/[:space:]]+$ ]] ||
+  die "GITHUB_FEEDBACK_REPO must be owner/repo or empty: $GITHUB_FEEDBACK_REPO"
 # Error reports name the deployed commit.
 SENTRY_RELEASE=${SENTRY_RELEASE:-${GITHUB_SHA:-$(git -C "$API_DIR" rev-parse HEAD 2>/dev/null || true)}}
 [[ "$SENTRY_RELEASE" =~ ^[A-Za-z0-9._-]*$ ]] ||
@@ -236,6 +257,23 @@ if [ -n "$SENTRY_DSN" ]; then
   env_vars+="${D}SENTRY_DSN=$SENTRY_DSN"
 else
   removed_vars+=",SENTRY_DSN"
+fi
+# Without a bucket, screenshots aren't stored; without the flag, reports are on;
+# without the repo, bug reports can't be filed as issues.
+if [ -n "$BUG_REPORT_BUCKET" ]; then
+  env_vars+="${D}BUG_REPORT_BUCKET=$BUG_REPORT_BUCKET"
+else
+  removed_vars+=",BUG_REPORT_BUCKET"
+fi
+if [ -n "$BUG_REPORTS_ENABLED" ]; then
+  env_vars+="${D}BUG_REPORTS_ENABLED=$BUG_REPORTS_ENABLED"
+else
+  removed_vars+=",BUG_REPORTS_ENABLED"
+fi
+if [ -n "$GITHUB_FEEDBACK_REPO" ]; then
+  env_vars+="${D}GITHUB_FEEDBACK_REPO=$GITHUB_FEEDBACK_REPO"
+else
+  removed_vars+=",GITHUB_FEEDBACK_REPO"
 fi
 # A new revision gets traffic only once /health answers 2xx (the database is
 # reachable). Migrations run before the port opens and Neon may be waking up,

@@ -22,6 +22,7 @@ import { RestTimerSheetComponent } from './rest-timer-sheet.component';
 import { EditProfileSheetComponent } from './edit-profile-sheet.component';
 import { ChangePasswordSheetComponent } from './change-password-sheet.component';
 import { DeleteAccountSheetComponent } from './delete-account-sheet.component';
+import { ReportBugSheetComponent } from './report-bug-sheet.component';
 
 describe('ProfilePage', () => {
   let fixture: ComponentFixture<ProfilePage>;
@@ -473,6 +474,40 @@ describe('ProfilePage', () => {
       );
       expect(rows.map((r) => r.classList.contains('password-row') ? 'password' : r.textContent!.trim()))
         .toEqual(['password', 'Log out', 'Delete account']);
+    });
+  });
+
+  describe('Support', () => {
+    const row = () => fixture.nativeElement.querySelector('.report-bug-row') as HTMLElement | null;
+
+    it('sits between Privacy and Account for both roles', () => {
+      for (const role of ['CLIENT', 'COACH'] as const) {
+        TestBed.inject(AuthService).setSession(fakeToken(role));
+        fixture.detectChanges();
+        const support = fixture.nativeElement.querySelector('#support-heading')!.closest('section') as HTMLElement;
+        expect(support.previousElementSibling?.querySelector('#privacy-heading')).toBeTruthy();
+        expect(support.nextElementSibling?.querySelector('#account-heading')).toBeTruthy();
+        expect(row()?.textContent?.trim()).toBe('Report a bug');
+      }
+    });
+
+    it('opens the bug report sheet and shows a toast once it is sent', async () => {
+      sheet.open.and.resolveTo({ data: true, role: 'confirm' });
+      row()!.click();
+      await fixture.whenStable();
+
+      const [sheetComponent, options] = sheet.open.calls.mostRecent().args;
+      expect(sheetComponent).toBe(ReportBugSheetComponent);
+      expect(options).toEqual({ label: 'Report a bug' });
+      expect(toastCtrl.create).toHaveBeenCalledWith(
+        jasmine.objectContaining({ message: 'Thanks — your report was sent', color: 'success' }),
+      );
+    });
+
+    it('says nothing when the sheet is closed', async () => {
+      sheet.open.and.resolveTo({ role: 'cancel' });
+      await component.openReportBug();
+      expect(toastCtrl.create).not.toHaveBeenCalled();
     });
   });
 

@@ -21,6 +21,9 @@
     [disabled]="primaryDisabled()"
     (click)="primary.emit()"
   >
+    @if (saving()) {
+      <ion-spinner name="crescent" slot="start"></ion-spinner>
+    }
     {{ primaryLabel() }}
   </ion-button>
 </div>

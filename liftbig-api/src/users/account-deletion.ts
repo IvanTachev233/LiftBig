@@ -2,6 +2,8 @@ import { EntityManager } from 'typeorm';
 import { AuthSession } from '../auth/auth-session.entity';
 import { Invite } from '../auth/invite.entity';
 import { User } from '../auth/user.entity';
+import { BugReport } from '../bug-reports/bug-report.entity';
+import { BugReportStorageService } from '../bug-reports/storage/bug-report-storage.service';
 import { EmailCode } from '../email-codes/email-code.entity';
 import { ConsentEvent } from '../policies/consent-event.entity';
 import { PolicyAcceptance } from '../policies/policy-acceptance.entity';
@@ -29,8 +31,9 @@ export function deletedEmail(userId: string): string {
 export async function removeAccount(
   manager: EntityManager,
   user: Pick<User, 'id' | 'email' | 'role' | 'tokenVersion'>,
+  bugReportStorage: BugReportStorageService,
 ): Promise<void> {
-  await deleteOwnData(manager, user);
+  await deleteOwnData(manager, user, bugReportStorage);
 
   if (user.role !== 'COACH') {
     await manager.delete(User, { id: user.id });
@@ -55,10 +58,28 @@ export async function removeAccount(
 async function deleteOwnData(
   manager: EntityManager,
   user: Pick<User, 'id' | 'email'>,
+  bugReportStorage: BugReportStorageService,
 ): Promise<void> {
   const userId = user.id;
   await manager.delete(RepMaxEntry, { userId });
   await manager.delete(UserBestLift, { userId });
+
+  const bugReports = await manager.find(BugReport, {
+    where: { userId },
+    select: { id: true, screenshotNames: true },
+  });
+  await manager.delete(BugReport, { userId });
+  const screenshotNames = bugReports.flatMap(
+    (report) => report.screenshotNames ?? [],
+  );
+  if (screenshotNames.length > 0) {
+    try {
+      await bugReportStorage.delete(screenshotNames);
+    } catch {
+      // Best-effort: a stray screenshot outliving the account never carries
+      // identity, and must not block the rest of account deletion.
+    }
+  }
 
   const ownWorkouts = manager
     .createQueryBuilder()

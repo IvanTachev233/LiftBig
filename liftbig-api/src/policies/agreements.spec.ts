@@ -35,9 +35,9 @@ function message(run: () => unknown): string {
 }
 
 describe('policy versions', () => {
-  it('match the approved texts: Terms of 2026-10-21, privacy policy of 2026-10-28 (Sentry)', () => {
+  it('match the approved texts: Terms of 2026-10-21, privacy policy of 2026-11-06 (bug reports, LB-38)', () => {
     expect(TERMS_VERSION).toBe('2026-10-21');
-    expect(PRIVACY_VERSION).toBe('2026-10-28');
+    expect(PRIVACY_VERSION).toBe('2026-11-06');
   });
 });
 

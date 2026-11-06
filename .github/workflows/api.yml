@@ -125,6 +125,9 @@ jobs:
       PRIVACY_OPERATOR_NAME: ${{ vars.PRIVACY_OPERATOR_NAME }}
       PRIVACY_CONTACT_EMAIL: ${{ vars.PRIVACY_CONTACT_EMAIL }}
       SENTRY_DSN: ${{ vars.SENTRY_DSN }} # empty: error reports off (deploy.sh removes it)
+      BUG_REPORT_BUCKET: ${{ vars.BUG_REPORT_BUCKET }} # empty: screenshots not stored (deploy.sh removes it)
+      BUG_REPORTS_ENABLED: ${{ vars.BUG_REPORTS_ENABLED }} # empty: on (deploy.sh removes it)
+      GITHUB_FEEDBACK_REPO: ${{ vars.FEEDBACK_REPO }} # Actions variables can't start with GITHUB_; empty: no GitHub issue is filed (deploy.sh removes it)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: auth

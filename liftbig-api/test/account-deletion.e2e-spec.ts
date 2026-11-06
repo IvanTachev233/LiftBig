@@ -6,6 +6,7 @@ import { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
 import { Invite, InviteStatus } from '../src/auth/invite.entity';
 import { User } from '../src/auth/user.entity';
+import { BugReport } from '../src/bug-reports/bug-report.entity';
 import {
   EmailCode,
   EmailCodePurpose,
@@ -23,6 +24,7 @@ import { WorkoutExercise } from '../src/workouts/entities/workout-exercise.entit
 import { WorkoutSet } from '../src/workouts/entities/workout-set.entity';
 import { Workout } from '../src/workouts/entities/workout.entity';
 import {
+  bugReportStorage,
   createE2eApp,
   E2eUser,
   registerAndLogin,
@@ -280,6 +282,32 @@ describe('Account deletion (e2e)', () => {
       expect(await count(RepMaxEntry, { userId: other.id })).toBe(2);
       expect(await count(UserBestLift, { userId: other.id })).toBe(1);
       expect(await count(Invite, { clientEmail: other.email })).toBe(1);
+    });
+  });
+
+  describe('bug reports (LB-38)', () => {
+    it('deletes the rows and asks storage to delete their screenshots', async () => {
+      const reporter = await registerAndLogin(app);
+      const jpeg = Buffer.concat([
+        Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+        Buffer.alloc(96),
+      ]);
+      const res = await request(server())
+        .post('/bug-reports')
+        .set('Authorization', `Bearer ${reporter.token}`)
+        .field('description', 'Crashes when I open the logger')
+        .field('platform', 'android')
+        .attach('screenshots', jpeg, 'a.jpg')
+        .expect(201);
+      const reportId = (res.body as { id: string }).id;
+      const storage = bugReportStorage(app);
+      expect(storage.objects.has(`${reportId}/1.jpg`)).toBe(true);
+
+      await deleteMe(reporter).expect(204);
+
+      expect(await count(BugReport, { id: reportId })).toBe(0);
+      expect(storage.deletedNames).toContain(`${reportId}/1.jpg`);
+      expect(storage.objects.has(`${reportId}/1.jpg`)).toBe(false);
     });
   });
 
