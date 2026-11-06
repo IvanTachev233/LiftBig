@@ -40,6 +40,25 @@ Plans.md.bak.*
 /graft/
 .DS_Store
 
-# Claude Code settings and state, at any depth
+# AI tools: settings, state, worktrees and instruction files, at any depth.
+# The real CLAUDE.md files live in /notes/; the ones here are import stubs.
 .claude/
 .agents/
+.harness/
+.harness-worktrees/
+.trail/
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+.mcp.json
+.codex/
+.cursor/
+.cursorrules
+.cursorignore
+.gemini/
+GEMINI.md
+.aider*
+.continue/
+.windsurf/
+.windsurfrules
+.serena/
