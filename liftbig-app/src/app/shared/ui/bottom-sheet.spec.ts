@@ -49,6 +49,7 @@ describe('BottomSheetService', () => {
       helper="They join with the invite code."
       primaryLabel="Send invite"
       [primaryDisabled]="disabled"
+      [saving]="saving"
       (primary)="sent = sent + 1"
     >
       <p class="body">Body</p>
@@ -57,6 +58,7 @@ describe('BottomSheetService', () => {
 })
 class HostComponent {
   disabled = false;
+  saving = false;
   sent = 0;
 }
 
@@ -96,6 +98,14 @@ describe('BottomSheetComponent', () => {
     fixture.componentInstance.disabled = true;
     fixture.detectChanges();
     expect((primary() as HTMLIonButtonElement).disabled).toBeTrue();
+  });
+
+  it('shows a spinner in the primary button while saving, keeping the label', () => {
+    expect(primary().querySelector('ion-spinner')).toBeNull();
+    fixture.componentInstance.saving = true;
+    fixture.detectChanges();
+    expect(primary().querySelector('ion-spinner')).not.toBeNull();
+    expect(primary().textContent!.trim()).toBe('Send invite');
   });
 
   it('closes with the cancel role from the ✕ button', () => {

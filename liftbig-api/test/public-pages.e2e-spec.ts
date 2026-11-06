@@ -148,7 +148,7 @@ describe('Public pages (e2e)', () => {
         'acceptance and consent records',
         'within one month',
         'href="https://ico.org.uk/make-a-complaint"',
-        `Version ${PRIVACY_VERSION} · Last updated 28 October 2026`,
+        `Version ${PRIVACY_VERSION} · Last updated 6 November 2026`,
         // Error and crash reports (T1 A3b)
         "What's new in this version",
         'Error and crash reports',
@@ -158,6 +158,19 @@ describe('Public pages (e2e)', () => {
         'Deleted automatically within 90 days',
         'Find and fix crashes and errors',
         'Error and crash reports are used only to find and fix faults',
+        // Bug reports (LB-38): GitHub as a separate company, not a processor
+        'you can report a bug from Profile',
+        '<h2>Bug reports</h2>',
+        'up to three screenshots you choose',
+        "please don't put anything in a report you wouldn't want kept there",
+        'Fix a bug you report',
+        'stores bug report screenshots privately',
+        '<strong>GitHub</strong>',
+        'not as our service provider',
+        'UK Extension to the EU–US Data Privacy Framework',
+        'Screenshots deleted automatically within 90 days',
+        'your bug reports and their screenshots',
+        'A GitHub entry made from a bug report also isn',
       ]) {
         expect(text).toContain(item);
       }

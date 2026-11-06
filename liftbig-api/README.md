@@ -54,6 +54,10 @@ Other scripts: `npm run start` (no watch), `npm run start:debug`, `npm run build
 | `APP_LATEST_VERSION_CODE` | unset | The newest versionCode on Play: older builds are offered the update once per start (dismissible). Unset: no offer |
 | `SENTRY_DSN` | unset | Sentry project DSN: unexpected errors (not 4xx) are reported to Sentry, scrubbed (see [Error reports](#error-reports-sentry)). Unset or blank: nothing is reported, as in local runs, CI and tests |
 | `SENTRY_RELEASE` | unset | Release named in error reports; `deploy.sh` sets the git commit |
+| `BUG_REPORTS_ENABLED` | unset (on) | `false` turns `POST /bug-reports` off: it answers 503 and stores nothing. Unset means on |
+| `BUG_REPORT_BUCKET` | unset | Cloud Storage bucket bug-report screenshots upload to (`scripts/gcp-setup.sh` creates it, `europe-west2`). Unset: screenshots aren't stored (local runs, CI, tests), and the GitHub issue says so |
+| `GITHUB_FEEDBACK_TOKEN` | unset (Secret Manager) | Fine-grained GitHub token, Issues read/write on one repository only. Unset: the issue's GitHub status is `disabled` and no GitHub call is made |
+| `GITHUB_FEEDBACK_REPO` | unset | `owner/repo` bug reports file an issue in, e.g. `IvanTachev233/LiftBig-Feedback` |
 
 Locally, every variable above can live in a `.env` file in this folder: `src/config/database.config.ts` loads it when it exists (it runs before `@nestjs/config`), and variables already set in the shell, Docker or Cloud Run win over it. That covers `npm run start:dev`, the tests and the migration commands. `.env` is gitignored; [`.env.example`](.env.example) is the committed reference. Never put `DATABASE_URL` or other production values in it.
 
@@ -90,10 +94,12 @@ Run it in a terminal with an account that owns the project. It:
 - enables the Cloud Run, Cloud Build, Artifact Registry, Secret Manager and IAM APIs,
 - grants the Compute Engine default service account, which Cloud Build uses for source deploys, `roles/run.builder` and `roles/storage.objectViewer`,
 - creates the service's runtime service account `liftbig-api-runtime` if it is missing, with no project roles (`--service-account` or `RUNTIME_SA` names another, existing one),
-- creates the secrets `DATABASE_URL`, `JWT_SECRET` and `MAIL_PROVIDER_KEY` in Secret Manager if they are missing (values are typed hidden; a blank `JWT_SECRET` generates a random one), and
-- grants the runtime service account `roles/secretmanager.secretAccessor` on each of them, and nothing else.
+- creates the secrets `DATABASE_URL`, `JWT_SECRET` and `MAIL_PROVIDER_KEY` in Secret Manager if they are missing (values are typed hidden; a blank `JWT_SECRET` generates a random one),
+- grants the runtime service account `roles/secretmanager.secretAccessor` on each of them, and nothing else,
+- creates the bug-report screenshot bucket (`--bucket NAME`, env `BUG_REPORT_BUCKET`, default `<project-id>-bug-reports`) if it is missing, in `europe-west2` (London), with uniform bucket-level access, public access prevention and a lifecycle rule deleting objects 90 days after upload, and grants the runtime service account `roles/storage.objectAdmin` on that bucket only (not the project), and
+- creates the `GITHUB_FEEDBACK_TOKEN` secret **slot** if it is missing — with no value — and grants the runtime service account `roles/secretmanager.secretAccessor` on it; you add the value yourself (below) before the first deploy that needs it.
 
-It is safe to run again; existing secrets are left as they are. To change a secret's value, add a version and redeploy (the service reads `latest` when a revision is created):
+It is safe to run again; existing secrets and the bucket are left as they are. To change a secret's value, add a version and redeploy (the service reads `latest` when a revision is created):
 
 ```bash
 read -r -s -p 'New value: ' v && printf '%s' "$v" |
@@ -102,9 +108,29 @@ read -r -s -p 'New value: ' v && printf '%s' "$v" |
 
 Replacing `JWT_SECRET` signs every user out.
 
+### Bug reports to GitHub (LB-38)
+
+One-time setup, done once per Google Cloud project, before the first deploy that needs it:
+
+1. **Create the private repository.** github.com → the `+` in the top right → **New repository** → owner `IvanTachev233`, name `LiftBig-Feedback`, **Private**. Then that repo → **Issues** tab → **Labels** → **New label**, once each for `bug`, `needs-triage`, `platform:android`, `platform:ios`, `platform:web`.
+2. **Create a fine-grained personal access token.** github.com → your avatar (top right) → **Settings** → **Developer settings** (left sidebar, bottom) → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**. Resource owner: your account. Repository access: **Only select repositories** → `LiftBig-Feedback`. Repository permissions → **Issues**: **Read and write**. Expiration: GitHub may not offer "No expiration" on a personal account — check what's offered; the plan assumes up to 1 year, with a calendar reminder to rotate it before it lapses (an expired token just means GitHub status `failed`/`disabled`, not an outage). **Generate token** and copy the value once; GitHub won't show it again.
+3. **Run `scripts/gcp-setup.sh`** (above). It creates the `GITHUB_FEEDBACK_TOKEN` secret slot and the screenshot bucket.
+4. **Store the token**, piped from stdin so it never lands in shell history or a file:
+
+   ```bash
+   read -r -s -p 'GitHub token: ' v && printf '%s' "$v" |
+     gcloud secrets versions add GITHUB_FEEDBACK_TOKEN --project=<project-id> --data-file=-; unset v
+   ```
+
+5. **Set the GitHub Actions variables** the pipeline deploys with: this repo → **Settings** → **Secrets and variables** → **Actions** → **Variables** tab → **New repository variable**, once each for `BUG_REPORT_BUCKET` (the bucket name from step 3, e.g. `<project-id>-bug-reports`) and `FEEDBACK_REPO` (`IvanTachev233/LiftBig-Feedback`; GitHub doesn't allow variable names starting with `GITHUB_`, so the `deploy` job passes it to the service as `GITHUB_FEEDBACK_REPO`); leave `BUG_REPORTS_ENABLED` unset there for on. (For a manual run of `scripts/deploy.sh` yourself, set the same three as env vars or in `.env` instead, see [Deploy](#deploy).)
+
+Do this — the whole numbered list above, including this step — before the branch that adds `GITHUB_FEEDBACK_TOKEN` to `scripts/deploy.sh`'s `SECRETS` and the three variables to `.github/workflows/api.yml`'s `deploy` job merges to `master`: the pipeline deploys every such merge, and a deploy fails if the secret has no version yet. Skipping step 5 alone doesn't fail the deploy, but it silently removes `BUG_REPORT_BUCKET`/`GITHUB_FEEDBACK_REPO` from the service (the Actions variables `BUG_REPORT_BUCKET`/`FEEDBACK_REPO`) (unset repository variables resolve to an empty string, which `scripts/deploy.sh` treats as "remove"), so screenshots wouldn't be stored and no GitHub issue would be filed even once the token works.
+
+**Viewing a reported screenshot:** the GitHub issue links to the object, not the image itself (no public or signed URLs). Open the link, or go directly: console.cloud.google.com → **Cloud Storage** → **Buckets** → the bug-report bucket → the object (`<reportId>/<n>.jpg`) → it opens with a preview. Needs your Google sign-in on the project.
+
 ### Deploy
 
-The script reads `GCP_PROJECT_ID`, `MAIL_FROM`, `CORS_ORIGINS`, `PRIVACY_OPERATOR_NAME`, `PRIVACY_CONTACT_EMAIL` and, when present, `SENTRY_DSN` from the API's `.env` (`--env-file PATH` for another file); it reads only those keys, never the file's secrets. Values already in the environment win:
+The script reads `GCP_PROJECT_ID`, `MAIL_FROM`, `CORS_ORIGINS`, `PRIVACY_OPERATOR_NAME`, `PRIVACY_CONTACT_EMAIL` and, when present, `SENTRY_DSN`, `BUG_REPORT_BUCKET`, `BUG_REPORTS_ENABLED` and `GITHUB_FEEDBACK_REPO` from the API's `.env` (`--env-file PATH` for another file); it reads only those keys, never the file's secrets. Values already in the environment win:
 
 ```bash
 # .env (gitignored)
@@ -134,12 +160,16 @@ In a terminal, the script asks for any value still not set, shows the command an
 | `PRIVACY_CONTACT_EMAIL` | env var | required | Shown on `/privacy` and `/terms` |
 | `SENTRY_DSN` | env var | optional | Turns error reports on; unset or empty removes it from the service, which turns them off |
 | `SENTRY_RELEASE` | env var | `GITHUB_SHA`, else the git `HEAD` | Release named in error reports |
+| `BUG_REPORT_BUCKET` | env var | optional | Screenshot bucket; unset or empty removes it, so screenshots aren't stored |
+| `BUG_REPORTS_ENABLED` | env var | optional, `false` or unset | `false` turns `POST /bug-reports` off; unset or empty removes it, which means on |
+| `GITHUB_FEEDBACK_REPO` | env var | optional | `owner/repo` bug reports file an issue in; unset or empty removes it |
 | `NODE_ENV`, `TYPEORM_SYNC`, `RUN_MIGRATIONS`, `BACKFILL_PBS` | env var | `production`, `false`, `true`, `false` | Set by the script |
 | `DATABASE_URL` | secret | Secret Manager `DATABASE_URL:latest` | Neon connection URL |
 | `JWT_SECRET` | secret | Secret Manager `JWT_SECRET:latest` | Signs access tokens |
 | `MAIL_PROVIDER_KEY` | secret | Secret Manager `MAIL_PROVIDER_KEY:latest` | Resend API key |
+| `GITHUB_FEEDBACK_TOKEN` | secret | Secret Manager `GITHUB_FEEDBACK_TOKEN:latest` | Fine-grained GitHub token; `scripts/gcp-setup.sh` only creates the slot, add the version yourself (see [Bug reports to GitHub](#bug-reports-to-github-lb-38)) |
 
-Env vars go through `--update-env-vars`, so any other env var on the service stays as it is. That includes `APP_MIN_VERSION_CODE` and `APP_LATEST_VERSION_CODE`: set them on the service itself (Cloud Run → the service → Edit & deploy new revision → Variables & Secrets) once the build they name is live on Play; the script doesn't set them. Secrets go through `--set-secrets`, so the service's secrets are exactly these three. The script also removes plain env vars with the secrets' names (`--remove-env-vars`, applied before the secrets), so a service that still has `DATABASE_URL` as a plain value switches to the secret in the same deploy. It never reads or prints a secret value.
+Env vars go through `--update-env-vars`, so any other env var on the service stays as it is. That includes `APP_MIN_VERSION_CODE` and `APP_LATEST_VERSION_CODE`: set them on the service itself (Cloud Run → the service → Edit & deploy new revision → Variables & Secrets) once the build they name is live on Play; the script doesn't set them. Secrets go through `--set-secrets`, so the service's secrets are exactly these four. The script also removes plain env vars with the secrets' names (`--remove-env-vars`, applied before the secrets), so a service that still has `DATABASE_URL` as a plain value switches to the secret in the same deploy. It never reads or prints a secret value.
 
 Older plain env vars such as `DB_HOST` or `DB_PASSWORD` stay on the service until you remove them. The API ignores them once `DATABASE_URL` is set:
 

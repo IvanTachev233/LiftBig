@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { BugReportsModule } from './bug-reports/bug-reports.module';
 import { WorkoutsModule } from './workouts/workouts.module';
 import { ProgramsModule } from './programs/programs.module';
 import { LiftsModule } from './lifts/lifts.module';
@@ -25,6 +26,7 @@ import { databaseConfig } from './config/database.config';
     }),
     TypeOrmModule.forRoot(databaseConfig),
     AuthModule,
+    BugReportsModule,
     WorkoutsModule,
     ProgramsModule,
     LiftsModule,

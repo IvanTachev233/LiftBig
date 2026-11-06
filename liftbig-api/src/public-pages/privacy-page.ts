@@ -21,7 +21,7 @@ export function privacyPageHtml(env: NodeJS.ProcessEnv): string {
     body: `
 <h1>Privacy policy</h1>
 <p class="small">${versionLine(PRIVACY_VERSION)}</p>
-<p>What's new in this version: the app and the LiftBig server now send error and crash reports to Sentry, so we can find and fix faults (see "Error and crash reports" below).</p>
+<p>What's new in this version: you can report a bug from Profile. Your report and screenshots go to the LiftBig team, and a copy of what you typed is kept on GitHub, where the team tracks bugs (see "Bug reports" below).</p>
 <p>This policy explains what the LiftBig app stores about you, why, on what legal basis, who handles it for us, how long we keep it, and your rights. LiftBig is for people aged 18 or over.</p>
 
 <h2>Who runs LiftBig</h2>
@@ -68,6 +68,10 @@ export function privacyPageHtml(env: NodeJS.ProcessEnv): string {
 </ul>
 <p>Reports never include your workouts, sets, notes or other training data, your email address, name or password, your sign-in tokens, or your IP address: the app and the server leave out what you send in a request and its sign-in and cookie headers, the server also removes IP addresses before a report leaves it, and Sentry is set not to store IP addresses.</p>
 
+<h2>Bug reports</h2>
+<p>When you report a bug from Profile, we send what you typed ("What happened?" and, if you added it, "Steps to reproduce"), up to three screenshots you choose, and some details about your app and device: app version and build, platform, operating system version, device model, and your role. We store your report, and send a copy of it (without your account id, email, name or sign-in tokens) to the LiftBig team on GitHub, where our team tracks and fixes bugs. GitHub keeps that copy as a separate company under its own privacy statement (see "Who sees your data"), so please don't put anything in a report you wouldn't want kept there. Your screenshots are stored privately on our servers, not inside GitHub, and linked from the GitHub entry for the LiftBig team to view; nobody outside LiftBig can see them. We don't add anything from your device beyond what's listed here.</p>
+<p>You can ask us to delete a report and its screenshots at any time (see "Deleting your account" or email us); the GitHub entry can also be deleted on request, though it carries no information that identifies you.</p>
+
 <h2>On your device</h2>
 <p>The app keeps your sign-in token (in the phone's secure storage), your theme choice, a copy of the workouts and exercises you last opened so you can use them offline, and workout changes waiting to be sent. Waiting changes are removed once they're sent, or after 30 days; the offline copy after 30 days. The error reporting tool keeps its random id and any reports waiting to be sent. Uninstalling the app removes all of it. LiftBig uses no cookies, advertising IDs or trackers.</p>
 
@@ -80,6 +84,7 @@ export function privacyPageHtml(env: NodeJS.ProcessEnv): string {
 <tr><td>Let you and your coach work together</td><td>Name, email, coach link, invites, the workouts your coach assigns you</td><td>Contract, and your explicit consent for training data</td></tr>
 <tr><td>Keep accounts secure: wrong-password locks, signing out other devices, request logs</td><td>Sign-in security data, sessions, request logs</td><td>Legitimate interests: protecting your account and the service</td></tr>
 <tr><td>Find and fix crashes and errors</td><td>Error and crash reports</td><td>Legitimate interests: keeping LiftBig working for you. Reports leave out your training data, email, name and IP address</td></tr>
+<tr><td>Fix a bug you report</td><td>Your bug report, screenshots and device details</td><td>Contract: fixing a fault in the service you signed up for, and legitimate interests in finding it</td></tr>
 <tr><td>Keep a record of what you agreed to and chose</td><td>Acceptance and consent records</td><td>Legitimate interests: being able to show what you agreed to and chose, which the law expects of us for consent</td></tr>
 <tr><td>Use your videos to train and improve lift analysis (only once video features exist)</td><td>Videos you upload and what's measured from them</td><td>Your consent (<code>video_training</code>), off unless you turn it on</td></tr>
 <tr><td>Email you LiftBig news and offers</td><td>Email address, name</td><td>Your consent (<code>product_emails</code>), off unless you turn it on</td></tr>
@@ -104,18 +109,19 @@ export function privacyPageHtml(env: NodeJS.ProcessEnv): string {
 <li><strong>Your coach</strong>: while you are linked to a coach, they see your name, your email and the workouts they assign you, including how you logged them and your notes on them (and, once available, your videos of those workouts). They don't see your own workouts, lift records or program maxes.</li>
 <li><strong>Service providers</strong> that handle data for us, under data processing agreements that only let them use it to provide their service to us:
 <ul>
-<li><strong>Google Cloud</strong> (Cloud Run, Belgium) hosts the LiftBig server and its request logs.</li>
+<li><strong>Google Cloud</strong> (Cloud Run, Belgium) hosts the LiftBig server and its request logs, and (London, UK) stores bug report screenshots privately.</li>
 <li><strong>Neon</strong> hosts the database where your data is stored (AWS London, UK).</li>
 <li><strong>Resend</strong> sends our emails: it receives your email address and the email we send you, and stores its records in the United States.</li>
 <li><strong>Sentry</strong> receives and stores the error and crash reports (EU data region, Frankfurt, Germany).</li>
 </ul>
 </li>
 <li><strong>Exercise videos</strong>: some exercises show a video from <strong>YouTube</strong> or <strong>Vimeo</strong>. When you open such an exercise, the player loads from that service, which receives your IP address and device information and may store cookies under its own privacy policy. LiftBig doesn't send them anything about you.</li>
+<li><strong>GitHub</strong>: when you report a bug, a copy of what you typed and the app and device details is stored in a private GitHub repository that only the LiftBig team can see, as an entry the team works on. It never includes your account id, email, name, sign-in tokens or your screenshots. GitHub, Inc. handles it as a separate company under its own privacy statement, not as our service provider. We share it with GitHub because we have a legitimate interest in tracking and fixing the bugs you report.</li>
 <li><strong>Others</strong>: only if the law requires it, for example a court order.</li>
 </ul>
 
 <h2>Data outside the UK</h2>
-<p>Your data is stored in the UK (the Neon database is in London). Some of our providers process data outside the UK: Google Cloud runs the LiftBig server in the EU and Sentry stores error and crash reports in the EU (Germany), which the UK recognises as giving adequate protection. Resend stores its records in the United States, and Neon, Google and Sentry (a US company) may process data elsewhere to run their services; those transfers are covered by the safeguards in each provider's data processing agreement. Ask us for details.</p>
+<p>Your data is stored in the UK (the Neon database is in London). Some of our providers process data outside the UK: Google Cloud runs the LiftBig server in the EU and Sentry stores error and crash reports in the EU (Germany), which the UK recognises as giving adequate protection. Resend stores its records in the United States, and Neon, Google and Sentry (a US company) may process data elsewhere to run their services; those transfers are covered by the safeguards in each provider's data processing agreement. Bug report screenshots are stored in the UK (London); the GitHub entry for your report is stored by GitHub in the United States and other countries where it operates; GitHub is certified under the UK Extension to the EU–US Data Privacy Framework, which the UK recognises as giving adequate protection. Ask us for details.</p>
 
 <h2>What we don't do</h2>
 <ul>
@@ -135,6 +141,7 @@ export function privacyPageHtml(env: NodeJS.ProcessEnv): string {
 <tr><td>Invites</td><td>Until accepted, or until the coach or the invited person deletes their account</td></tr>
 <tr><td>Request logs</td><td>30 days</td></tr>
 <tr><td>Error and crash reports</td><td>Deleted automatically within 90 days</td></tr>
+<tr><td>Bug reports and screenshots</td><td>Screenshots deleted automatically within 90 days; your report until you delete your account, or 12 months, whichever is first</td></tr>
 <tr><td>Database backups</td><td>Overwritten within 7 days</td></tr>
 </tbody>
 </table>
@@ -142,10 +149,10 @@ export function privacyPageHtml(env: NodeJS.ProcessEnv): string {
 <h2>Deleting your account</h2>
 <p>In the app, open <strong>Profile → Delete account</strong>. Without the app, use the <a href="delete-account">account deletion page</a>.</p>
 <ul>
-<li><strong>Client</strong>: your account and everything in it are deleted: workouts, sets, lift records, program enrollments, settings, email codes, sessions, acceptance and consent records, and pending invites to your email.</li>
-<li><strong>Coach</strong>: your account is anonymised: your email, name and password are removed and it can no longer sign in. Your own workouts, your invites, and your acceptance and consent records are deleted and your clients are unlinked from you. The exercises you created, the programs you wrote and the workouts you assigned stay in your clients' history, without your name or email.</li>
+<li><strong>Client</strong>: your account and everything in it are deleted: workouts, sets, lift records, program enrollments, settings, email codes, sessions, acceptance and consent records, pending invites to your email, and your bug reports and their screenshots.</li>
+<li><strong>Coach</strong>: your account is anonymised: your email, name and password are removed and it can no longer sign in. Your own workouts, your invites, your acceptance and consent records, and your bug reports and their screenshots are deleted and your clients are unlinked from you. The exercises you created, the programs you wrote and the workouts you assigned stay in your clients' history, without your name or email.</li>
 </ul>
-<p>Request logs, error and crash reports and backups aren't deleted with your account; they're deleted on the schedule in "How long we keep it".</p>
+<p>Request logs, error and crash reports and backups aren't deleted with your account; they're deleted on the schedule in "How long we keep it". A GitHub entry made from a bug report also isn't deleted with your account, because it carries no information that identifies you; you can ask us to delete one.</p>
 
 <h2>Your rights</h2>
 <p>You can ask us to:</p>

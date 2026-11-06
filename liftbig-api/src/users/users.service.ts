@@ -12,6 +12,7 @@ import { randomUUID } from 'node:crypto';
 import { EntityManager, EntityNotFoundError, Repository } from 'typeorm';
 import { AuthUser } from '../auth/auth-user.interface';
 import { AuthService, TokenPair } from '../auth/auth.service';
+import { BugReportStorageService } from '../bug-reports/storage/bug-report-storage.service';
 import {
   MAX_PASSWORD_ATTEMPTS,
   PASSWORD_LOCK_MINUTES,
@@ -34,6 +35,7 @@ export class UsersService {
     private readonly users: Repository<User>,
     private readonly auth: AuthService,
     private readonly policies: PoliciesService,
+    private readonly bugReportStorage: BugReportStorageService,
   ) {}
 
   /** The profile, with what the user still has to accept and their consents */
@@ -110,7 +112,9 @@ export class UsersService {
   async deleteAccount(userId: string, password: string): Promise<void> {
     const outcome = await this.users.manager.transaction(async (manager) => {
       const check = await checkPassword(manager, userId, password);
-      if ('row' in check) await removeAccount(manager, check.row);
+      if ('row' in check) {
+        await removeAccount(manager, check.row, this.bugReportStorage);
+      }
       return check;
     });
     throwOnFailedCheck(outcome, 'Password is incorrect');

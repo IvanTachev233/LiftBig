@@ -22,6 +22,7 @@ export class BottomSheetComponent {
   readonly helper = input<string>();
   readonly primaryLabel = input.required<string>();
   readonly primaryDisabled = input(false);
+  readonly saving = input(false);
   readonly primary = output<void>();
 
   constructor() {

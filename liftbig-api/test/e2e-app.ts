@@ -7,6 +7,9 @@ import { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { User } from '../src/auth/user.entity';
+import { GithubIssueTransport } from '../src/bug-reports/github/github-issue.transport';
+import { InMemoryBugReportStorage } from '../src/bug-reports/storage/in-memory-bug-report-storage';
+import { BugReportStorageService } from '../src/bug-reports/storage/bug-report-storage.service';
 import { InMemoryMailTransport } from '../src/mail/in-memory-mail.transport';
 import { MailService } from '../src/mail/mail.service';
 import {
@@ -15,10 +18,12 @@ import {
   TERMS_VERSION,
 } from '../src/policies/policy-versions';
 import { E2E_DATABASE, e2eDataSourceOptions } from './e2e-database';
+import { FakeGithubIssueTransport } from './fake-github-issue.transport';
 
 // Boots the full AppModule on the e2e database, with the same global pipe
 // as main.ts. The schema is rebuilt from scratch unless dropSchema is false.
-// Mails are kept in memory; read them with sentMails(app).
+// Mails, screenshots and GitHub issues are kept in memory; read them with
+// sentMails(app), bugReportStorage(app) and githubIssueTransport(app).
 export async function createE2eApp({
   dropSchema = true,
 }: { dropSchema?: boolean } = {}): Promise<INestApplication<App>> {
@@ -37,6 +42,10 @@ export async function createE2eApp({
     })
     .overrideProvider(MailService)
     .useValue(new InMemoryMailTransport())
+    .overrideProvider(BugReportStorageService)
+    .useValue(new InMemoryBugReportStorage())
+    .overrideProvider(GithubIssueTransport)
+    .useValue(new FakeGithubIssueTransport())
     .compile();
 
   const app = moduleRef.createNestApplication<INestApplication<App>>();
@@ -51,6 +60,20 @@ export async function createE2eApp({
 // Every mail the app sent, oldest first
 export function sentMails(app: INestApplication<App>): InMemoryMailTransport {
   return app.get(MailService);
+}
+
+// The screenshot storage double for e2e tests; see InMemoryBugReportStorage.
+export function bugReportStorage(
+  app: INestApplication<App>,
+): InMemoryBugReportStorage {
+  return app.get(BugReportStorageService);
+}
+
+// The GitHub issue transport double for e2e tests; see FakeGithubIssueTransport.
+export function githubIssueTransport(
+  app: INestApplication<App>,
+): FakeGithubIssueTransport {
+  return app.get(GithubIssueTransport);
 }
 
 export interface E2eUser {

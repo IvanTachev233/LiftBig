@@ -47,6 +47,10 @@ services:
       DB_NAME: ${POSTGRES_DB}
       RUN_MIGRATIONS: "true"
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in liftbig-app/.env, see .env.example}
+      # Bug reports (LB-38): on by default locally; set BUG_REPORTS_ENABLED=false
+      # in .env to try the kill switch. BUG_REPORT_BUCKET and GITHUB_FEEDBACK_TOKEN
+      # stay unset here, so screenshots aren't stored and no GitHub issue is filed.
+      BUG_REPORTS_ENABLED: ${BUG_REPORTS_ENABLED:-true}
     ports:
       - "3000:3000"
     depends_on:
@@ -66,6 +70,8 @@ services:
       DB_NAME: ${POSTGRES_DB}
       RUN_MIGRATIONS: "true"
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in liftbig-app/.env, see .env.example}
+      # See liftbig_api above.
+      BUG_REPORTS_ENABLED: ${BUG_REPORTS_ENABLED:-true}
     ports:
       - "3000:3000"
     volumes:

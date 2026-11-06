@@ -4,7 +4,9 @@ Text for LB-32, to replace the body of `liftbig-api/src/public-pages/privacy-pag
 
 Version `2026-10-28` (T1 A3b): adds error and crash reports (Sentry). Status: **approved by Ivan Tachev, 2026-10-28**. A3c puts it on the page and bumps `PRIVACY_VERSION`; until then `/privacy` serves `2026-10-21`, whose text stays in this file's git history (notes repo). Changes: the "What's new" line, "What we store" › Error and crash reports, "On your device", the legal basis table, "Who sees your data", "Data outside the UK", "What we don't do", "How long we keep it", "Deleting your account". A privacy-only change, so existing users get the notice, not a checkbox (`consent-texts.md`); no consent text changes.
 
-`PRIVACY_VERSION = '2026-10-28'`
+Version `2026-11-06` (LB-38 B0): adds bug reports from the app. Status: **approved by Ivan Tachev, 2026-11-06** (GitHub wording re-approved the same day after O9). On the page (`privacy-page.ts`) with `PRIVACY_VERSION` bumped in LB-38 B10, 2026-11-06; the `2026-10-28` text stays in git history. Changes: the "What's new" line, "What we store" (new "Bug reports" paragraph), the legal basis table, "Who sees your data" (GitHub as a separate company that receives the report text, Google Cloud's row extended; GitHub wording revised 2026-11-06 after records O9: on a personal GitHub account no data processing agreement is available), "Data outside the UK", "How long we keep it", "Deleting your account". A privacy-only change, so existing users get the notice, not a checkbox (`consent-texts.md`); no consent text changes.
+
+`PRIVACY_VERSION = '2026-11-06'` (bumped in LB-38 B10)
 
 Headings below sit one level under the page's: `##` here is the page `<h1>`, `###` its `<h2>`.
 
@@ -12,9 +14,9 @@ Headings below sit one level under the page's: `##` here is the page `<h1>`, `##
 
 ## Privacy policy
 
-Version 2026-10-28 · Last updated 28 October 2026
+Version 2026-11-06 · Last updated 6 November 2026
 
-What's new in this version: the app and the LiftBig server now send error and crash reports to Sentry, so we can find and fix faults (see "Error and crash reports" below).
+What's new in this version: you can report a bug from Profile. Your report and screenshots go to the LiftBig team, and a copy of what you typed is kept on GitHub, where the team tracks bugs (see "Bug reports" below).
 
 This policy explains what the LiftBig app stores about you, why, on what legal basis, who handles it for us, how long we keep it, and your rights. LiftBig is for people aged 18 or over.
 
@@ -65,6 +67,12 @@ When the app crashes or the LiftBig server runs into an error, a report goes to 
 
 Reports never include your workouts, sets, notes or other training data, your email address, name or password, your sign-in tokens, or your IP address: the app and the server leave out what you send in a request and its sign-in and cookie headers, the server also removes IP addresses before a report leaves it, and Sentry is set not to store IP addresses.
 
+### Bug reports
+
+When you report a bug from Profile, we send what you typed ("What happened?" and, if you added it, "Steps to reproduce"), up to three screenshots you choose, and some details about your app and device: app version and build, platform, operating system version, device model, and your role. We store your report, and send a copy of it (without your account id, email, name or sign-in tokens) to the LiftBig team on GitHub, where our team tracks and fixes bugs. GitHub keeps that copy as a separate company under its own privacy statement (see "Who sees your data"), so please don't put anything in a report you wouldn't want kept there. Your screenshots are stored privately on our servers, not inside GitHub, and linked from the GitHub entry for the LiftBig team to view; nobody outside LiftBig can see them. We don't add anything from your device beyond what's listed here.
+
+You can ask us to delete a report and its screenshots at any time (see "Deleting your account" or email us); the GitHub entry can also be deleted on request, though it carries no information that identifies you.
+
 ### On your device
 
 The app keeps your sign-in token (in the phone's secure storage), your theme choice, a copy of the workouts and exercises you last opened so you can use them offline, and workout changes waiting to be sent. Waiting changes are removed once they're sent, or after 30 days; the offline copy after 30 days. The error reporting tool keeps its random id and any reports waiting to be sent. Uninstalling the app removes all of it. LiftBig uses no cookies, advertising IDs or trackers.
@@ -78,6 +86,7 @@ The app keeps your sign-in token (in the phone's secure storage), your theme cho
 | Let you and your coach work together | Name, email, coach link, invites, the workouts your coach assigns you | Contract, and your explicit consent for training data |
 | Keep accounts secure: wrong-password locks, signing out other devices, request logs | Sign-in security data, sessions, request logs | Legitimate interests: protecting your account and the service |
 | Find and fix crashes and errors | Error and crash reports | Legitimate interests: keeping LiftBig working for you. Reports leave out your training data, email, name and IP address |
+| Fix a bug you report | Your bug report, screenshots and device details | Contract: fixing a fault in the service you signed up for, and legitimate interests in finding it |
 | Keep a record of what you agreed to and chose | Acceptance and consent records | Legitimate interests: being able to show what you agreed to and chose, which the law expects of us for consent |
 | Use your videos to train and improve lift analysis (only once video features exist) | Videos you upload and what's measured from them | Your consent (`video_training`), off unless you turn it on |
 | Email you LiftBig news and offers | Email address, name | Your consent (`product_emails`), off unless you turn it on |
@@ -103,16 +112,17 @@ Change either at any time in **Profile → Privacy**; withdrawing is as easy as 
 
 - **Your coach**: while you are linked to a coach, they see your name, your email and the workouts they assign you, including how you logged them and your notes on them (and, once available, your videos of those workouts). They don't see your own workouts, lift records or program maxes.
 - **Service providers** that handle data for us, under data processing agreements that only let them use it to provide their service to us:
-  - **Google Cloud** (Cloud Run, Belgium) hosts the LiftBig server and its request logs.
+  - **Google Cloud** (Cloud Run, Belgium) hosts the LiftBig server and its request logs, and (London, UK) stores bug report screenshots privately.
   - **Neon** hosts the database where your data is stored (AWS London, UK).
   - **Resend** sends our emails: it receives your email address and the email we send you, and stores its records in the United States.
   - **Sentry** receives and stores the error and crash reports (EU data region, Frankfurt, Germany).
 - **Exercise videos**: some exercises show a video from **YouTube** or **Vimeo**. When you open such an exercise, the player loads from that service, which receives your IP address and device information and may store cookies under its own privacy policy. LiftBig doesn't send them anything about you.
+- **GitHub**: when you report a bug, a copy of what you typed and the app and device details is stored in a private GitHub repository that only the LiftBig team can see, as an entry the team works on. It never includes your account id, email, name, sign-in tokens or your screenshots. GitHub, Inc. handles it as a separate company under its own privacy statement, not as our service provider. We share it with GitHub because we have a legitimate interest in tracking and fixing the bugs you report.
 - **Others**: only if the law requires it, for example a court order.
 
 ### Data outside the UK
 
-Your data is stored in the UK (the Neon database is in London). Some of our providers process data outside the UK: Google Cloud runs the LiftBig server in the EU and Sentry stores error and crash reports in the EU (Germany), which the UK recognises as giving adequate protection. Resend stores its records in the United States, and Neon, Google and Sentry (a US company) may process data elsewhere to run their services; those transfers are covered by the safeguards in each provider's data processing agreement. Ask us for details.
+Your data is stored in the UK (the Neon database is in London). Some of our providers process data outside the UK: Google Cloud runs the LiftBig server in the EU and Sentry stores error and crash reports in the EU (Germany), which the UK recognises as giving adequate protection. Resend stores its records in the United States, and Neon, Google and Sentry (a US company) may process data elsewhere to run their services; those transfers are covered by the safeguards in each provider's data processing agreement. Bug report screenshots are stored in the UK (London); the GitHub entry for your report is stored by GitHub in the United States and other countries where it operates; GitHub is certified under the UK Extension to the EU–US Data Privacy Framework, which the UK recognises as giving adequate protection. Ask us for details.
 
 ### What we don't do
 
@@ -132,15 +142,16 @@ Your data is stored in the UK (the Neon database is in London). Some of our prov
 | Request logs | 30 days |
 | Error and crash reports | Deleted automatically within 90 days |
 | Database backups | Overwritten within 7 days |
+| Bug reports and screenshots | Screenshots deleted automatically within 90 days; your report until you delete your account, or 12 months, whichever is first |
 
 ### Deleting your account
 
 In the app, open **Profile → Delete account**. Without the app, use the [account deletion page](delete-account).
 
-- **Client**: your account and everything in it are deleted: workouts, sets, lift records, program enrollments, settings, email codes, sessions, acceptance and consent records, and pending invites to your email.
-- **Coach**: your account is anonymised: your email, name and password are removed and it can no longer sign in. Your own workouts, your invites, and your acceptance and consent records are deleted and your clients are unlinked from you. The exercises you created, the programs you wrote and the workouts you assigned stay in your clients' history, without your name or email.
+- **Client**: your account and everything in it are deleted: workouts, sets, lift records, program enrollments, settings, email codes, sessions, acceptance and consent records, pending invites to your email, and your bug reports and their screenshots.
+- **Coach**: your account is anonymised: your email, name and password are removed and it can no longer sign in. Your own workouts, your invites, your acceptance and consent records, and your bug reports and their screenshots are deleted and your clients are unlinked from you. The exercises you created, the programs you wrote and the workouts you assigned stay in your clients' history, without your name or email.
 
-Request logs, error and crash reports and backups aren't deleted with your account; they're deleted on the schedule in "How long we keep it".
+Request logs, error and crash reports and backups aren't deleted with your account; they're deleted on the schedule in "How long we keep it". A GitHub entry made from a bug report also isn't deleted with your account, because it carries no information that identifies you; you can ask us to delete one.
 
 ### Your rights
 

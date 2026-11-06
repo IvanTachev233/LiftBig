@@ -2,12 +2,18 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { User } from '../auth/user.entity';
+import { BugReportStorageModule } from '../bug-reports/storage/bug-report-storage.module';
 import { PoliciesModule } from '../policies/policies.module';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User]), AuthModule, PoliciesModule],
+  imports: [
+    TypeOrmModule.forFeature([User]),
+    AuthModule,
+    PoliciesModule,
+    BugReportStorageModule,
+  ],
   controllers: [UsersController],
   providers: [UsersService],
   exports: [UsersService],
