@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Logger } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { DataSource, IsNull, Repository } from 'typeorm';
@@ -71,16 +71,16 @@ describe('Exercise categories (e2e)', () => {
           | 'bodyPart'
           | 'category'
           | 'equipment'
-          | 'videoUrl'
-          | 'imageUrl'
+          | 'videoKey'
+          | 'imageKey'
         >,
       ) => [
         e.name,
         e.bodyPart,
         e.category,
         e.equipment,
-        e.videoUrl,
-        e.imageUrl,
+        e.videoKey,
+        e.imageKey,
       ];
       expect(globals.map(fields)).toEqual(
         [...SEED_EXERCISE_LIST]
@@ -144,29 +144,36 @@ describe('Exercise categories (e2e)', () => {
     });
   });
 
-  it('fills a missing video and image from the file and keeps ones already set', async () => {
+  // The shipped file has no media yet, so tests give entries some
+  const entry = (name: string) => {
+    const found = SEED_EXERCISE_LIST.find((e) => e.name === name);
+    if (!found) throw new Error(`${name} is not in exercises.json`);
+    return found;
+  };
+  const clearKeys = (...names: string[]) => {
+    for (const name of names) {
+      Object.assign(entry(name), { videoKey: null, imageKey: null });
+    }
+  };
+
+  it("keeps a global's video and image keys in step with the file, never a coach's (ADR 0026)", async () => {
     process.env.SEED_PROGRAMS = 'false';
-    // The shipped file has no media yet, so two entries get some for this test
-    const entry = (name: string) => {
-      const found = SEED_EXERCISE_LIST.find((e) => e.name === name);
-      if (!found) throw new Error(`${name} is not in exercises.json`);
-      return found;
-    };
-    const squat = entry('Back Squat');
-    const plank = entry('Plank');
-    const fileMedia = {
-      videoUrl: 'https://www.youtube.com/watch?v=abcdefghijk',
-      imageUrl: 'https://example.com/back-squat.jpg',
-    };
-    Object.assign(squat, fileMedia);
-    Object.assign(plank, fileMedia);
+    Object.assign(entry('Back Squat'), {
+      videoKey: 'exercises/back-squat-v1.mp4',
+      imageKey: 'exercises/back-squat-v1.webp',
+    });
+    Object.assign(entry('Plank'), {
+      videoKey: 'exercises/plank-v2.mp4',
+      imageKey: null,
+    });
     const app = await createE2eApp();
     try {
       const repo = app.get(DataSource).getRepository(Exercise);
-      const existing = await repo.save({
+      const plank = await repo.save({
         name: 'PLANK',
         createdById: null,
-        videoUrl: 'https://vimeo.com/123',
+        videoKey: 'exercises/plank-v1.mp4',
+        imageKey: 'exercises/plank-v1.jpg',
       });
       const coach = await registerAndLogin(app, 'COACH');
       const own = await repo.save({
@@ -181,19 +188,71 @@ describe('Exercise categories (e2e)', () => {
           name: 'Back Squat',
           createdById: IsNull(),
         }),
-      ).toMatchObject(fileMedia);
-      expect(await repo.findOneByOrFail({ id: existing.id })).toMatchObject({
-        videoUrl: 'https://vimeo.com/123',
-        imageUrl: fileMedia.imageUrl,
+      ).toMatchObject({
+        videoKey: 'exercises/back-squat-v1.mp4',
+        imageKey: 'exercises/back-squat-v1.webp',
+      });
+      // A changed key replaces the stored one, a dropped one is cleared
+      expect(await repo.findOneByOrFail({ id: plank.id })).toMatchObject({
+        videoKey: 'exercises/plank-v2.mp4',
+        imageKey: null,
       });
       expect(await repo.findOneByOrFail({ id: own.id })).toMatchObject({
-        videoUrl: null,
-        imageUrl: null,
+        videoKey: null,
+        imageKey: null,
       });
       expect((await app.get(ProgramSeeder).seed()).tagged).toBe(0);
     } finally {
-      Object.assign(squat, { videoUrl: null, imageUrl: null });
-      Object.assign(plank, { videoUrl: null, imageUrl: null });
+      clearKeys('Back Squat', 'Plank');
+      await app.close();
+    }
+  });
+
+  it('sends a keyed demo as <base>/<key>, and without EXERCISE_MEDIA_BASE_URL no media and one warning', async () => {
+    const baseSetting = process.env.EXERCISE_MEDIA_BASE_URL;
+    delete process.env.EXERCISE_MEDIA_BASE_URL;
+    delete process.env.SEED_PROGRAMS;
+    Object.assign(entry('Back Squat'), {
+      videoKey: 'exercises/back-squat-v1.mp4',
+      imageKey: 'exercises/back-squat-v1.webp',
+    });
+    const warn = jest.spyOn(Logger.prototype, 'warn');
+    const app = await createE2eApp();
+    try {
+      expect(
+        warn.mock.calls.filter(([message]) =>
+          String(message).includes('EXERCISE_MEDIA_BASE_URL'),
+        ),
+      ).toHaveLength(1);
+      const user = await registerAndLogin(app);
+      const squat = async () => {
+        const res = await request(app.getHttpServer())
+          .get('/workouts/exercises')
+          .set('Authorization', `Bearer ${user.token}`)
+          .expect(200);
+        return (res.body as Record<string, unknown>[]).find(
+          (e) => e.name === 'Back Squat' && e.createdById === null,
+        );
+      };
+
+      const without = await squat();
+      expect(without).toMatchObject({ videoUrl: null, imageUrl: null });
+      expect(without).not.toHaveProperty('videoKey');
+      expect(without).not.toHaveProperty('imageKey');
+
+      process.env.EXERCISE_MEDIA_BASE_URL =
+        'https://storage.googleapis.com/liftbig-e2e-media/';
+      expect(await squat()).toMatchObject({
+        videoUrl:
+          'https://storage.googleapis.com/liftbig-e2e-media/exercises/back-squat-v1.mp4',
+        imageUrl:
+          'https://storage.googleapis.com/liftbig-e2e-media/exercises/back-squat-v1.webp',
+      });
+    } finally {
+      if (baseSetting === undefined) delete process.env.EXERCISE_MEDIA_BASE_URL;
+      else process.env.EXERCISE_MEDIA_BASE_URL = baseSetting;
+      warn.mockRestore();
+      clearKeys('Back Squat');
       await app.close();
     }
   });

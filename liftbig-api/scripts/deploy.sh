@@ -17,7 +17,7 @@ SECRETS=(DATABASE_URL JWT_SECRET MAIL_PROVIDER_KEY GITHUB_FEEDBACK_TOKEN)
 # Must be set; CORS_ORIGINS may be set to an empty string for "none".
 REQUIRED=(GCP_PROJECT_ID MAIL_FROM CORS_ORIGINS PRIVACY_OPERATOR_NAME PRIVACY_CONTACT_EMAIL)
 # May be unset or empty: the deploy then removes it from the service.
-OPTIONAL=(SENTRY_DSN BUG_REPORT_BUCKET BUG_REPORTS_ENABLED GITHUB_FEEDBACK_REPO)
+OPTIONAL=(SENTRY_DSN BUG_REPORT_BUCKET BUG_REPORTS_ENABLED GITHUB_FEEDBACK_REPO EXERCISE_MEDIA_BASE_URL)
 # Separates env vars on the gcloud command line (`gcloud topic escaping`), so
 # values may contain commas, e.g. CORS_ORIGINS.
 D=';;'
@@ -62,6 +62,11 @@ Env vars (optional):
   GITHUB_FEEDBACK_REPO   "owner/repo" bug reports file issues in, e.g.
                          IvanTachev233/LiftBig-Feedback; unset or empty
                          removes it
+  EXERCISE_MEDIA_BASE_URL
+                         https URL of the public demo media bucket, e.g.
+                         https://storage.googleapis.com/<project>-media
+                         (ADR 0026); unset or empty removes it, so exercise
+                         demos aren't shown
 
 Secrets (Secret Manager, latest version): DATABASE_URL, JWT_SECRET,
 MAIL_PROVIDER_KEY, GITHUB_FEEDBACK_TOKEN. The runtime service account reads
@@ -234,6 +239,12 @@ GITHUB_FEEDBACK_REPO=${GITHUB_FEEDBACK_REPO:-}
   die "BUG_REPORTS_ENABLED must be false or empty (unset means on): $BUG_REPORTS_ENABLED"
 [ -z "$GITHUB_FEEDBACK_REPO" ] || [[ "$GITHUB_FEEDBACK_REPO" =~ ^[^/[:space:]]+/[^/[:space:]]+$ ]] ||
   die "GITHUB_FEEDBACK_REPO must be owner/repo or empty: $GITHUB_FEEDBACK_REPO"
+# Exercise demo media (ADR 0026): unset means demos aren't shown. No ';' (the
+# gcloud separator) and no spaces.
+EXERCISE_MEDIA_BASE_URL=${EXERCISE_MEDIA_BASE_URL:-}
+media_url_re='^https://[^/;[:space:]]+(/[^;[:space:]]*)?$'
+[ -z "$EXERCISE_MEDIA_BASE_URL" ] || [[ "$EXERCISE_MEDIA_BASE_URL" =~ $media_url_re ]] ||
+  die "EXERCISE_MEDIA_BASE_URL must be an https URL or empty: $EXERCISE_MEDIA_BASE_URL"
 # Error reports name the deployed commit.
 SENTRY_RELEASE=${SENTRY_RELEASE:-${GITHUB_SHA:-$(git -C "$API_DIR" rev-parse HEAD 2>/dev/null || true)}}
 [[ "$SENTRY_RELEASE" =~ ^[A-Za-z0-9._-]*$ ]] ||
@@ -274,6 +285,12 @@ if [ -n "$GITHUB_FEEDBACK_REPO" ]; then
   env_vars+="${D}GITHUB_FEEDBACK_REPO=$GITHUB_FEEDBACK_REPO"
 else
   removed_vars+=",GITHUB_FEEDBACK_REPO"
+fi
+# Without a base URL, demo media keys give no media.
+if [ -n "$EXERCISE_MEDIA_BASE_URL" ]; then
+  env_vars+="${D}EXERCISE_MEDIA_BASE_URL=$EXERCISE_MEDIA_BASE_URL"
+else
+  removed_vars+=",EXERCISE_MEDIA_BASE_URL"
 fi
 # A new revision gets traffic only once /health answers 2xx (the database is
 # reachable). Migrations run before the port opens and Neon may be waking up,

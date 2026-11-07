@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { Exercise } from '../workouts/entities/exercise.entity';
+import { exerciseMediaBaseUrl } from '../workouts/exercise-media';
 import {
   ProgramTemplate,
   ProgramTemplateStatus,
@@ -20,14 +21,15 @@ export interface SeedResult {
   sports: number;
   requiredLifts: number;
   programs: number;
-  // Category or equipment values filled in on globals
+  // Category or equipment values filled in, and media keys changed, on globals
   tagged: number;
 }
 
 // Adds the global exercises in seed/exercises.json, the sports, their required
-// lifts and one published sample program per sport, and fills in the category
-// and equipment of global exercises that have none. Existing rows and values are
-// kept, so it can run on every start. Skipped when SEED_PROGRAMS=false.
+// lifts and one published sample program per sport, fills in the category and
+// equipment of global exercises that have none, and sets their demo media keys
+// to what the file gives (ADR 0026). Existing rows and other values are kept,
+// so it can run on every start. Skipped when SEED_PROGRAMS=false.
 @Injectable()
 export class ProgramSeeder implements OnApplicationBootstrap {
   private readonly logger = new Logger(ProgramSeeder.name);
@@ -70,7 +72,19 @@ export class ProgramSeeder implements OnApplicationBootstrap {
         `Seeded ${created.sports} sports, ${created.requiredLifts} required lifts, ${created.exercises} exercises, ${created.programs} programs, ${created.tagged} exercise tags`,
       );
     }
+    this.warnIfMediaHidden();
     return created;
+  }
+
+  // Keys are stored either way; without a base URL the API sends no media for
+  // them, which a deploy should say once rather than fail on.
+  private warnIfMediaHidden(): void {
+    if (exerciseMediaBaseUrl()) return;
+    const keyed = SEED_EXERCISE_LIST.filter((e) => e.videoKey || e.imageKey);
+    if (keyed.length === 0) return;
+    this.logger.warn(
+      `${keyed.length} global exercises have demo media keys, but EXERCISE_MEDIA_BASE_URL is not set (or not an https URL), so no demo media is shown`,
+    );
   }
 
   // Global exercise id by seed name. An existing global with the same name
@@ -117,21 +131,17 @@ export class ProgramSeeder implements OnApplicationBootstrap {
     return ids;
   }
 
-  // Sets a global's category, equipment, video and image where they are still
-  // null, matching names in any case. Coach-made exercises are left alone, and
-  // so is a value the file leaves null.
+  // Sets a global's category and equipment where they are still null, and its
+  // video and image keys to the file's values (a changed key replaces the old
+  // one, a key the file drops is cleared: only the seeder writes them),
+  // matching names in any case. Coach-made exercises are left alone.
   private async tagGlobals(
     manager: EntityManager,
     created: SeedResult,
   ): Promise<void> {
     for (const exercise of SEED_EXERCISE_LIST) {
       const { name } = exercise;
-      for (const column of [
-        'category',
-        'equipment',
-        'videoUrl',
-        'imageUrl',
-      ] as const) {
+      for (const column of ['category', 'equipment'] as const) {
         const value = exercise[column];
         if (value === null) continue;
         const result = await manager
@@ -141,6 +151,19 @@ export class ProgramSeeder implements OnApplicationBootstrap {
           .where('LOWER(name) = LOWER(:name)', { name })
           .andWhere('"createdById" IS NULL')
           .andWhere(`"${column}" IS NULL`)
+          .execute();
+        created.tagged += result.affected ?? 0;
+      }
+      for (const column of ['videoKey', 'imageKey'] as const) {
+        const result = await manager
+          .createQueryBuilder()
+          .update(Exercise)
+          .set({ [column]: exercise[column] })
+          .where('LOWER(name) = LOWER(:name)', { name })
+          .andWhere('"createdById" IS NULL')
+          .andWhere(`"${column}" IS DISTINCT FROM CAST(:value AS varchar)`, {
+            value: exercise[column],
+          })
           .execute();
         created.tagged += result.affected ?? 0;
       }

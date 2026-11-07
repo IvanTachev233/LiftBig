@@ -11,7 +11,7 @@
     {"name": "Power Jerk", "bodyPart": "FULL_BODY", "category": "Olympic", "equipment": "Barbell"},
     {"name": "Power Clean and Jerk", "bodyPart": "FULL_BODY", "category": "Olympic", "equipment": "Barbell"},
     {"name": "Power Clean and Power Jerk", "bodyPart": "FULL_BODY", "category": "Olympic", "equipment": "Barbell"},
-    {"name": "Snatch", "bodyPart": "FULL_BODY", "category": "Olympic", "equipment": "Barbell"},
+    {"name": "Snatch", "bodyPart": "FULL_BODY", "category": "Olympic", "equipment": "Barbell", "videoKey": "exercises/snatch-v1.mp4"},
     {"name": "Power Snatch", "bodyPart": "FULL_BODY", "category": "Olympic", "equipment": "Barbell"},
     {"name": "Clean Pull", "bodyPart": "LEGS", "category": "Olympic", "equipment": "Barbell"},
     {"name": "Snatch Pull", "bodyPart": "LEGS", "category": "Olympic", "equipment": "Barbell"},

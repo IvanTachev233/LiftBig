@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # One-time Google Cloud setup for scripts/deploy.sh: login, APIs, the IAM roles
 # Cloud Build needs for source deploys, the service's runtime service account,
-# the bug-report screenshot bucket, and the Secret Manager secrets it reads
+# the bug-report screenshot bucket, the public exercise demo media bucket, and
+# the Secret Manager secrets it reads
 # (created here if missing, values typed hidden and never printed;
 # GITHUB_FEEDBACK_TOKEN is created with no value — add it yourself, see the
-# README). Safe to run again; existing secrets and the bucket are left as
-# they are.
+# README). Safe to run again; existing secrets and buckets are left as they
+# are.
 
 set -euo pipefail
 
@@ -34,6 +35,10 @@ Options:
                     created when it is that default and missing)
   --bucket NAME     Bug-report screenshot bucket (env BUG_REPORT_BUCKET,
                     default <project>-bug-reports; created when missing)
+  --media-bucket NAME
+                    Public exercise demo media bucket (env
+                    EXERCISE_MEDIA_BUCKET, default <project>-media; created
+                    when missing; ADR 0026)
   -h, --help        Show this help
 EOF
 }
@@ -45,13 +50,14 @@ die() {
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --project | --service | --service-account | --bucket)
+    --project | --service | --service-account | --bucket | --media-bucket)
       [ $# -ge 2 ] || die "$1 needs a value"
       case "$1" in
         --project) GCP_PROJECT_ID=$2 ;;
         --service) SERVICE=$2 ;;
         --service-account) RUNTIME_SA=$2 ;;
         --bucket) BUG_REPORT_BUCKET=$2 ;;
+        --media-bucket) EXERCISE_MEDIA_BUCKET=$2 ;;
       esac
       shift
       ;;
@@ -59,6 +65,7 @@ while [ $# -gt 0 ]; do
     --service=*) SERVICE=${1#*=} ;;
     --service-account=*) RUNTIME_SA=${1#*=} ;;
     --bucket=*) BUG_REPORT_BUCKET=${1#*=} ;;
+    --media-bucket=*) EXERCISE_MEDIA_BUCKET=${1#*=} ;;
     -h | --help)
       usage
       exit 0
@@ -160,6 +167,26 @@ grant_bucket_access() {
 }
 grant_bucket_access
 
+# Exercise demo media (ADR 0026): a public-read bucket in London for demo
+# videos and images only, never private uploads. allUsers gets
+# roles/storage.legacyObjectReader (storage.objects.get only), so files can be
+# read by URL but the bucket can't be listed. Only the project owner uploads;
+# the API never touches it.
+default_media_bucket="${GCP_PROJECT_ID}-media"
+media_bucket=${EXERCISE_MEDIA_BUCKET:-$default_media_bucket}
+if gcloud storage buckets describe "gs://$media_bucket" --project="$GCP_PROJECT_ID" \
+  >/dev/null 2>&1; then
+  echo "Bucket gs://$media_bucket exists; left unchanged."
+else
+  echo "Creating the public demo media bucket gs://$media_bucket ($BUCKET_LOCATION)..."
+  gcloud storage buckets create "gs://$media_bucket" --project="$GCP_PROJECT_ID" \
+    --location="$BUCKET_LOCATION" --uniform-bucket-level-access \
+    --no-public-access-prevention >/dev/null
+fi
+gcloud storage buckets add-iam-policy-binding "gs://$media_bucket" \
+  --member=allUsers --role=roles/storage.legacyObjectReader >/dev/null ||
+  die "public read on gs://$media_bucket failed; public access prevention may be enforced on the bucket or by an organization policy"
+
 read_secret() {
   local name=$1 value
   while true; do
@@ -225,4 +252,6 @@ done
 echo
 echo "Done. $runtime_sa can read ${SECRETS[*]} ${EMPTY_SECRETS[*]} and has"
 echo "roles/storage.objectAdmin on gs://$bucket only."
+echo "gs://$media_bucket is public-read (objects only, no listing). Set the"
+echo "Actions variable EXERCISE_MEDIA_BASE_URL=https://storage.googleapis.com/$media_bucket"
 echo "Deploy with: GCP_PROJECT_ID=$GCP_PROJECT_ID scripts/deploy.sh"
