@@ -5,34 +5,6 @@ import exercisesFile from './exercises.json';
 import { SAMPLE_PROGRAMS, SEED_SPORTS } from './seed-data';
 import { parseSeedExercises, SEED_EXERCISE_LIST } from './seed-exercises';
 
-// The names migration 0001 seeded; the Baseline still inserts them.
-const BASELINE_NAMES = [
-  'Clean',
-  'Jerk',
-  'Clean and Jerk',
-  'Power Clean',
-  'Power Jerk',
-  'Power Clean and Jerk',
-  'Power Clean and Power Jerk',
-  'Snatch',
-  'Power Snatch',
-  'Clean Pull',
-  'Snatch Pull',
-  'Back Squat',
-  'Front Squat',
-];
-
-// Seeded with no category: the picker lists them under "Other" (A6f).
-const OTHER_NAMES = [
-  'Hip Thrust',
-  'Back Extension',
-  'Hanging Leg Raise',
-  'Plank',
-  'Barbell Curl',
-  'Triceps Pushdown',
-  "Farmer's Carry",
-];
-
 const valid = {
   name: 'Back Squat',
   bodyPart: 'LEGS',
@@ -60,14 +32,13 @@ describe('seed exercise file', () => {
   it('loads, with each name once whatever its case', () => {
     const lower = SEED_EXERCISE_LIST.map((e) => e.name.toLowerCase());
     expect(new Set(lower).size).toBe(lower.length);
-    expect(SEED_EXERCISE_LIST.length).toBe(60);
+    expect(SEED_EXERCISE_LIST.length).toBe(222);
   });
 
-  it('has every exercise the sports, sample programs and Baseline use', () => {
+  it('has every exercise the sports and sample programs use', () => {
     const needed = [
       ...SEED_SPORTS.flatMap((s) => s.lifts.map(([, name]) => name)),
       ...programExerciseNames(),
-      ...BASELINE_NAMES,
     ];
     for (const name of needed)
       expect([name, byName.has(name)]).toEqual([name, true]);
@@ -90,7 +61,7 @@ describe('seed exercise file', () => {
     });
   });
 
-  it('adds the approved exercises, the accessories with no category', () => {
+  it('adds the approved exercises', () => {
     expect(byName.get('Romanian Deadlift')).toEqual({
       name: 'Romanian Deadlift',
       bodyPart: BodyPart.LEGS,
@@ -99,14 +70,6 @@ describe('seed exercise file', () => {
       ...noMedia,
     });
     expect(byName.get('Lat Pulldown')).toMatchObject({ equipment: 'Cable' });
-    for (const name of OTHER_NAMES) {
-      expect([name, byName.get(name)?.category]).toEqual([name, null]);
-      expect(byName.get(name)?.equipment).toEqual(expect.any(String));
-    }
-    const uncategorised = SEED_EXERCISE_LIST.filter((e) => e.category === null);
-    expect(uncategorised.map((e) => e.name).sort()).toEqual(
-      [...OTHER_NAMES].sort(),
-    );
   });
 
   it('offers the editor the same body parts and categories the code accepts', () => {
