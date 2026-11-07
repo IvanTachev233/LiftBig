@@ -56,6 +56,7 @@ Other scripts: `npm run start` (no watch), `npm run start:debug`, `npm run build
 | `SENTRY_RELEASE` | unset | Release named in error reports; `deploy.sh` sets the git commit |
 | `BUG_REPORTS_ENABLED` | unset (on) | `false` turns `POST /bug-reports` off: it answers 503 and stores nothing. Unset means on |
 | `BUG_REPORT_BUCKET` | unset | Cloud Storage bucket bug-report screenshots upload to (`scripts/gcp-setup.sh` creates it, `europe-west2`). Unset: screenshots aren't stored (local runs, CI, tests), and the GitHub issue says so |
+| `EXERCISE_MEDIA_BASE_URL` | unset | `https` URL of the public demo media bucket, e.g. `https://storage.googleapis.com/liftbigapi-media` (ADR 0026). The API sends a global exercise's `videoKey` / `imageKey` as `<this URL>/<key>` in `videoUrl` / `imageUrl`. Unset (or not `https`): keys give no media, and each start logs one warning if the exercise file has keys |
 | `GITHUB_FEEDBACK_TOKEN` | unset (Secret Manager) | Fine-grained GitHub token, Issues read/write on one repository only. Unset: the issue's GitHub status is `disabled` and no GitHub call is made |
 | `GITHUB_FEEDBACK_REPO` | unset | `owner/repo` bug reports file an issue in, e.g. `IvanTachev233/LiftBig-Feedback` |
 
@@ -83,10 +84,38 @@ The global exercises, which everyone sees, are listed in [`src/programs/seed/exe
 - `bodyPart`: `CHEST`, `BACK`, `LEGS`, `SHOULDERS`, `ARMS`, `CORE`, `FULL_BODY` or `OTHER`.
 - `category`: `Olympic`, `Squat`, `Press`, `Pull`, or `null` to list it under "Other" in the picker.
 - `equipment`: free text shown in the picker row (`Barbell`, `Dumbbell`, `Kettlebell`, `Machine`, `Cable`, `Bodyweight`), or `null`.
-- `videoUrl` (optional): an `https` demo video. The exercise detail screen embeds YouTube (`watch?v=`, `youtu.be/`, `shorts/`, `embed/`) and Vimeo links, plays `.mp4`, `.webm` and `.mov` files, and shows anything else as a link.
-- `imageUrl` (optional): an `https` image, shown as the picker thumbnail. Host your own copies (where is still to be decided) rather than linking to another site's files.
+- `videoKey` (optional): the demo video's object key in the media bucket, e.g. `exercises/snatch-v1.mp4` (`.mp4` or `.webm`). The exercise detail screen plays it.
+- `imageKey` (optional): the picker thumbnail's key, e.g. `exercises/snatch-v1.webp` (`.jpg`, `.png` or `.webp`).
 
-VS Code checks the file against `exercises.schema.json` as you type. `npm test` checks it too: a typo, an unknown field or a duplicate name (ignoring letter case) fails with the entry's index and name. On its next start every environment adds the new rows. An exercise that already exists as a global under the same name in any letter case is kept as it is, apart from filling in a missing category, equipment, video or image. A URL already in the database is never overwritten, so to change one you need a migration. Removing a line or changing a body part does not change rows that already exist; that needs a migration.
+Keys are lower-case paths in the bucket (letters, digits, `-`, `_`, `.`, `/`), never URLs: the API adds `EXERCISE_MEDIA_BASE_URL`, so staging and production can use different buckets.
+
+VS Code checks the file against `exercises.schema.json` as you type. `npm test` checks it too: a typo, an unknown field or a duplicate name (ignoring letter case) fails with the entry's index and name. On its next start every environment adds the new rows. An exercise that already exists as a global under the same name in any letter case is kept as it is, apart from filling in a missing category or equipment. Its video and image keys always follow the file: a changed key replaces the stored one and a removed key clears it (only the seeder writes them). Removing a line or changing a body part does not change rows that already exist; that needs a migration.
+
+#### Adding a demo video or image
+
+The files live in the public demo media bucket (`scripts/gcp-setup.sh` creates `<project-id>-media`; ADR 0026). Anyone with a file's URL can download it, so put only demos there.
+
+1. Encode the video as H.264 MP4, at most 720p, no audio, about 10 MB (20 MB at most, 60 s at most), with `faststart` so playback starts before the whole file arrives:
+
+   ```bash
+   ffmpeg -i snatch.mov -an -c:v libx264 -profile:v high -pix_fmt yuv420p \
+     -vf "scale='min(1280,iw)':-2" -r 30 -crf 24 -movflags +faststart snatch-v1.mp4
+   ```
+
+   Thumbnails: WebP or JPEG, 320 px wide, about 50 KB.
+2. Upload it under a new versioned key (never reuse one: phones cache each file for a year):
+
+   ```bash
+   gcloud storage cp snatch-v1.mp4 gs://liftbigapi-media/exercises/snatch-v1.mp4 \
+     --content-type=video/mp4 --cache-control="public, max-age=31536000, immutable"
+   gcloud storage cp snatch-v1.webp gs://liftbigapi-media/exercises/snatch-v1.webp \
+     --content-type=image/webp --cache-control="public, max-age=31536000, immutable"
+   ```
+
+   Upload to the staging bucket too once it exists.
+3. Add the keys to the exercise's line, e.g. `"videoKey": "exercises/snatch-v1.mp4", "imageKey": "exercises/snatch-v1.webp"`, and deploy.
+
+To replace a demo, upload `snatch-v2.mp4`, change the key, deploy, then delete `v1`. Locally, set `EXERCISE_MEDIA_BASE_URL` in `.env` to see the bucket's files.
 
 `npm run test:e2e` needs the postgres container (`docker compose up -d postgres` from the repo root). It creates a `liftbig_e2e` database on that server if it is missing and, for each test app, drops its schema and runs the migrations on it (never `synchronize`, as in production), so `liftbig_db` is never touched. Two runs at once on the same server break each other, since both drop `liftbig_e2e`; point one at another Postgres with `DB_HOST`/`DB_PORT` (and its `DB_USERNAME`/`DB_PASSWORD`) in the shell. It refuses to run while `DATABASE_URL` is set, and like the API it needs `JWT_SECRET` and the `DB_*` values from `.env` (CI sets its own throwaway ones). Unit tests need none of them.
 
@@ -139,9 +168,10 @@ Run it in a terminal with an account that owns the project. It:
 - creates the secrets `DATABASE_URL`, `JWT_SECRET` and `MAIL_PROVIDER_KEY` in Secret Manager if they are missing (values are typed hidden; a blank `JWT_SECRET` generates a random one),
 - grants the runtime service account `roles/secretmanager.secretAccessor` on each of them, and nothing else,
 - creates the bug-report screenshot bucket (`--bucket NAME`, env `BUG_REPORT_BUCKET`, default `<project-id>-bug-reports`) if it is missing, in `europe-west2` (London), with uniform bucket-level access, public access prevention and a lifecycle rule deleting objects 90 days after upload, and grants the runtime service account `roles/storage.objectAdmin` on that bucket only (not the project), and
+- creates the public exercise demo media bucket (`--media-bucket NAME`, env `EXERCISE_MEDIA_BUCKET`, default `<project-id>-media`; ADR 0026) if it is missing, in `europe-west2`, with uniform bucket-level access and public access prevention off, and grants `allUsers` `roles/storage.legacyObjectReader` on it (files readable by URL, the bucket not listable); the API never touches it,
 - creates the `GITHUB_FEEDBACK_TOKEN` secret **slot** if it is missing — with no value — and grants the runtime service account `roles/secretmanager.secretAccessor` on it; you add the value yourself (below) before the first deploy that needs it.
 
-It is safe to run again; existing secrets and the bucket are left as they are. To change a secret's value, add a version and redeploy (the service reads `latest` when a revision is created):
+It is safe to run again; existing secrets and buckets are left as they are. To change a secret's value, add a version and redeploy (the service reads `latest` when a revision is created):
 
 ```bash
 read -r -s -p 'New value: ' v && printf '%s' "$v" |
@@ -172,7 +202,7 @@ Do this — the whole numbered list above, including this step — before the br
 
 ### Deploy
 
-The script reads `GCP_PROJECT_ID`, `MAIL_FROM`, `CORS_ORIGINS`, `PRIVACY_OPERATOR_NAME`, `PRIVACY_CONTACT_EMAIL` and, when present, `SENTRY_DSN`, `BUG_REPORT_BUCKET`, `BUG_REPORTS_ENABLED` and `GITHUB_FEEDBACK_REPO` from the API's `.env` (`--env-file PATH` for another file); it reads only those keys, never the file's secrets. Values already in the environment win:
+The script reads `GCP_PROJECT_ID`, `MAIL_FROM`, `CORS_ORIGINS`, `PRIVACY_OPERATOR_NAME`, `PRIVACY_CONTACT_EMAIL` and, when present, `SENTRY_DSN`, `BUG_REPORT_BUCKET`, `BUG_REPORTS_ENABLED`, `GITHUB_FEEDBACK_REPO` and `EXERCISE_MEDIA_BASE_URL` from the API's `.env` (`--env-file PATH` for another file); it reads only those keys, never the file's secrets. Values already in the environment win:
 
 ```bash
 # .env (gitignored)
@@ -205,6 +235,7 @@ In a terminal, the script asks for any value still not set, shows the command an
 | `BUG_REPORT_BUCKET` | env var | optional | Screenshot bucket; unset or empty removes it, so screenshots aren't stored |
 | `BUG_REPORTS_ENABLED` | env var | optional, `false` or unset | `false` turns `POST /bug-reports` off; unset or empty removes it, which means on |
 | `GITHUB_FEEDBACK_REPO` | env var | optional | `owner/repo` bug reports file an issue in; unset or empty removes it |
+| `EXERCISE_MEDIA_BASE_URL` | env var | optional | Demo media bucket URL (`https://storage.googleapis.com/<project-id>-media`); unset or empty removes it, so exercise demos aren't shown. The pipeline takes the Actions variable of the same name |
 | `NODE_ENV`, `TYPEORM_SYNC`, `RUN_MIGRATIONS`, `BACKFILL_PBS` | env var | `production`, `false`, `true`, `false` | Set by the script |
 | `DATABASE_URL` | secret | Secret Manager `DATABASE_URL:latest` | Neon connection URL |
 | `JWT_SECRET` | secret | Secret Manager `JWT_SECRET:latest` | Signs access tokens |

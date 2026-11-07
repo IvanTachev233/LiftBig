@@ -3,6 +3,7 @@ import {
   ExerciseCategory,
 } from '../../common/exercise-categories';
 import { BodyPart } from '../../workouts/entities/exercise.entity';
+import { MediaKind, mediaKeyProblem } from '../../workouts/exercise-media';
 import exercisesFile from './exercises.json';
 
 export interface SeedExercise {
@@ -11,28 +12,21 @@ export interface SeedExercise {
   // null: listed under "Other" in the picker
   category: ExerciseCategory | null;
   equipment: string | null;
-  // https only; the app embeds YouTube and Vimeo links and plays .mp4,
-  // .webm and .mov files. null when the file leaves it out
-  videoUrl: string | null;
-  // https only; the picker's thumbnail
-  imageUrl: string | null;
+  // Object keys in the public demo media bucket (ADR 0026), e.g.
+  // exercises/snatch-v1.mp4; the API sends them as URLs. null when the file
+  // leaves them out. The seeder keeps a global's keys equal to these.
+  videoKey: string | null;
+  // The picker's thumbnail, e.g. exercises/snatch-v1.webp
+  imageKey: string | null;
 }
 
 const REQUIRED = ['name', 'bodyPart', 'category', 'equipment'];
-const OPTIONAL = ['videoUrl', 'imageUrl'];
-const FIELDS = [...REQUIRED, ...OPTIONAL];
+const OPTIONAL: Record<string, MediaKind> = {
+  videoKey: 'video',
+  imageKey: 'image',
+};
+const FIELDS = [...REQUIRED, ...Object.keys(OPTIONAL)];
 
-// Same rule as a coach's videoUrl: an absolute https URL with a host
-function isHttpsUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return (
-      url.protocol === 'https:' && url.hostname !== '' && value.trim() === value
-    );
-  } catch {
-    return false;
-  }
-}
 const BODY_PARTS = Object.keys(BodyPart) as (keyof typeof BodyPart)[];
 
 /**
@@ -67,12 +61,11 @@ export function parseSeedExercises(file: unknown): SeedExercise[] {
     for (const key of REQUIRED) {
       if (!(key in entry)) throw fail(`missing field "${key}"`);
     }
-    for (const key of OPTIONAL) {
+    for (const [key, kind] of Object.entries(OPTIONAL)) {
       const value = entry[key];
       if (value !== undefined && value !== null) {
-        if (typeof value !== 'string' || !isHttpsUrl(value)) {
-          throw fail(`"${key}" must be an https URL or null`);
-        }
+        const problem = mediaKeyProblem(value, kind);
+        if (problem) throw fail(`"${key}" ${problem}`);
       }
     }
 
@@ -109,8 +102,8 @@ export function parseSeedExercises(file: unknown): SeedExercise[] {
       bodyPart: BodyPart[bodyPart as keyof typeof BodyPart],
       category: category as ExerciseCategory | null,
       equipment,
-      videoUrl: (entry.videoUrl as string | undefined) ?? null,
-      imageUrl: (entry.imageUrl as string | undefined) ?? null,
+      videoKey: (entry.videoKey as string | undefined) ?? null,
+      imageKey: (entry.imageKey as string | undefined) ?? null,
     };
   });
 }

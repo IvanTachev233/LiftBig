@@ -41,7 +41,7 @@ const valid = {
 };
 
 // Shipped entries carry no video or image yet
-const noMedia = { videoUrl: null, imageUrl: null };
+const noMedia = { videoKey: null, imageKey: null };
 
 const programExerciseNames = () => {
   const names = new Set<string>();
@@ -114,11 +114,38 @@ describe('seed exercise file', () => {
     expect(entry.bodyPart.enum).toEqual(Object.keys(BodyPart));
     expect(entry.category.enum).toEqual([...EXERCISE_CATEGORIES, null]);
     expect(Object.keys(entry)).toEqual(
-      expect.arrayContaining(['videoUrl', 'imageUrl']),
+      expect.arrayContaining(['videoKey', 'imageKey']),
     );
+    expect(Object.keys(entry)).not.toContain('videoUrl');
     expect(schema.properties.exercises.items.required).not.toContain(
-      'videoUrl',
+      'videoKey',
     );
+  });
+
+  it('gives the editor the same key rules as the code (ADR 0026)', () => {
+    const entry = schema.properties.exercises.items.properties;
+    const video = new RegExp(entry.videoKey.pattern);
+    const image = new RegExp(entry.imageKey.pattern);
+    for (const key of ['exercises/snatch-v1.mp4', 'snatch.webm']) {
+      expect(video.test(key)).toBe(true);
+    }
+    for (const key of ['exercises/snatch-v1.jpg', 'a/b/snatch.png', 'x.webp']) {
+      expect(image.test(key)).toBe(true);
+    }
+    for (const key of [
+      '/exercises/snatch-v1.mp4',
+      'exercises/../snatch-v1.mp4',
+      'https://storage.googleapis.com/b/snatch-v1.mp4',
+      'exercises/snatch-v1.mov',
+      'exercises/snatch-v1.jpg',
+      'exercises//snatch-v1.mp4',
+      'exercises/Snatch-v1.mp4',
+      'exercises/snatch v1.mp4',
+    ]) {
+      expect(video.test(key)).toBe(false);
+    }
+    expect(image.test('exercises/snatch-v1.gif')).toBe(false);
+    expect(image.test('exercises/snatch-v1.mp4')).toBe(false);
   });
 
   it('points the shipped file at its schema', () => {
@@ -136,18 +163,17 @@ describe('parseSeedExercises', () => {
     ]);
   });
 
-  it('reads an optional https videoUrl and imageUrl', () => {
+  it('reads an optional videoKey and imageKey (ADR 0026)', () => {
     const media = {
-      videoUrl: 'https://www.youtube.com/watch?v=abcdefghijk',
-      imageUrl:
-        'https://storage.googleapis.com/liftbig-exercises/back-squat.jpg',
+      videoKey: 'exercises/back-squat-v1.mp4',
+      imageKey: 'exercises/back-squat-v1.webp',
     };
     expect(
       parseSeedExercises({ exercises: [{ ...valid, ...media }] })[0],
     ).toMatchObject(media);
     expect(
       parseSeedExercises({
-        exercises: [{ ...valid, videoUrl: null, imageUrl: null }],
+        exercises: [{ ...valid, videoKey: null, imageKey: null }],
       })[0],
     ).toMatchObject(noMedia);
   });
@@ -183,21 +209,39 @@ describe('parseSeedExercises', () => {
     ],
     ['a misspelt field', { ...valid, bodypart: 'LEGS' }, /bodypart/],
     [
-      'an http video',
-      { ...valid, videoUrl: 'http://youtu.be/abcdefghijk' },
-      /videoUrl/,
+      'a video key with a leading /',
+      { ...valid, videoKey: '/exercises/back-squat-v1.mp4' },
+      /videoKey.*start with/,
     ],
     [
-      'a javascript: image',
-      { ...valid, imageUrl: 'javascript:alert(1)' },
-      /imageUrl/,
+      'a video key with ..',
+      { ...valid, videoKey: 'exercises/../back-squat-v1.mp4' },
+      /videoKey.*\.\./,
     ],
     [
-      'a video that is not a URL',
-      { ...valid, videoUrl: 'squat video' },
-      /videoUrl/,
+      'a URL as image key',
+      {
+        ...valid,
+        imageKey: 'https://storage.googleapis.com/b/back-squat-v1.jpg',
+      },
+      /imageKey.*URL/,
     ],
-    ['a blank image', { ...valid, imageUrl: '' }, /imageUrl/],
+    [
+      'a .mov video',
+      { ...valid, videoKey: 'exercises/back-squat-v1.mov' },
+      /videoKey.*\.mp4 or \.webm/,
+    ],
+    [
+      'a .gif image',
+      { ...valid, imageKey: 'exercises/back-squat-v1.gif' },
+      /imageKey.*\.jpg/,
+    ],
+    ['a blank image key', { ...valid, imageKey: '' }, /imageKey/],
+    [
+      'a videoUrl (the file takes keys)',
+      { ...valid, videoUrl: 'https://youtu.be/abcdefghijk' },
+      /unknown field "videoUrl"/,
+    ],
   ])('rejects %s, naming the entry', (_, entry, field) => {
     expect(parse([entry])).toThrow(field);
     expect(parse([entry])).toThrow(/exercises\[0\]/);
