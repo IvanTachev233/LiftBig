@@ -4,10 +4,7 @@ import { App } from 'supertest/types';
 import { DataSource, IsNull, Repository } from 'typeorm';
 import { Exercise } from '../src/workouts/entities/exercise.entity';
 import { ProgramSeeder } from '../src/programs/program-seeder';
-import {
-  SEED_EXERCISE_LIST,
-  SeedExercise,
-} from '../src/programs/seed/seed-exercises';
+import { SEED_EXERCISE_LIST } from '../src/programs/seed/seed-exercises';
 import { createE2eApp, registerAndLogin } from './e2e-app';
 
 type Tags = Pick<Exercise, 'category' | 'equipment'>;
@@ -66,7 +63,18 @@ describe('Exercise categories (e2e)', () => {
         where: { createdById: IsNull() },
         order: { name: 'ASC' },
       });
-      const fields = (e: SeedExercise) => [
+      // Takes database rows and file entries alike
+      const fields = (
+        e: Pick<
+          Exercise,
+          | 'name'
+          | 'bodyPart'
+          | 'category'
+          | 'equipment'
+          | 'videoUrl'
+          | 'imageUrl'
+        >,
+      ) => [
         e.name,
         e.bodyPart,
         e.category,

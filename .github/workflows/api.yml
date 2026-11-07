@@ -90,6 +90,10 @@ jobs:
       - name: Lint (no --fix)
         run: npx eslint "{src,apps,libs,test}/**/*.ts"
       - run: npm run build
+      - name: Migrations build the empty database
+        run: npm run migration:run
+      - name: Entities match the migrations # fails when an entity change has no migration
+        run: npm run migration:check
       - name: Unit tests
         run: npm test -- --ci
       - name: e2e tests
