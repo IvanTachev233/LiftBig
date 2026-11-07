@@ -16,17 +16,24 @@ export type GithubIssueStatus = 'pending' | 'created' | 'failed' | 'disabled';
 // issue carries no identity, so this row is the only link between a report
 // and the account that sent it. Deleting the account deletes this row and
 // asks the storage transport to delete the screenshots (account-deletion.ts).
+// The key, index and foreign key keep the names migration 0012 gave them in
+// production (sync off), so the schema there matches this entity.
 @Entity('bug_report')
-@Index(['userId', 'createdAt'])
+@Index('IDX_bug_report_user_created', ['userId', 'createdAt'])
 export class BugReport {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn('uuid', {
+    primaryKeyConstraintName: 'PK_bug_report_id',
+  })
   id: string;
 
   @Column({ type: 'uuid' })
   userId: string;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE', nullable: false })
-  @JoinColumn({ name: 'userId' })
+  @JoinColumn({
+    name: 'userId',
+    foreignKeyConstraintName: 'FK_bug_report_user',
+  })
   user: User;
 
   @Column({ type: 'text' })

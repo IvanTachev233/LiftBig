@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LiftBig global exercises",
+  "description": "Global exercises the API seeds on every start (ProgramSeeder). A name that already exists as a global, in any letter case, is kept with its id; only a missing category, equipment, video or image is filled in. Removing an entry does not delete the exercise.",
+  "type": "object",
+  "required": [
+    "exercises"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "exercises": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "bodyPart",
+          "category",
+          "equipment"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^\\S(.*\\S)?$",
+            "description": "Shown in the exercise picker. Unique, ignoring letter case."
+          },
+          "bodyPart": {
+            "enum": [
+              "CHEST",
+              "BACK",
+              "LEGS",
+              "SHOULDERS",
+              "ARMS",
+              "CORE",
+              "FULL_BODY",
+              "OTHER"
+            ],
+            "description": "Main body part."
+          },
+          "category": {
+            "enum": [
+              "Olympic",
+              "Squat",
+              "Press",
+              "Pull",
+              null
+            ],
+            "description": "Picker category chip; null lists the exercise under \"Other\"."
+          },
+          "equipment": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "description": "Shown in the picker row's subtitle.",
+            "examples": [
+              "Barbell",
+              "Dumbbell",
+              "Kettlebell",
+              "Machine",
+              "Cable",
+              "Bodyweight"
+            ]
+          },
+          "videoUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^https://\\S+$",
+            "description": "Demo video: an https YouTube or Vimeo link, or an https .mp4/.webm/.mov file. Optional; null or left out means none."
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^https://\\S+$",
+            "description": "Picker thumbnail: an https image URL. Optional; null or left out means none."
+          }
+        }
+      }
+    }
+  }
+}

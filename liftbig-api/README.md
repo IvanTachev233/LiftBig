@@ -44,7 +44,7 @@ Other scripts: `npm run start` (no watch), `npm run start:debug`, `npm run build
 | `TYPEORM_SYNC` | unset | `true` forces TypeORM `synchronize` on, even in production |
 | `RUN_MIGRATIONS` | unset | `true` runs pending migrations on startup |
 | `BACKFILL_PBS` | unset | On every start the API records personal bests for logged sets that have none yet (a one-off for sets saved before bests were recorded automatically). `false` skips this |
-| `SEED_PROGRAMS` | unset | On every start the API adds any missing sports, their required lifts, the global exercises they use and one published sample program per sport. `false` skips this |
+| `SEED_PROGRAMS` | unset | On every start the API adds any missing sports, their required lifts, the global exercises in `src/programs/seed/exercises.json` (§ Adding exercises) and one published sample program per sport. `false` skips this |
 | `CORS_ORIGINS` | unset | Extra allowed CORS origins, comma-separated exact URLs (e.g. `https://liftbig.web.app`). Needed when a deployed web client calls the API from another origin |
 | `MAIL_PROVIDER_KEY` | unset | Resend API key for sign-up and password reset codes (set as a Cloud Run secret). Unset: mails, codes included, are written to the log instead of sent |
 | `MAIL_FROM` | unset | Sender for those mails, e.g. `LiftBig <codes@your-domain>` on a domain verified in Resend. Required when `MAIL_PROVIDER_KEY` is set; the API refuses to start without it |
@@ -71,6 +71,22 @@ npm run test:cov
 npm run lint        # ESLint with --fix: it rewrites files
 npm run format      # Prettier
 ```
+
+### Adding exercises
+
+The global exercises, which everyone sees, are listed in [`src/programs/seed/exercises.json`](src/programs/seed/exercises.json), one per line:
+
+```json
+{"name": "Romanian Deadlift", "bodyPart": "LEGS", "category": "Pull", "equipment": "Barbell"}
+```
+
+- `bodyPart`: `CHEST`, `BACK`, `LEGS`, `SHOULDERS`, `ARMS`, `CORE`, `FULL_BODY` or `OTHER`.
+- `category`: `Olympic`, `Squat`, `Press`, `Pull`, or `null` to list it under "Other" in the picker.
+- `equipment`: free text shown in the picker row (`Barbell`, `Dumbbell`, `Kettlebell`, `Machine`, `Cable`, `Bodyweight`), or `null`.
+- `videoUrl` (optional): an `https` demo video. The exercise detail screen embeds YouTube (`watch?v=`, `youtu.be/`, `shorts/`, `embed/`) and Vimeo links, plays `.mp4`, `.webm` and `.mov` files, and shows anything else as a link.
+- `imageUrl` (optional): an `https` image, shown as the picker thumbnail. Host your own copies (where is still to be decided) rather than linking to another site's files.
+
+VS Code checks the file against `exercises.schema.json` as you type. `npm test` checks it too: a typo, an unknown field or a duplicate name (ignoring letter case) fails with the entry's index and name. On its next start every environment adds the new rows. An exercise that already exists as a global under the same name in any letter case is kept as it is, apart from filling in a missing category, equipment, video or image. A URL already in the database is never overwritten, so to change one you need a migration. Removing a line or changing a body part does not change rows that already exist; that needs a migration.
 
 `npm run test:e2e` needs the postgres container (`docker compose up -d postgres` from the repo root). It creates a `liftbig_e2e` database on that server if it is missing and rebuilds its schema from scratch for each test app, so `liftbig_db` is never touched. It refuses to run while `DATABASE_URL` is set, and like the API it needs `JWT_SECRET` and the `DB_*` values from `.env` (CI sets its own throwaway ones). Unit tests need none of them.
 

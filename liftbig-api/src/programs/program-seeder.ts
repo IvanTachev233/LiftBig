@@ -9,12 +9,8 @@ import { SportRequiredLift } from './entities/sport-required-lift.entity';
 import { Sport } from './entities/sport.entity';
 import { SYSTEM_ACTOR } from './program-actor';
 import { ProgramService } from './program.service';
-import {
-  GLOBAL_EXERCISE_TAGS,
-  SAMPLE_PROGRAMS,
-  SEED_EXERCISES,
-  SEED_SPORTS,
-} from './seed/seed-data';
+import { SAMPLE_PROGRAMS, SEED_SPORTS } from './seed/seed-data';
+import { SEED_EXERCISE_LIST } from './seed/seed-exercises';
 
 // Serializes seeding across API instances starting at once.
 const SEED_LOCK_KEY = 250001;
@@ -28,9 +24,9 @@ export interface SeedResult {
   tagged: number;
 }
 
-// Adds the sports, their required lifts, the global exercises they use and
-// one published sample program per sport, and fills in the category and
-// equipment of global exercises that have none. Existing rows and values are
+// Adds the global exercises in seed/exercises.json, the sports, their required
+// lifts and one published sample program per sport, and fills in the category
+// and equipment of global exercises that have none. Existing rows and values are
 // kept, so it can run on every start. Skipped when SEED_PROGRAMS=false.
 @Injectable()
 export class ProgramSeeder implements OnApplicationBootstrap {
@@ -87,7 +83,7 @@ export class ProgramSeeder implements OnApplicationBootstrap {
       SEED_SPORTS.flatMap((sport) => sport.lifts.map(([, name]) => name)),
     );
     const ids = new Map<string, string>();
-    for (const { name, bodyPart } of SEED_EXERCISES) {
+    for (const { name, bodyPart } of SEED_EXERCISE_LIST) {
       const isMaxTrackable = required.has(name);
       const existing = await manager
         .getRepository(Exercise)
@@ -121,17 +117,23 @@ export class ProgramSeeder implements OnApplicationBootstrap {
     return ids;
   }
 
-  // Sets a global's category and equipment where they are still null,
-  // matching names in any case. Coach-made exercises are left alone.
+  // Sets a global's category, equipment, video and image where they are still
+  // null, matching names in any case. Coach-made exercises are left alone, and
+  // so is a value the file leaves null.
   private async tagGlobals(
     manager: EntityManager,
     created: SeedResult,
   ): Promise<void> {
-    for (const [name, category, equipment] of GLOBAL_EXERCISE_TAGS) {
-      for (const [column, value] of [
-        ['category', category],
-        ['equipment', equipment],
+    for (const exercise of SEED_EXERCISE_LIST) {
+      const { name } = exercise;
+      for (const column of [
+        'category',
+        'equipment',
+        'videoUrl',
+        'imageUrl',
       ] as const) {
+        const value = exercise[column];
+        if (value === null) continue;
         const result = await manager
           .createQueryBuilder()
           .update(Exercise)

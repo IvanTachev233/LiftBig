@@ -4,6 +4,10 @@ import { App } from 'supertest/types';
 import { DataSource, IsNull, Repository } from 'typeorm';
 import { Exercise } from '../src/workouts/entities/exercise.entity';
 import { ProgramSeeder } from '../src/programs/program-seeder';
+import {
+  SEED_EXERCISE_LIST,
+  SeedExercise,
+} from '../src/programs/seed/seed-exercises';
 import { createE2eApp, registerAndLogin } from './e2e-app';
 
 type Tags = Pick<Exercise, 'category' | 'equipment'>;
@@ -51,13 +55,30 @@ describe('Exercise categories (e2e)', () => {
         Deadlift: { category: 'Pull', equipment: 'Barbell' },
         'Barbell Row': { category: 'Pull', equipment: 'Barbell' },
       });
+      // Category may be null: the "Other" exercises (A6f) have none
       for (const [name, t] of Object.entries(tags)) {
-        expect([name, t.category, t.equipment]).toEqual([
-          name,
-          expect.any(String),
-          expect.any(String),
-        ]);
+        expect([name, t.equipment]).toEqual([name, expect.any(String)]);
       }
+    });
+
+    it('seeds each exercise in exercises.json once, as the file gives it', async () => {
+      const globals = await repo.find({
+        where: { createdById: IsNull() },
+        order: { name: 'ASC' },
+      });
+      const fields = (e: SeedExercise) => [
+        e.name,
+        e.bodyPart,
+        e.category,
+        e.equipment,
+        e.videoUrl,
+        e.imageUrl,
+      ];
+      expect(globals.map(fields)).toEqual(
+        [...SEED_EXERCISE_LIST]
+          .sort((a, b) => (a.name < b.name ? -1 : 1))
+          .map(fields),
+      );
     });
 
     it('lists the category and equipment with each exercise; a coach-made one has none', async () => {
@@ -113,6 +134,96 @@ describe('Exercise categories (e2e)', () => {
       expect(result.tagged).toBe(0);
       expect(await tagsOf(repo)).toEqual(before);
     });
+  });
+
+  it('fills a missing video and image from the file and keeps ones already set', async () => {
+    process.env.SEED_PROGRAMS = 'false';
+    // The shipped file has no media yet, so two entries get some for this test
+    const entry = (name: string) => {
+      const found = SEED_EXERCISE_LIST.find((e) => e.name === name);
+      if (!found) throw new Error(`${name} is not in exercises.json`);
+      return found;
+    };
+    const squat = entry('Back Squat');
+    const plank = entry('Plank');
+    const fileMedia = {
+      videoUrl: 'https://www.youtube.com/watch?v=abcdefghijk',
+      imageUrl: 'https://example.com/back-squat.jpg',
+    };
+    Object.assign(squat, fileMedia);
+    Object.assign(plank, fileMedia);
+    const app = await createE2eApp();
+    try {
+      const repo = app.get(DataSource).getRepository(Exercise);
+      const existing = await repo.save({
+        name: 'PLANK',
+        createdById: null,
+        videoUrl: 'https://vimeo.com/123',
+      });
+      const coach = await registerAndLogin(app, 'COACH');
+      const own = await repo.save({
+        name: 'Back Squat',
+        createdById: coach.id,
+      });
+
+      await app.get(ProgramSeeder).seed();
+
+      expect(
+        await repo.findOneByOrFail({
+          name: 'Back Squat',
+          createdById: IsNull(),
+        }),
+      ).toMatchObject(fileMedia);
+      expect(await repo.findOneByOrFail({ id: existing.id })).toMatchObject({
+        videoUrl: 'https://vimeo.com/123',
+        imageUrl: fileMedia.imageUrl,
+      });
+      expect(await repo.findOneByOrFail({ id: own.id })).toMatchObject({
+        videoUrl: null,
+        imageUrl: null,
+      });
+      expect((await app.get(ProgramSeeder).seed()).tagged).toBe(0);
+    } finally {
+      Object.assign(squat, { videoUrl: null, imageUrl: null });
+      Object.assign(plank, { videoUrl: null, imageUrl: null });
+      await app.close();
+    }
+  });
+
+  it('keeps a global the file adds when it already exists in another case', async () => {
+    process.env.SEED_PROGRAMS = 'false';
+    const app = await createE2eApp();
+    try {
+      const repo = app.get(DataSource).getRepository(Exercise);
+      const rdl = await repo.save({
+        name: 'romanian DEADLIFT',
+        createdById: null,
+      });
+      const plank = await repo.save({ name: 'PLANK', createdById: null });
+
+      await app.get(ProgramSeeder).seed();
+
+      const sameName = (name: string) =>
+        repo
+          .createQueryBuilder('e')
+          .where('LOWER(e.name) = LOWER(:name)', { name })
+          .andWhere('e.createdById IS NULL')
+          .getCount();
+      expect(await sameName('Romanian Deadlift')).toBe(1);
+      expect(await sameName('Plank')).toBe(1);
+      expect(await repo.findOneByOrFail({ id: rdl.id })).toMatchObject({
+        name: 'romanian DEADLIFT',
+        category: 'Pull',
+        equipment: 'Barbell',
+      });
+      expect(await repo.findOneByOrFail({ id: plank.id })).toMatchObject({
+        category: null,
+        equipment: 'Bodyweight',
+      });
+      expect((await app.get(ProgramSeeder).seed()).tagged).toBe(0);
+    } finally {
+      await app.close();
+    }
   });
 
   it('fills globals that exist without them, whatever their case, and keeps set values', async () => {
