@@ -19,9 +19,9 @@ cp .env.example .env # once, then fill in JWT_SECRET and DB_* (see below)
 npm run start:dev    # watch mode on http://localhost:3000
 ```
 
-The API won't start without `JWT_SECRET` (generate one with `openssl rand -base64 48`) and `DB_USERNAME`, `DB_PASSWORD` and `DB_NAME`; set those to the `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB` values in `liftbig-app/.env`, which created the compose database. The host and port default to that database on `localhost:5433`. Outside production, TypeORM `synchronize` is on, so the schema is created and updated from the entities on startup.
+The API won't start without `JWT_SECRET` (generate one with `openssl rand -base64 48`) and `DB_USERNAME`, `DB_PASSWORD` and `DB_NAME`; set those to the `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB` values in `liftbig-app/.env`, which created the compose database. The host and port default to that database on `localhost:5433`. On startup the API runs pending migrations, so an empty database gets the whole schema; `synchronize` is off ([Changing the schema](#changing-the-schema)).
 
-If your local database still has data from an older version (for example `program` tables), start once with `RUN_MIGRATIONS=true npm run start:dev`. Migrations run before `synchronize`; without them, `synchronize` drops old columns such as `workout_set.isCompleted` before the migration can move their data. The Docker stack already sets `RUN_MIGRATIONS=true`.
+A local database from before the Baseline migration may stop the API on startup; [Changing the schema](#changing-the-schema) says what to do.
 
 Other scripts: `npm run start` (no watch), `npm run start:debug`, `npm run build` then `npm run start:prod` (runs `dist/main`).
 
@@ -40,11 +40,11 @@ Other scripts: `npm run start` (no watch), `npm run start:debug`, `npm run build
 | `JWT_ACCESS_TTL` | `15m` | Access token lifetime: a duration (`20s`, `15m`, `1h`) or a number of seconds. The app gets a new one with its refresh token (`POST /auth/refresh`) |
 | `REFRESH_IDLE_DAYS` | `30` | A signed-in device's session ends after this many days without a refresh |
 | `REFRESH_ABSOLUTE_DAYS` | `90` | A session ends this many days after sign-in, however often it is used |
-| `NODE_ENV` | unset | `production` turns on SSL for the DB connection and turns off automatic schema sync (unless `TYPEORM_SYNC=true`) |
-| `TYPEORM_SYNC` | unset | `true` forces TypeORM `synchronize` on, even in production |
-| `RUN_MIGRATIONS` | unset | `true` runs pending migrations on startup |
+| `NODE_ENV` | unset | `production` makes the DB connection use TLS and verify the server certificate against Node's trusted CAs. TLS parameters in `DATABASE_URL` (`sslmode`, `ssl`, `sslrootcert`, `sslcert`, `sslkey`, `uselibpqcompat`) are then ignored, so the secret can't turn the check off. Unset, TLS follows `DATABASE_URL` and is off for the local database |
+| `TYPEORM_SYNC` | unset | `true` turns TypeORM `synchronize` on, which changes the schema to match the entities without a migration. Only for a throwaway local database; deploys set `false` |
+| `RUN_MIGRATIONS` | unset | Pending migrations run on startup; `false` skips them |
 | `BACKFILL_PBS` | unset | On every start the API records personal bests for logged sets that have none yet (a one-off for sets saved before bests were recorded automatically). `false` skips this |
-| `SEED_PROGRAMS` | unset | On every start the API adds any missing sports, their required lifts, the global exercises they use and one published sample program per sport. `false` skips this |
+| `SEED_PROGRAMS` | unset | On every start the API adds any missing sports, their required lifts, the global exercises in `src/programs/seed/exercises.json` (§ Adding exercises) and one published sample program per sport. `false` skips this |
 | `CORS_ORIGINS` | unset | Extra allowed CORS origins, comma-separated exact URLs (e.g. `https://liftbig.web.app`). Needed when a deployed web client calls the API from another origin |
 | `MAIL_PROVIDER_KEY` | unset | Resend API key for sign-up and password reset codes (set as a Cloud Run secret). Unset: mails, codes included, are written to the log instead of sent |
 | `MAIL_FROM` | unset | Sender for those mails, e.g. `LiftBig <codes@your-domain>` on a domain verified in Resend. Required when `MAIL_PROVIDER_KEY` is set; the API refuses to start without it |
@@ -72,7 +72,49 @@ npm run lint        # ESLint with --fix: it rewrites files
 npm run format      # Prettier
 ```
 
-`npm run test:e2e` needs the postgres container (`docker compose up -d postgres` from the repo root). It creates a `liftbig_e2e` database on that server if it is missing and rebuilds its schema from scratch for each test app, so `liftbig_db` is never touched. It refuses to run while `DATABASE_URL` is set, and like the API it needs `JWT_SECRET` and the `DB_*` values from `.env` (CI sets its own throwaway ones). Unit tests need none of them.
+### Adding exercises
+
+The global exercises, which everyone sees, are listed in [`src/programs/seed/exercises.json`](src/programs/seed/exercises.json), one per line:
+
+```json
+{"name": "Romanian Deadlift", "bodyPart": "LEGS", "category": "Pull", "equipment": "Barbell"}
+```
+
+- `bodyPart`: `CHEST`, `BACK`, `LEGS`, `SHOULDERS`, `ARMS`, `CORE`, `FULL_BODY` or `OTHER`.
+- `category`: `Olympic`, `Squat`, `Press`, `Pull`, or `null` to list it under "Other" in the picker.
+- `equipment`: free text shown in the picker row (`Barbell`, `Dumbbell`, `Kettlebell`, `Machine`, `Cable`, `Bodyweight`), or `null`.
+- `videoUrl` (optional): an `https` demo video. The exercise detail screen embeds YouTube (`watch?v=`, `youtu.be/`, `shorts/`, `embed/`) and Vimeo links, plays `.mp4`, `.webm` and `.mov` files, and shows anything else as a link.
+- `imageUrl` (optional): an `https` image, shown as the picker thumbnail. Host your own copies (where is still to be decided) rather than linking to another site's files.
+
+VS Code checks the file against `exercises.schema.json` as you type. `npm test` checks it too: a typo, an unknown field or a duplicate name (ignoring letter case) fails with the entry's index and name. On its next start every environment adds the new rows. An exercise that already exists as a global under the same name in any letter case is kept as it is, apart from filling in a missing category, equipment, video or image. A URL already in the database is never overwritten, so to change one you need a migration. Removing a line or changing a body part does not change rows that already exist; that needs a migration.
+
+`npm run test:e2e` needs the postgres container (`docker compose up -d postgres` from the repo root). It creates a `liftbig_e2e` database on that server if it is missing and, for each test app, drops its schema and runs the migrations on it (never `synchronize`, as in production), so `liftbig_db` is never touched. Two runs at once on the same server break each other, since both drop `liftbig_e2e`; point one at another Postgres with `DB_HOST`/`DB_PORT` (and its `DB_USERNAME`/`DB_PASSWORD`) in the shell. It refuses to run while `DATABASE_URL` is set, and like the API it needs `JWT_SECRET` and the `DB_*` values from `.env` (CI sets its own throwaway ones). Unit tests need none of them.
+
+## Changing the schema
+
+**Every entity change ships a migration**, in the same PR. The schema changes only through the migrations in `src/migrations`, in every environment: the API runs pending ones on startup, `synchronize` is off, and CI's `migration:check` fails a PR whose entities and migrations disagree.
+
+```bash
+npm run migration:generate -- src/migrations/AddWorkoutRating # SQL for the entity changes, from your local database
+npm run migration:create -- src/migrations/BackfillRatings    # an empty migration, for data changes
+npm run migration:run                                         # pending migrations on the database in .env
+npm run migration:check                                       # exits 1 when an entity change has no migration
+npm run migration:revert                                      # down() of the newest migration
+```
+
+The commands use [`src/config/data-source.ts`](src/config/data-source.ts): the API's connection settings from `.env`, never syncing and never running migrations on connect. The steps:
+
+1. Change the entity.
+2. With your local database up to date, run `migration:generate` and read the SQL. Keep TypeORM's generated constraint and index names; a name you pick yourself must also be set on the entity, or production drifts from it (ADR 0022).
+3. Restart the API (or `npm run migration:run`); `npm run migration:check` then prints "No changes in database schema were found".
+4. Commit the entity and the migration together.
+
+[`1794009600000-Baseline.ts`](src/migrations/1794009600000-Baseline.ts) holds the whole schema as of LB-38 and replaced the migrations before it (ADR 0022). It creates the schema only on an empty database and can't be reverted: going back past it means [restoring the database](#restoring-the-database-neon). Never edit a migration that has run in production; add a new one. A migration must not branch on whether a table exists.
+
+A local database from before the Baseline:
+
+- **Ran the old migrations** (its `migrations` table lists `BugReports1709800000012`): the next start records the Baseline and changes nothing. If `migration:check` then lists only `bug_report`'s index and foreign key, sync renamed them earlier: start once with `TYPEORM_SYNC=true npm run start:dev` and check again.
+- **Built by `synchronize`** (no migration rows): the API stops with "Baseline: … tables exist but BugReports1709800000012 is not recorded". If `npm run migration:check` exits 0, `npm run migration:run -- --fake` records the Baseline without running it. Otherwise drop the local database and start the API on an empty one.
 
 ## Deployment
 
@@ -80,7 +122,7 @@ npm run format      # Prettier
 
 Production runs on **Google Cloud Run** at `https://api.liftbig.co` (a Cloud Run domain mapping, ADR 0016), which app builds from versionCode 4 call. Older installed builds call the service's `*.run.app` URL, so never rename or delete the service; the pipeline's smoke check calls `/health` on both. [`scripts/deploy.sh`](scripts/deploy.sh) uploads this folder (`liftbig-api/`, not the whole repo) and Cloud Build builds it with the `Dockerfile`. Files ignored by `.gitignore` (`.env`, dumps, `node_modules`, `dist`) are not uploaded.
 
-Every deploy sets `NODE_ENV=production`, `TYPEORM_SYNC=false` and `RUN_MIGRATIONS=true`, so **production schema changes only through migrations** in `src/migrations`, run on startup. An entity change without a migration is not applied in production, even though local dev (no `NODE_ENV`) syncs it automatically. Deploys also set `BACKFILL_PBS=false`.
+Every deploy sets `NODE_ENV=production`, `TYPEORM_SYNC=false` and `RUN_MIGRATIONS=true`, so **production schema changes only through migrations** in `src/migrations`, run on startup. An entity change without a migration fails CI's drift check ([Changing the schema](#changing-the-schema)). Deploys also set `BACKFILL_PBS=false`.
 
 ### One-time setup
 
@@ -249,95 +291,7 @@ Done once before the Play production rollout (T1 A3d) and again after a change o
 | --- | --- | --- | --- |
 | 2026-11-01, 07:21 (Ivan) | about 1 hour before | not recorded | not recorded (Free plan: 6 hours) |
 
-## Deploying the card tables and assigned workouts
-
-Production runs a build from before the exercise card tables. The next deploy brings two migrations that run together:
-
-- `ExerciseCardTables1709800000006` stores each exercise card as its own row (`workout_exercise`) with its sets under it.
-- `AssignedWorkouts1709800000007` turns every coach program into a workout assigned to the client (`workout.assignedById` = the coach), keeping program, card and set ids. It splits each set into planned values (`reps`, `weight`) and the client's result (`made`, `actualReps`, `actualWeight`), then drops the `program`, `program_exercise` and `program_set` tables.
-
-Both change the API shape with no compatibility layer and drop columns and tables, so follow these steps in order.
-
-### 1. Check production and back up
-
-Run these with the production `DATABASE_URL` (see [Environment variables](#environment-variables)) right before deploying, and keep the output:
-
-```sql
--- Which migrations already ran. Expected: up to AddNameToUser1709800000005, without 0006 or 0007.
-SELECT name FROM migrations ORDER BY id;
--- 0006 creates rows with uuid_generate_v4(). Expected: one row.
-SELECT extname FROM pg_extension WHERE extname = 'uuid-ossp';
--- Row counts for the check in step 3.
-SELECT (SELECT count(*) FROM workout)          AS workouts,
-       (SELECT count(*) FROM workout_set)      AS workout_sets,
-       (SELECT count(*) FROM program)          AS programs,
-       (SELECT count(*) FROM program_exercise) AS program_rows;
--- The new weight columns hold at most 9999.99. Expected: 0.
-SELECT count(*) FROM workout_set WHERE "actualWeight" >= 10000;
-```
-
-Also confirm which API commit the running Cloud Run revision was built from. These steps assume it is the last commit before the card tables (migrations 0000–0005, sets stored flat). If `migrations` already lists 0006, the card tables are live: count `program_set` too and use the second formula in step 3.
-
-Then take the backup with a `pg_dump` at least as new as the server:
-
-```bash
-pg_dump "$DATABASE_URL" --format=custom --file=liftbig_before_assigned.dump
-pg_restore --list liftbig_before_assigned.dump > /dev/null   # the file is readable
-```
-
-Keep the dump outside the repo and never commit it.
-
-### 2. Deploy the API and the app together
-
-The old app can't read the new API responses, and the new app can't talk to the old API (`/programs` is gone). Deploy the API with `scripts/deploy.sh` (see [Deployment](#deployment); it sets `TYPEORM_SYNC=true` and `RUN_MIGRATIONS=true`), then ship the app build from the matching app commit straight away. Device builds made before this change stop working until they are updated.
-
-### 3. Check the migration
-
-On startup the API runs both pending migrations once, before `synchronize`, in a single transaction. 0007 stops before changing anything if a program, card or set id is already used by a workout, card or set. On a database that already has both, nothing runs.
-
-TypeORM's success messages are off in this config, so a good deploy shows no migration lines in the logs. A failure logs `Migration "..." failed, error: ...`, rolls the whole transaction back and the API keeps retrying the connection (`Unable to connect to the database ... Retrying`). In that case the data is unchanged; redeploy the previous API and app.
-
-After a successful deploy, check with `psql "$DATABASE_URL"`:
-
-```sql
-SELECT name FROM migrations WHERE name IN ('ExerciseCardTables1709800000006', 'AssignedWorkouts1709800000007');  -- two rows
-SELECT to_regclass('program') AS program_table;   -- NULL: the program tables are gone
-SELECT (SELECT count(*) FROM workout)                                 AS workouts,
-       (SELECT count(*) FROM workout WHERE "assignedById" IS NOT NULL) AS assigned,
-       (SELECT count(*) FROM workout_exercise)                        AS cards,
-       (SELECT count(*) FROM workout_set)                             AS sets;
-```
-
-Expected, using the counts from step 1:
-
-- `workouts` = workouts + programs, and `assigned` = programs.
-- `sets` = workout_sets + program_rows (before the card tables, each `program_exercise` row was one set).
-- If 0006 had already run: `sets` = workout_sets + program_sets, and `cards` = workout cards + program cards.
-- `cards` is at most `sets`.
-
-Then open an assigned workout as its client and as the coach in the app.
-
-What changes in the data:
-
-- A self-made set that was ticked (`isCompleted`) gets `made = true`; the others stay unlogged.
-- Volume (`totalWeightLifted`) now counts made sets only, so self-made workouts with unticked sets show a lower total than before.
-- An assigned workout's status comes from its results: COMPLETED when every set is logged, IN_PROGRESS when some are, PLANNED otherwise.
-- The old program logger could overwrite the coach's reps and weight with the client's values. Those values move over as the plan; the originals can't be recovered.
-
-The migrations leave tables that the app ignores: `exercise_card_migration_set_order`, `assigned_workout_migration_sets`, `assigned_workout_migration_workouts` and `assigned_workout_migration_programs`. Leave them in place; `migration:revert` reads them.
-
-### 4. Roll back
-
-Restore the backup and redeploy the previous API and app versions. Workouts, sets and results written after the deploy are lost.
-
-```bash
-psql "$DATABASE_URL" -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
-pg_restore --no-owner --dbname="$DATABASE_URL" liftbig_before_assigned.dump
-```
-
-`npm run migration:revert` reverts only the last migration (through `src/config/data-source.ts`, set `NODE_ENV=production` for SSL), and it isn't the supported path: data the old tables can't hold is dropped (actual reps and weights, the status and notes of assigned workouts, set notes), and a missing weight comes back as 0.
-
-### API changes
+## Workout routes
 
 Every workout now carries `assignedById` and `assignedBy: { id, name } | null` (the assigning coach; null for a self-made workout). Exercises come back as cards sorted by card `order`, then set `order`. Each set is `{ id, reps, weight, order, made, actualReps, actualWeight, notes }`:
 

@@ -68,7 +68,10 @@ describe('CoachWorkoutsController (HTTP)', () => {
     app.useGlobalPipes(
       new ValidationPipe({ transform: true, whitelist: true }),
     );
-    await app.init();
+    // Listening on 127.0.0.1 ourselves: supertest would otherwise listen on
+    // every interface and then call 127.0.0.1, where another local process
+    // can hold the same port and answer instead (seen as a 401).
+    await app.listen(0, '127.0.0.1');
   });
 
   afterAll(async () => {

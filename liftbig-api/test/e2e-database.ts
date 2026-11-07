@@ -32,13 +32,16 @@ export async function ensureE2eDatabase(): Promise<void> {
   }
 }
 
-// The API's entities on the e2e database, rebuilt from scratch on connect.
+// The API's entities on the e2e database, rebuilt from scratch on connect by
+// the migrations, as in production (never synchronize): TypeORM drops the
+// schema, then runs every migration on the empty database.
 export function e2eDataSourceOptions(): PostgresConnectionOptions {
   return {
     ...serverOptions(E2E_DATABASE),
     entities: databaseConfig.entities,
-    synchronize: true,
+    migrations: databaseConfig.migrations,
+    synchronize: false,
     dropSchema: true,
-    migrationsRun: false,
+    migrationsRun: true,
   };
 }
