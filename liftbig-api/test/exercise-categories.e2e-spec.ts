@@ -94,7 +94,7 @@ describe('Exercise categories (e2e)', () => {
       const created = await request(app.getHttpServer())
         .post('/workouts/exercises')
         .set('Authorization', `Bearer ${coach.token}`)
-        .send({ name: 'Sled Push', equipment: 'Sled' })
+        .send({ name: 'Prowler Push', equipment: 'Sled' })
         .expect(201);
       expect(created.body).toMatchObject({ category: null, equipment: null });
 
@@ -108,7 +108,7 @@ describe('Exercise categories (e2e)', () => {
         category: 'Squat',
         equipment: 'Barbell',
       });
-      expect(list.find((e) => e.name === 'Sled Push')).toMatchObject({
+      expect(list.find((e) => e.name === 'Prowler Push')).toMatchObject({
         category: null,
         equipment: null,
       });
@@ -122,7 +122,7 @@ describe('Exercise categories (e2e)', () => {
           .set('Authorization', `Bearer ${coach.token}`)
           .send(body);
       const res = await post({
-        name: 'Zercher Squat',
+        name: 'Anderson Squat',
         category: 'Squat',
       }).expect(201);
       expect(res.body).toMatchObject({ category: 'Squat', equipment: null });
