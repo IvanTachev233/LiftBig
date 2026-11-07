@@ -49,7 +49,7 @@
     </div>
   } @else {
     <ion-list class="exercise-list" lines="none">
-      @for (exercise of filteredExercises(); track exercise.id) {
+      @for (exercise of shownExercises(); track exercise.id) {
         <ion-item class="exercise-row" (click)="toggle(exercise)">
           <ion-checkbox
             slot="start"

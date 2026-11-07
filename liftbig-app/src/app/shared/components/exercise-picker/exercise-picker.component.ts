@@ -1,4 +1,13 @@
-import { Component, Input, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  HostListener,
+  Input,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import {
   CheckboxChangeEventDetail,
   IonicModule,
@@ -25,6 +34,13 @@ export interface ExercisePickerResult {
 /** Chip values for exercises without a category: a coach's own, or global */
 const COACH = '__coach';
 const NO_CATEGORY = '__none';
+
+/**
+ * Rows drawn while the modal slides in: enough to fill the screen.
+ */
+export const FIRST_ROWS = 30;
+/** The rest are drawn by then even if no ionModalDidPresent arrives */
+export const ALL_ROWS_AFTER_MS = 600;
 
 function byName(a: Exercise, b: Exercise): number {
   return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
@@ -96,6 +112,9 @@ export class ExercisePickerComponent implements OnInit {
         (!q || e.name.toLowerCase().includes(q)),
     );
   });
+  /** How many of the filtered rows are drawn; search and chips see every one */
+  private readonly rowLimit = signal(FIRST_ROWS);
+  readonly shownExercises = computed(() => this.filteredExercises().slice(0, this.rowLimit()));
   readonly primaryDisabled = computed(() =>
     this.mode === 'replace' ? this.selectedCount() !== 1 : this.selectedCount() < 1,
   );
@@ -110,6 +129,17 @@ export class ExercisePickerComponent implements OnInit {
 
   // Prevents a double tap from stacking two child modals
   private childModalOpen = false;
+
+  constructor() {
+    const timer = setTimeout(() => this.showAllRows(), ALL_ROWS_AFTER_MS);
+    inject(DestroyRef).onDestroy(() => clearTimeout(timer));
+  }
+
+  /** Ionic's modal event bubbles up to the document once it has presented */
+  @HostListener('document:ionModalDidPresent')
+  showAllRows() {
+    this.rowLimit.set(Infinity);
+  }
 
   ngOnInit() {
     if (this.exercises) {

@@ -1,11 +1,11 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import {
   HttpTestingController,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { ModalController } from '@ionic/angular';
-import { ExercisePickerComponent } from './exercise-picker.component';
+import { ALL_ROWS_AFTER_MS, ExercisePickerComponent, FIRST_ROWS } from './exercise-picker.component';
 import { ExerciseDetailModalComponent } from '../exercise-detail-modal/exercise-detail-modal.component';
 import { CreateExerciseModalComponent } from '../create-exercise-modal/create-exercise-modal.component';
 import { AuthService, User } from '../../../core/auth.service';
@@ -665,6 +665,37 @@ describe('ExercisePickerComponent', () => {
         { exercises: [created], superset: false },
         'confirm',
       );
+    });
+  });
+
+  // 200+ rows of Ionic components made the modal stutter while it slid in
+  describe('long lists', () => {
+    const many: Exercise[] = Array.from({ length: FIRST_ROWS + 20 }, (_, i) => ({
+      id: `m${i}`,
+      name: `Exercise ${String(i).padStart(3, '0')}`,
+      bodyPart: 'LG',
+    }));
+
+    it('draws the first rows while the modal opens, then the rest once it has presented', () => {
+      setup({ exercises: many });
+      expect(rowNames().length).toBe(FIRST_ROWS);
+
+      document.dispatchEvent(new CustomEvent('ionModalDidPresent', { bubbles: true }));
+      expect(rowNames().length).toBe(many.length);
+    });
+
+    it('draws every row after a short wait when no modal event arrives', fakeAsync(() => {
+      setup({ exercises: many });
+      expect(rowNames().length).toBe(FIRST_ROWS);
+
+      tick(ALL_ROWS_AFTER_MS);
+      expect(rowNames().length).toBe(many.length);
+    }));
+
+    it('searches the whole list, not only the rows drawn so far', () => {
+      setup({ exercises: many });
+      component.query.set('Exercise 049');
+      expect(rowNames()).toEqual(['Exercise 049']);
     });
   });
 });
