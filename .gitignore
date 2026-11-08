@@ -62,3 +62,10 @@ GEMINI.md
 .windsurf/
 .windsurfrules
 .serena/
+
+# OpenTofu (infra/): state, saved plans and local variables stay out of git; the lock file is committed
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars

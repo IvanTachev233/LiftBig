@@ -240,7 +240,6 @@ scripts/deploy.sh --image "$IMAGE"
 | `GCP_PROJECT_ID` | input | required | The string project ID, not the project number |
 | `GCP_REGION` | input | `europe-west1` | Cloud Run region |
 | `SERVICE` | input | `liftbig-api` | Cloud Run service name |
-| `RUNTIME_SA` | input | `liftbig-api-runtime@<project-id>.iam.gserviceaccount.com` | Service account the service runs as (`--service-account`); it reads the secrets and has no project roles. Empty means the default |
 | `MAIL_FROM` | env var | required | Sender of the code mails (see [Environment variables](#environment-variables)) |
 | `CORS_ORIGINS` | env var | required, may be empty | Extra allowed web origins |
 | `PRIVACY_OPERATOR_NAME` | env var | required | Shown on `/privacy` and `/terms` |

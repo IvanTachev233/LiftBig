@@ -1,0 +1,58 @@
+{
+  "displayName": "LiftBigAPI Dashboard",
+  "mosaicLayout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "height": 16,
+        "widget": {
+          "alertChart": {
+            "name": "projects/liftbigapi/alertPolicies/3688366489139136348"
+          }
+        },
+        "width": 24
+      },
+      {
+        "height": 16,
+        "widget": {
+          "alertChart": {
+            "name": "projects/liftbigapi/alertPolicies/2327716072329418907"
+          }
+        },
+        "width": 24,
+        "xPos": 24
+      },
+      {
+        "height": 16,
+        "widget": {
+          "alertChart": {
+            "name": "projects/liftbigapi/alertPolicies/2327716072329417653"
+          }
+        },
+        "width": 24,
+        "yPos": 16
+      },
+      {
+        "height": 16,
+        "widget": {
+          "alertChart": {
+            "name": "projects/liftbigapi/alertPolicies/17946327232729266627"
+          }
+        },
+        "width": 24,
+        "xPos": 24,
+        "yPos": 16
+      },
+      {
+        "height": 16,
+        "widget": {
+          "alertChart": {
+            "name": "projects/liftbigapi/alertPolicies/15612514863769728561"
+          }
+        },
+        "width": 24,
+        "yPos": 32
+      }
+    ]
+  }
+}
