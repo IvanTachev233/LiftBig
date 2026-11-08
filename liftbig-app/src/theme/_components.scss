@@ -357,6 +357,27 @@ ion-card {
 }
 
 /* ---------------------------------------------------------------------------
+ * Overlays: a swipe on a popup must not scroll the page behind it
+ * (LiftBig-Feedback#4). Outside its own scroll areas (ion-content, a
+ * textarea, a long action sheet) a popup has nothing to scroll, so the
+ * Android WebView chained the pan to the page. touch-action stops the pan
+ * there; scroll areas inside still pan, and Ionic's drag-to-dismiss and
+ * taps run on touch events, which it leaves alone. ion-content already
+ * contains its overscroll; a textarea in a sheet needs it too.
+ * ------------------------------------------------------------------------- */
+
+ion-modal,
+ion-action-sheet,
+ion-alert,
+ion-popover {
+  touch-action: none;
+}
+
+ion-modal textarea {
+  overscroll-behavior: contain;
+}
+
+/* ---------------------------------------------------------------------------
  * Bottom sheet (BottomSheetService) and overflow menu (OverflowMenuService)
  * ------------------------------------------------------------------------- */
 
