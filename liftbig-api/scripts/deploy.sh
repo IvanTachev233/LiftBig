@@ -44,9 +44,6 @@ Options:
   --project ID        Google Cloud project ID (env GCP_PROJECT_ID)
   --region REGION     Cloud Run region (env GCP_REGION, default europe-west1)
   --service NAME      Cloud Run service (env SERVICE, default liftbig-api)
-  --service-account EMAIL
-                      Service account the service runs as (env RUNTIME_SA,
-                      default liftbig-api-runtime@<project>.iam.gserviceaccount.com)
   --env-file PATH     File to read the env vars below from (default: .env in
                       the API folder, when it exists); values already in the
                       environment win, other keys in the file are ignored
@@ -162,7 +159,7 @@ INTERACTIVE=true
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --image | --omit-secrets | --project | --region | --service | --service-account | --env-file)
+    --image | --omit-secrets | --project | --region | --service | --env-file)
       [ $# -ge 2 ] || die "$1 needs a value"
       case "$1" in
         --image) IMAGE=$2 ;;
@@ -170,7 +167,6 @@ while [ $# -gt 0 ]; do
         --project) GCP_PROJECT_ID=$2 ;;
         --region) GCP_REGION=$2 ;;
         --service) SERVICE=$2 ;;
-        --service-account) RUNTIME_SA=$2 ;;
         --env-file) ENV_FILE=$2 ;;
       esac
       shift
@@ -180,7 +176,6 @@ while [ $# -gt 0 ]; do
     --project=*) GCP_PROJECT_ID=${1#*=} ;;
     --region=*) GCP_REGION=${1#*=} ;;
     --service=*) SERVICE=${1#*=} ;;
-    --service-account=*) RUNTIME_SA=${1#*=} ;;
     --env-file=*) ENV_FILE=${1#*=} ;;
     --dry-run) DRY_RUN=true ;;
     --non-interactive) INTERACTIVE=false ;;
@@ -256,9 +251,6 @@ for name in "${omit_list[@]+"${omit_list[@]}"}"; do
 done
 # The service's own identity: it reads the secrets and holds no project roles.
 # An empty value (an unset pipeline variable) means the default.
-RUNTIME_SA=${RUNTIME_SA:-liftbig-api-runtime@$GCP_PROJECT_ID.iam.gserviceaccount.com}
-[[ "$RUNTIME_SA" =~ ^[^@[:space:]]+@[^@[:space:]]+\.gserviceaccount\.com$ ]] ||
-  die "RUNTIME_SA must be a service account email (...@....gserviceaccount.com): $RUNTIME_SA"
 for name in "${REQUIRED[@]}"; do
   case "${!name}" in
     *"$D"* | *$'\n'*) die "$name must not contain '$D' or a line break" ;;
@@ -355,8 +347,6 @@ cmd=(
   --project="$GCP_PROJECT_ID"
   --region="$GCP_REGION"
   --image="$IMAGE"
-  --allow-unauthenticated
-  --service-account="$RUNTIME_SA"
   --remove-env-vars="$removed_vars"
   --update-env-vars="$env_vars"
   --set-secrets="$secret_refs"
@@ -386,7 +376,7 @@ if [ -z "$account" ] && [ "$INTERACTIVE" = true ]; then
   die "no active gcloud account; run 'gcloud auth login' (or scripts/gcp-setup.sh)"
 fi
 
-echo "Deploying $IMAGE as $SERVICE to $GCP_PROJECT_ID ($GCP_REGION)${account:+ as $account}; it runs as $RUNTIME_SA."
+echo "Deploying $IMAGE as $SERVICE to $GCP_PROJECT_ID ($GCP_REGION)${account:+ as $account}."
 echo "Schema sync is off: entity changes reach production only through migrations."
 [[ "$omitted" == *" MAIL_PROVIDER_KEY "* ]] &&
   echo "Without MAIL_PROVIDER_KEY, sign-in codes are written to the Cloud Run log, not emailed."
