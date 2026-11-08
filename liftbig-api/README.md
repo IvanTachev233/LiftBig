@@ -54,6 +54,7 @@ Other scripts: `npm run start` (no watch), `npm run start:debug`, `npm run build
 | `APP_LATEST_VERSION_CODE` | unset | The newest versionCode on Play: older builds are offered the update once per start (dismissible). Unset: no offer |
 | `SENTRY_DSN` | unset | Sentry project DSN: unexpected errors (not 4xx) are reported to Sentry, scrubbed (see [Error reports](#error-reports-sentry)). Unset or blank: nothing is reported, as in local runs, CI and tests |
 | `SENTRY_RELEASE` | unset | Release named in error reports; `deploy.sh` sets the git commit |
+| `SENTRY_ENVIRONMENT` | unset | Environment named in error reports (staging sets `staging`). Unset or blank: `production` when `NODE_ENV=production`, else `development` |
 | `BUG_REPORTS_ENABLED` | unset (on) | `false` turns `POST /bug-reports` off: it answers 503 and stores nothing. Unset means on |
 | `BUG_REPORT_BUCKET` | unset | Cloud Storage bucket bug-report screenshots upload to (`scripts/gcp-setup.sh` creates it, `europe-west2`). Unset: screenshots aren't stored (local runs, CI, tests), and the GitHub issue says so |
 | `EXERCISE_MEDIA_BASE_URL` | unset | `https` URL of the public demo media bucket, e.g. `https://storage.googleapis.com/liftbigapi-media` (ADR 0026). The API sends a global exercise's `videoKey` / `imageKey` as `<this URL>/<key>` in `videoUrl` / `imageUrl`. Unset (or not `https`): keys give no media, and each start logs one warning if the exercise file has keys |
@@ -149,29 +150,38 @@ A local database from before the Baseline:
 
 > Deploying changes production data. Talk to the maintainer before deploying.
 
-Production runs on **Google Cloud Run** at `https://api.liftbig.co` (a Cloud Run domain mapping, ADR 0016), which app builds from versionCode 4 call. Older installed builds call the service's `*.run.app` URL, so never rename or delete the service; the pipeline's smoke check calls `/health` on both. [`scripts/deploy.sh`](scripts/deploy.sh) uploads this folder (`liftbig-api/`, not the whole repo) and Cloud Build builds it with the `Dockerfile`. Files ignored by `.gitignore` (`.env`, dumps, `node_modules`, `dist`) are not uploaded.
+Production runs on **Google Cloud Run** at `https://api.liftbig.co` (a Cloud Run domain mapping, ADR 0016), which app builds from versionCode 4 call. Older installed builds call the service's `*.run.app` URL, so never rename or delete the service; the pipeline's smoke check calls `/health` on both. [`scripts/deploy.sh`](scripts/deploy.sh) deploys an image that is already in Artifact Registry, **by digest**; it builds nothing (ADR 0023: built once, run on staging, then the same digest promoted to production). The image is the `Dockerfile`'s `production` stage: runtime dependencies only, run as the unprivileged `node` user (uid 1000). `.dockerignore` keeps `.env*`, dumps, `node_modules`, `dist`, tests and scripts out of the build context and every image.
+
+Staging runs the same image first: `https://staging-api.liftbig.co`, project `liftbig-staging`, its own Neon database with no real users, no mail provider (sign-in codes are in its Cloud Run log), bug reports off and Sentry environment `staging` (ADR 0023 § 5).
 
 Every deploy sets `NODE_ENV=production`, `TYPEORM_SYNC=false` and `RUN_MIGRATIONS=true`, so **production schema changes only through migrations** in `src/migrations`, run on startup. An entity change without a migration fails CI's drift check ([Changing the schema](#changing-the-schema)). Deploys also set `BACKFILL_PBS=false`.
 
 ### One-time setup
 
 ```bash
-scripts/gcp-setup.sh --project <project-id>
+scripts/gcp-setup.sh --project liftbigapi                                  # production, and the registry: first
+scripts/gcp-setup.sh --project liftbig-staging --environment staging
+scripts/gcp-setup.sh --project liftbig-staging --environment staging --dry-run  # prints every command, changes nothing
 ```
 
-Run it in a terminal with an account that owns the project. It:
+Run it in a terminal with an account that owns both projects (staging grants Reader on the registry in `liftbigapi`). It:
 
 - logs in to `gcloud` if no account is active,
-- enables the Cloud Run, Cloud Build, Artifact Registry, Secret Manager and IAM APIs,
-- grants the Compute Engine default service account, which Cloud Build uses for source deploys, `roles/run.builder` and `roles/storage.objectViewer`,
+- enables the Cloud Run, Artifact Registry, Secret Manager, IAM, IAM Credentials and STS APIs,
 - creates the service's runtime service account `liftbig-api-runtime` if it is missing, with no project roles (`--service-account` or `RUNTIME_SA` names another, existing one),
-- creates the secrets `DATABASE_URL`, `JWT_SECRET` and `MAIL_PROVIDER_KEY` in Secret Manager if they are missing (values are typed hidden; a blank `JWT_SECRET` generates a random one),
+- creates the secrets `DATABASE_URL`, `JWT_SECRET` and (production only) `MAIL_PROVIDER_KEY` in Secret Manager if they are missing (values are typed hidden; a blank `JWT_SECRET` generates a random one),
 - grants the runtime service account `roles/secretmanager.secretAccessor` on each of them, and nothing else,
-- creates the bug-report screenshot bucket (`--bucket NAME`, env `BUG_REPORT_BUCKET`, default `<project-id>-bug-reports`) if it is missing, in `europe-west2` (London), with uniform bucket-level access, public access prevention and a lifecycle rule deleting objects 90 days after upload, and grants the runtime service account `roles/storage.objectAdmin` on that bucket only (not the project), and
+- production only: creates the bug-report screenshot bucket (`--bucket NAME`, env `BUG_REPORT_BUCKET`, default `<project-id>-bug-reports`) if it is missing, in `europe-west2` (London), with uniform bucket-level access, public access prevention and a lifecycle rule deleting objects 90 days after upload, and grants the runtime service account `roles/storage.objectAdmin` on that bucket only (not the project),
 - creates the public exercise demo media bucket (`--media-bucket NAME`, env `EXERCISE_MEDIA_BUCKET`, default `<project-id>-media`; ADR 0026) if it is missing, in `europe-west2`, with uniform bucket-level access and public access prevention off, and grants `allUsers` `roles/storage.legacyObjectReader` on it (files readable by URL, the bucket not listable); the API never touches it,
-- creates the `GITHUB_FEEDBACK_TOKEN` secret **slot** if it is missing — with no value — and grants the runtime service account `roles/secretmanager.secretAccessor` on it; you add the value yourself (below) before the first deploy that needs it.
+- production only: creates the `GITHUB_FEEDBACK_TOKEN` secret **slot** if it is missing — with no value — and grants the runtime service account `roles/secretmanager.secretAccessor` on it; you add the value yourself (below) before the first deploy that needs it,
+- sets up the pipeline's identities (ADR 0023): Workload Identity pool `github` with provider `liftbig-github` (maps `google.subject` to GitHub's `sub` claim; accepts only this repository, by its numeric id, looked up on api.github.com or given with `--github-repo-id`); `github-deployer` with `roles/run.developer` and `roles/serviceusage.serviceUsageConsumer` on the project, `roles/iam.serviceAccountUser` on the runtime service account, and impersonation by jobs in the GitHub environment of the same name only (`repo:<repo>:environment:<environment>`),
+- in the registry project (`--registry-project`, default `liftbigapi`): the Docker repository `liftbig` in `europe-west1` (tags mutable; the pipeline deploys digests), its cleanup policy, and `github-builder` with Artifact Registry Writer on that repository and nothing else, impersonated by master jobs without an environment (`repo:<repo>:ref:refs/heads/master`),
+- grants Artifact Registry Reader on `liftbig` to the deployer and to the project's Cloud Run service agent (`service-<number>@serverless-robot-prod.iam.gserviceaccount.com`), which pulls the image; the runtime service account gets none,
+- prints the GitHub environment and repository variables to set.
 
-It is safe to run again; existing secrets and buckets are left as they are. To change a secret's value, add a version and redeploy (the service reads `latest` when a revision is created):
+The cleanup policy deletes an image only when it is both older than 30 days and outside the newest 30. The script sets it in dry-run mode; after checking what it would delete (Artifact Registry → `liftbig` → Cleanup policies), switch it on with `gcloud artifacts repositories set-cleanup-policies liftbig --project=liftbigapi --location=europe-west1 --policy=<file> --no-dry-run`, using the JSON the dry run prints.
+
+It is safe to run again; existing secrets, buckets, accounts, the pool, the provider and the repository are left as they are, and IAM grants are only ever added (removing an old grant is done by hand). To change a secret's value, add a version and redeploy (the service reads `latest` when a revision is created):
 
 ```bash
 read -r -s -p 'New value: ' v && printf '%s' "$v" |
@@ -202,7 +212,7 @@ Do this — the whole numbered list above, including this step — before the br
 
 ### Deploy
 
-The script reads `GCP_PROJECT_ID`, `MAIL_FROM`, `CORS_ORIGINS`, `PRIVACY_OPERATOR_NAME`, `PRIVACY_CONTACT_EMAIL` and, when present, `SENTRY_DSN`, `BUG_REPORT_BUCKET`, `BUG_REPORTS_ENABLED`, `GITHUB_FEEDBACK_REPO` and `EXERCISE_MEDIA_BASE_URL` from the API's `.env` (`--env-file PATH` for another file); it reads only those keys, never the file's secrets. Values already in the environment win:
+The script reads `GCP_PROJECT_ID`, `MAIL_FROM`, `CORS_ORIGINS`, `PRIVACY_OPERATOR_NAME`, `PRIVACY_CONTACT_EMAIL` and, when present, `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `BUG_REPORT_BUCKET`, `BUG_REPORTS_ENABLED`, `GITHUB_FEEDBACK_REPO` and `EXERCISE_MEDIA_BASE_URL` from the API's `.env` (`--env-file PATH` for another file); it reads only those keys, never the file's secrets. Values already in the environment win:
 
 ```bash
 # .env (gitignored)
@@ -214,14 +224,19 @@ PRIVACY_CONTACT_EMAIL='...'
 ```
 
 ```bash
-scripts/deploy.sh --dry-run                # prints the gcloud command, deploys nothing
-scripts/deploy.sh
+IMAGE=europe-west1-docker.pkg.dev/liftbigapi/liftbig/api@sha256:<digest>
+scripts/deploy.sh --image "$IMAGE" --dry-run   # prints the gcloud command, deploys nothing
+scripts/deploy.sh --image "$IMAGE"
 ```
 
-In a terminal, the script asks for any value still not set, shows the command and asks before deploying. Without a terminal, or with `--non-interactive`, it doesn't ask: it exits with an error naming each missing value, and passes `--quiet` to `gcloud`. `--project`, `--region`, `--service` and `--service-account` override the env vars. `scripts/deploy.sh --help` lists the options.
+`--image` (env `IMAGE`) is required and must name the image by digest (`…@sha256:<64 hex>`): a tag could have moved since staging ran it. In a terminal, the script asks for any other value still not set, shows the command and asks before deploying. Without a terminal, or with `--non-interactive`, it doesn't ask: it exits with an error naming each missing value, and passes `--quiet` to `gcloud`. `--project`, `--region`, `--service` and `--service-account` override the env vars. `scripts/deploy.sh --help` lists the options.
+
+**Break glass** (ADR 0023): roll traffic back to the previous revision (Cloud Run → `liftbig-api` → Revisions → Manage traffic) when no migration since then broke it; or run `scripts/deploy.sh --image <digest>` yourself with an image that already ran. Only if Actions is down and new code must ship: `docker build --platform linux/amd64 --target production`, push it as the project owner, deploy its digest, and note in the build log that it skipped staging.
 
 | Name | Kind | Default | Notes |
 | --- | --- | --- | --- |
+| `IMAGE` | input | required | Image by digest (`--image`); never read from the env file |
+| `OMIT_SECRETS` | input | none | Comma-separated secrets this environment runs without (`--omit-secrets`): only `MAIL_PROVIDER_KEY` (codes are logged, not emailed) and `GITHUB_FEEDBACK_TOKEN` (no GitHub issues). Staging names both; production names none. Never read from the env file, so a local file can't drop production's mail |
 | `GCP_PROJECT_ID` | input | required | The string project ID, not the project number |
 | `GCP_REGION` | input | `europe-west1` | Cloud Run region |
 | `SERVICE` | input | `liftbig-api` | Cloud Run service name |
@@ -232,6 +247,7 @@ In a terminal, the script asks for any value still not set, shows the command an
 | `PRIVACY_CONTACT_EMAIL` | env var | required | Shown on `/privacy` and `/terms` |
 | `SENTRY_DSN` | env var | optional | Turns error reports on; unset or empty removes it from the service, which turns them off |
 | `SENTRY_RELEASE` | env var | `GITHUB_SHA`, else the git `HEAD` | Release named in error reports |
+| `SENTRY_ENVIRONMENT` | env var | optional | Environment named in error reports, e.g. `staging`; unset or empty removes it, so production reports as `production` |
 | `BUG_REPORT_BUCKET` | env var | optional | Screenshot bucket; unset or empty removes it, so screenshots aren't stored |
 | `BUG_REPORTS_ENABLED` | env var | optional, `false` or unset | `false` turns `POST /bug-reports` off; unset or empty removes it, which means on |
 | `GITHUB_FEEDBACK_REPO` | env var | optional | `owner/repo` bug reports file an issue in; unset or empty removes it |
@@ -242,7 +258,7 @@ In a terminal, the script asks for any value still not set, shows the command an
 | `MAIL_PROVIDER_KEY` | secret | Secret Manager `MAIL_PROVIDER_KEY:latest` | Resend API key |
 | `GITHUB_FEEDBACK_TOKEN` | secret | Secret Manager `GITHUB_FEEDBACK_TOKEN:latest` | Fine-grained GitHub token; `scripts/gcp-setup.sh` only creates the slot, add the version yourself (see [Bug reports to GitHub](#bug-reports-to-github-lb-38)) |
 
-Env vars go through `--update-env-vars`, so any other env var on the service stays as it is. That includes `APP_MIN_VERSION_CODE` and `APP_LATEST_VERSION_CODE`: set them on the service itself (Cloud Run → the service → Edit & deploy new revision → Variables & Secrets) once the build they name is live on Play; the script doesn't set them. Secrets go through `--set-secrets`, so the service's secrets are exactly these four. The script also removes plain env vars with the secrets' names (`--remove-env-vars`, applied before the secrets), so a service that still has `DATABASE_URL` as a plain value switches to the secret in the same deploy. It never reads or prints a secret value.
+Env vars go through `--update-env-vars`, so any other env var on the service stays as it is. That includes `APP_MIN_VERSION_CODE` and `APP_LATEST_VERSION_CODE`: set them on the service itself (Cloud Run → the service → Edit & deploy new revision → Variables & Secrets) once the build they name is live on Play; the script doesn't set them. Secrets go through `--set-secrets`, so the service's secrets are exactly these four, less any in `OMIT_SECRETS` (an omitted secret is removed from the service). The script also removes plain env vars with the secrets' names (`--remove-env-vars`, applied before the secrets), so a service that still has `DATABASE_URL` as a plain value switches to the secret in the same deploy. It never reads or prints a secret value.
 
 Older plain env vars such as `DB_HOST` or `DB_PASSWORD` stay on the service until you remove them. The API ignores them once `DATABASE_URL` is set:
 
@@ -259,7 +275,7 @@ With `NODE_ENV=production` the API logs one JSON object per line, which Cloud Lo
 
 ### Error reports (Sentry)
 
-With `SENTRY_DSN` set, `src/instrument.ts` (the first import in `main.ts`) starts Sentry, and a global filter reports every error that isn't an `HttpException` (so not 4xx answers, 503 from `/health` or validation errors) before Nest answers 500 as usual. Reports carry the stack trace, the release, the method, the path without its query string, the `user-agent`, `content-type`, `content-length` and `accept` headers, and the account id of a signed-in request; never the body, other headers (`Authorization`, cookies, `X-Forwarded-For`), the query string, stack-frame variables or an IP address. The full list and the console settings (EU data storage, IP storage off) are in `docs/privacy/records-of-processing.md` § Sentry settings; the privacy policy describes the same, so a change to what's sent needs both updated. No tracing, profiling or logs. A `SENTRY_DSN` in `.env` turns reports on for local runs too (environment `development`), so keep it out of `.env` unless you mean that.
+With `SENTRY_DSN` set, `src/instrument.ts` (the first import in `main.ts`) starts Sentry, and a global filter reports every error that isn't an `HttpException` (so not 4xx answers, 503 from `/health` or validation errors) before Nest answers 500 as usual. Reports carry the stack trace, the release, the method, the path without its query string, the `user-agent`, `content-type`, `content-length` and `accept` headers, and the account id of a signed-in request; never the body, other headers (`Authorization`, cookies, `X-Forwarded-For`), the query string, stack-frame variables or an IP address. The full list and the console settings (EU data storage, IP storage off) are in `docs/privacy/records-of-processing.md` § Sentry settings; the privacy policy describes the same, so a change to what's sent needs both updated. No tracing, profiling or logs. A `SENTRY_DSN` in `.env` turns reports on for local runs too (environment `development`, or `SENTRY_ENVIRONMENT` when set), so keep it out of `.env` unless you mean that.
 
 To check a DSN, send one test event through the same setup: `SENTRY_DSN=<dsn> npx ts-node scripts/sentry-test-event.ts`. In Sentry → Issues, "LiftBig Sentry test event" should show the user as `sentry-test-user` only and none of the test request's body, `Authorization`, cookie, `X-Forwarded-For` or `?email=` query.
 
@@ -267,11 +283,18 @@ To turn reports off in production, delete the `SENTRY_DSN` variable of the `prod
 
 ### Running from the pipeline
 
-[`.github/workflows/api.yml`](../.github/workflows/api.yml) at the repo root tests the API on pull requests and, after the tests pass, deploys every merge to `master` that changes `liftbig-api/` or the workflow (Actions → API → Run workflow redeploys by hand). Its `ci-ok` job is the one check the `master` ruleset requires. The tests start with `npm audit --omit=dev --audit-level=high`, so a high or critical advisory in a runtime dependency also stops the deploy until it's fixed (`package.json` `overrides` pins `multer` 2.5.0 under `@nestjs/platform-express` until a Nest 11 release ships it; remove it then). It runs the same script with no changes. Give it the inputs as env vars (none of them are secret) and authenticate `gcloud` as a deploy service account through **Workload Identity Federation**, so there is no service account key file to store. On GitHub Actions that means `permissions: id-token: write`, then `google-github-actions/auth` with `workload_identity_provider` and `service_account`, then `google-github-actions/setup-gcloud`, then `scripts/deploy.sh`. Without a terminal it never waits for input. After the deploy, a smoke check fetches `/health` from the service URL and fails the job on anything but 2xx.
+[`.github/workflows/api.yml`](../.github/workflows/api.yml) at the repo root builds once and promotes (ADR 0023):
 
-The deploy service account needs `roles/run.sourceDeveloper` and `roles/serviceusage.serviceUsageConsumer` on the project, and `roles/iam.serviceAccountUser` on the runtime service account (`liftbig-api-runtime`), which it attaches to each revision. Set up the runtime service account, its secret access and this grant before a change to it merges: until they exist, deploys fail and Cloud Run keeps serving the previous revision. Leave its `roles/iam.serviceAccountUser` on the Compute Engine default service account in place while deploys build from source: Cloud Build runs as that account. It never needs access to the secret values; the runtime service account reads them.
+- **Pull request** (into `master` or `production`): `test`, then `build`, which only checks that the image builds.
+- **Merge to `master`** that changes `liftbig-api/` or the workflow: `test` → `build` → `deploy-staging`. `build` names the image by the git tree hash of `liftbig-api/` (its whole build input) and pushes `api:<commit>` and `api:tree-<hash>` to `europe-west1-docker.pkg.dev/liftbigapi/liftbig/api`, or, if that tree was built before, reuses the image and only adds the commit tag. `deploy-staging` deploys it by digest in the `staging` environment and checks `/health` on the `run.app` URL and `staging-api.liftbig.co`.
+- **Merge to `production`** that changes `liftbig-api/`: `test` → `release` → `deploy-production`. `release` looks for a successful `staging` deployment (GitHub records one per `deploy-staging` job) of a commit with the same `liftbig-api/` tree, and fails before any approval if there is none: production never builds, so a hotfix goes through `master` first. `deploy-production` waits for the `production` environment's required reviewer, deploys the `tree-<hash>` image by digest with the staged commit as `SENTRY_RELEASE`, and checks `/health` on the `run.app` URL and `api.liftbig.co`. The same merge uploads the app to Play internal testing (T2 A5b).
+- Actions → API → Run workflow: on `master` redeploys staging (no rebuild), on `production` promotes again.
 
-The workflow passes `RUNTIME_SA` and `SENTRY_DSN` from the `production` environment's variables, and `deploy.sh` takes the release from `GITHUB_SHA`. For `RUNTIME_SA`, when it isn't set, the script's default applies. To go back to another runtime service account, set `RUNTIME_SA` to it and run the workflow, or pick it in Cloud Run → the service → Edit & deploy new revision → Security (the next pipeline deploy switches back to `RUNTIME_SA`).
+The tree hash, not the commit, links the two branches: every merge button gives `production` commits that aren't on `master`, while the merged tree is the same. Its `ci-ok` job is the one check the `master` (and `production`) ruleset requires; it covers `build` too. The tests start with `npm audit --omit=dev --audit-level=high`, so a high or critical advisory in a runtime dependency also stops the deploy until it's fixed (`package.json` `overrides` pins `multer` 2.5.0 under `@nestjs/platform-express` until a Nest 11 release ships it; remove it then). The deploy jobs run `scripts/deploy.sh --non-interactive --image <digest>` with the inputs as env vars (none of them are secret), authenticated as the environment's deployer through **Workload Identity Federation**, so there is no service account key file to store (`permissions: id-token: write`, then `google-github-actions/auth`, then `google-github-actions/setup-gcloud`).
+
+The identities and their grants are the ones `scripts/gcp-setup.sh` sets up (above). None of them reads a secret value; the runtime service account does.
+
+Variables: repository-level `BUILD_WIF_PROVIDER` and `BUILD_SA` (the builder). Per environment (`staging`, `production`): `GCP_PROJECT_ID`, `GCP_REGION`, `WIF_PROVIDER`, `DEPLOY_SA`, `RUNTIME_SA`, `MAIL_FROM`, `CORS_ORIGINS`, `PRIVACY_OPERATOR_NAME`, `PRIVACY_CONTACT_EMAIL`, `SENTRY_DSN`, `EXERCISE_MEDIA_BASE_URL`, and the bug-report ones; staging also `OMIT_SECRETS=MAIL_PROVIDER_KEY,GITHUB_FEEDBACK_TOKEN`, `SENTRY_ENVIRONMENT=staging` and `BUG_REPORTS_ENABLED=false`. `deploy-production` never passes `OMIT_SECRETS` or `SENTRY_ENVIRONMENT`, whatever the environment holds. Environment settings: `staging` deploys from `master` only; `production` from `production` only, with the maintainer as required reviewer and "Prevent self-review" off. Staging's `deploy.sh` takes the release from `GITHUB_SHA`. For `RUNTIME_SA`, when it isn't set, the script's default applies. To go back to another runtime service account, set `RUNTIME_SA` to it and run the workflow, or pick it in Cloud Run → the service → Edit & deploy new revision → Security (the next pipeline deploy switches back to `RUNTIME_SA`).
 
 ## Rollback
 
@@ -279,7 +302,7 @@ Three cases: a bad API release, a failed migration, and lost or damaged data. Th
 
 ### A bad API release
 
-The usual way back is a revert: revert the merge on `master` through a PR, and the pipeline tests and deploys the previous code.
+The usual way back is a revert: revert the change on `master` through a PR (staging gets the previous code back, usually without a rebuild, since its tree was built before), then merge `master` into `production`.
 
 When that's too slow, send all traffic to the previous revision. In the console: Cloud Run → `liftbig-api` → Revisions → the previous revision → Manage traffic → 100%. Or:
 

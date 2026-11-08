@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Deploys the API to Google Cloud Run from this repo's source (built with the
-# Dockerfile). Inputs come from env vars or flags, then from the API's .env (only
-# the keys listed in REQUIRED); in a terminal the script asks for a value still
-# missing, otherwise it stops and names it, so a pipeline can run it unchanged.
+# Deploys an API image that is already in Artifact Registry to Google Cloud Run,
+# by digest (ADR 0023: built once, run on staging, then promoted; nothing is
+# built here). Inputs come from env vars or flags, then from the API's .env (only
+# the keys listed in REQUIRED and OPTIONAL; never IMAGE or OMIT_SECRETS); in a
+# terminal the script asks for a value still missing, otherwise it stops and
+# names it, so a pipeline can run it unchanged.
 # Secrets are passed by Secret Manager name only and never read here.
 # One-time project setup (login, APIs, IAM, secrets): scripts/gcp-setup.sh.
 
@@ -14,10 +16,14 @@ API_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # GITHUB_FEEDBACK_TOKEN needs a version (scripts/gcp-setup.sh only creates the
 # slot) before this script is run, or the revision fails to start.
 SECRETS=(DATABASE_URL JWT_SECRET MAIL_PROVIDER_KEY GITHUB_FEEDBACK_TOKEN)
+# The only secrets an environment may leave out, and only by naming them in
+# OMIT_SECRETS (staging, ADR 0023): a missing variable never drops one, since
+# --set-secrets removes every secret it isn't given.
+OMITTABLE_SECRETS=(MAIL_PROVIDER_KEY GITHUB_FEEDBACK_TOKEN)
 # Must be set; CORS_ORIGINS may be set to an empty string for "none".
 REQUIRED=(GCP_PROJECT_ID MAIL_FROM CORS_ORIGINS PRIVACY_OPERATOR_NAME PRIVACY_CONTACT_EMAIL)
 # May be unset or empty: the deploy then removes it from the service.
-OPTIONAL=(SENTRY_DSN BUG_REPORT_BUCKET BUG_REPORTS_ENABLED GITHUB_FEEDBACK_REPO EXERCISE_MEDIA_BASE_URL)
+OPTIONAL=(SENTRY_DSN SENTRY_ENVIRONMENT BUG_REPORT_BUCKET BUG_REPORTS_ENABLED GITHUB_FEEDBACK_REPO EXERCISE_MEDIA_BASE_URL)
 # Separates env vars on the gcloud command line (`gcloud topic escaping`), so
 # values may contain commas, e.g. CORS_ORIGINS.
 D=';;'
@@ -26,9 +32,15 @@ usage() {
   cat <<'EOF'
 Usage: scripts/deploy.sh [options]
 
-Deploys the API to Cloud Run from source.
+Deploys an API image from Artifact Registry to Cloud Run, by digest.
 
 Options:
+  --image REF         Image to deploy, by digest (env IMAGE; required), e.g.
+                      europe-west1-docker.pkg.dev/liftbigapi/liftbig/api@sha256:<64 hex>
+  --omit-secrets LIST Comma-separated secrets this environment runs without
+                      (env OMIT_SECRETS): MAIL_PROVIDER_KEY (codes go to the
+                      log instead of email), GITHUB_FEEDBACK_TOKEN (no GitHub
+                      issues). Production names none
   --project ID        Google Cloud project ID (env GCP_PROJECT_ID)
   --region REGION     Cloud Run region (env GCP_REGION, default europe-west1)
   --service NAME      Cloud Run service (env SERVICE, default liftbig-api)
@@ -54,6 +66,9 @@ Env vars (optional):
                          reports off (the deploy removes it from the service)
   SENTRY_RELEASE         Release named in error reports (default: GITHUB_SHA,
                          else the API folder's git HEAD)
+  SENTRY_ENVIRONMENT     Environment named in error reports, e.g. staging;
+                         unset or empty removes it, so production reports as
+                         production
   BUG_REPORT_BUCKET      Cloud Storage bucket for bug-report screenshots
                          (scripts/gcp-setup.sh --bucket); unset or empty
                          removes it, so screenshots aren't stored
@@ -65,13 +80,14 @@ Env vars (optional):
   EXERCISE_MEDIA_BASE_URL
                          https URL of the public demo media bucket, e.g.
                          https://storage.googleapis.com/<project>-media
-                         (ADR 0026); unset or empty removes it, so exercise
+                         unset or empty removes it, so exercise
                          demos aren't shown
 
 Secrets (Secret Manager, latest version): DATABASE_URL, JWT_SECRET,
-MAIL_PROVIDER_KEY, GITHUB_FEEDBACK_TOKEN. The runtime service account reads
-them; GITHUB_FEEDBACK_TOKEN needs a version added (scripts/gcp-setup.sh only
-creates the slot) before this script is run.
+MAIL_PROVIDER_KEY, GITHUB_FEEDBACK_TOKEN, less those in OMIT_SECRETS. The
+runtime service account reads them; GITHUB_FEEDBACK_TOKEN needs a version added
+(scripts/gcp-setup.sh only creates the slot) before this script is run.
+IMAGE and OMIT_SECRETS are never read from the env file.
 EOF
 }
 
@@ -146,9 +162,11 @@ INTERACTIVE=true
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --project | --region | --service | --service-account | --env-file)
+    --image | --omit-secrets | --project | --region | --service | --service-account | --env-file)
       [ $# -ge 2 ] || die "$1 needs a value"
       case "$1" in
+        --image) IMAGE=$2 ;;
+        --omit-secrets) OMIT_SECRETS=$2 ;;
         --project) GCP_PROJECT_ID=$2 ;;
         --region) GCP_REGION=$2 ;;
         --service) SERVICE=$2 ;;
@@ -157,6 +175,8 @@ while [ $# -gt 0 ]; do
       esac
       shift
       ;;
+    --image=*) IMAGE=${1#*=} ;;
+    --omit-secrets=*) OMIT_SECRETS=${1#*=} ;;
     --project=*) GCP_PROJECT_ID=${1#*=} ;;
     --region=*) GCP_REGION=${1#*=} ;;
     --service=*) SERVICE=${1#*=} ;;
@@ -217,6 +237,23 @@ fi
 
 [[ "$GCP_PROJECT_ID" =~ ^[0-9]+$ ]] &&
   die "GCP_PROJECT_ID is the project number; use the string project ID"
+# Only a digest pins what ran on staging (ADR 0023); a tag could have moved.
+IMAGE=${IMAGE:-}
+[ -n "$IMAGE" ] ||
+  die "no image given; pass --image <registry>/<path>@sha256:<digest> (env IMAGE)"
+image_re='^[a-z0-9.-]+(:[0-9]+)?/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$'
+[[ "$IMAGE" =~ $image_re ]] ||
+  die "IMAGE must name an image by digest (<registry>/<path>@sha256:<64 hex>), not a tag: $IMAGE"
+# Secrets this environment runs without: named one by one, from OMITTABLE_SECRETS only.
+omitted=" "
+IFS=',' read -r -a omit_list <<<"${OMIT_SECRETS:-}"
+for name in "${omit_list[@]+"${omit_list[@]}"}"; do
+  name=${name//[[:space:]]/}
+  [ -n "$name" ] || continue
+  [[ " ${OMITTABLE_SECRETS[*]} " == *" $name "* ]] ||
+    die "OMIT_SECRETS may name only ${OMITTABLE_SECRETS[*]}: $name"
+  [[ "$omitted" == *" $name "* ]] || omitted+="$name "
+done
 # The service's own identity: it reads the secrets and holds no project roles.
 # An empty value (an unset pipeline variable) means the default.
 RUNTIME_SA=${RUNTIME_SA:-liftbig-api-runtime@$GCP_PROJECT_ID.iam.gserviceaccount.com}
@@ -245,6 +282,12 @@ EXERCISE_MEDIA_BASE_URL=${EXERCISE_MEDIA_BASE_URL:-}
 media_url_re='^https://[^/;[:space:]]+(/[^;[:space:]]*)?$'
 [ -z "$EXERCISE_MEDIA_BASE_URL" ] || [[ "$EXERCISE_MEDIA_BASE_URL" =~ $media_url_re ]] ||
   die "EXERCISE_MEDIA_BASE_URL must be an https URL or empty: $EXERCISE_MEDIA_BASE_URL"
+# Sentry's own rules for an environment name: no spaces or slashes, at most 64
+# characters, not "None". Unset means production reports as production.
+SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-}
+[ -z "$SENTRY_ENVIRONMENT" ] ||
+  { [[ "$SENTRY_ENVIRONMENT" =~ ^[A-Za-z0-9._-]{1,64}$ ]] && [ "$SENTRY_ENVIRONMENT" != None ]; } ||
+  die "SENTRY_ENVIRONMENT must be up to 64 letters, digits, '.', '_' or '-' (not None), or empty: $SENTRY_ENVIRONMENT"
 # Error reports name the deployed commit.
 SENTRY_RELEASE=${SENTRY_RELEASE:-${GITHUB_SHA:-$(git -C "$API_DIR" rev-parse HEAD 2>/dev/null || true)}}
 [[ "$SENTRY_RELEASE" =~ ^[A-Za-z0-9._-]*$ ]] ||
@@ -258,6 +301,7 @@ env_vars+="${D}NODE_ENV=production${D}TYPEORM_SYNC=false${D}RUN_MIGRATIONS=true$
 
 secret_refs=""
 for name in "${SECRETS[@]}"; do
+  [[ "$omitted" == *" $name "* ]] && continue
   secret_refs+="${secret_refs:+,}$name=$name:latest"
 done
 secret_names="$(IFS=,; echo "${SECRETS[*]}")"
@@ -268,6 +312,11 @@ if [ -n "$SENTRY_DSN" ]; then
   env_vars+="${D}SENTRY_DSN=$SENTRY_DSN"
 else
   removed_vars+=",SENTRY_DSN"
+fi
+if [ -n "$SENTRY_ENVIRONMENT" ]; then
+  env_vars+="${D}SENTRY_ENVIRONMENT=$SENTRY_ENVIRONMENT"
+else
+  removed_vars+=",SENTRY_ENVIRONMENT"
 fi
 # Without a bucket, screenshots aren't stored; without the flag, reports are on;
 # without the repo, bug reports can't be filed as issues.
@@ -299,11 +348,13 @@ startup_probe="httpGet.path=/health,initialDelaySeconds=0,timeoutSeconds=5,perio
 
 # --remove-env-vars runs before the secrets are set, so a service that still has
 # one of these as a plain value switches to the secret in the same deploy.
+# --set-secrets replaces the service's whole secret list, so an omitted secret
+# is removed from the service.
 cmd=(
   gcloud run deploy "$SERVICE"
   --project="$GCP_PROJECT_ID"
   --region="$GCP_REGION"
-  --source="$API_DIR"
+  --image="$IMAGE"
   --allow-unauthenticated
   --service-account="$RUNTIME_SA"
   --remove-env-vars="$removed_vars"
@@ -335,8 +386,10 @@ if [ -z "$account" ] && [ "$INTERACTIVE" = true ]; then
   die "no active gcloud account; run 'gcloud auth login' (or scripts/gcp-setup.sh)"
 fi
 
-echo "Deploying $SERVICE to $GCP_PROJECT_ID ($GCP_REGION)${account:+ as $account}; it runs as $RUNTIME_SA."
+echo "Deploying $IMAGE as $SERVICE to $GCP_PROJECT_ID ($GCP_REGION)${account:+ as $account}; it runs as $RUNTIME_SA."
 echo "Schema sync is off: entity changes reach production only through migrations."
+[[ "$omitted" == *" MAIL_PROVIDER_KEY "* ]] &&
+  echo "Without MAIL_PROVIDER_KEY, sign-in codes are written to the Cloud Run log, not emailed."
 if [ "$INTERACTIVE" = true ]; then
   print_cmd
   read -r -p "Deploy now? [y/N] " answer
