@@ -185,10 +185,13 @@ module "monitoring" {
   alert_email          = var.alert_email
 
   uptime = {
-    display_name       = "LiftBigAPI Healthy"
-    host               = "api.liftbig.co"
+    display_name = "LiftBigAPI Healthy"
+    host         = "api.liftbig.co"
+    # Not /health until rollout: it queries the database, and a check every 5
+    # minutes keeps Neon awake around the clock (about 185 CU-hours a month).
+    path               = "/privacy"
     alert_display_name = "LiftBigAPI Healthy uptime failure"
-    notify             = false
+    notify             = true
   }
 
   threshold_alerts = {

@@ -10,7 +10,7 @@ This repository is public: no secrets, personal email addresses or billing ids i
 
 ## Pipeline
 
-`.github/workflows/api.yml` runs it when `infra/` or that workflow changes. It needs the repository secret `ALERT_EMAIL`, the production root's alert address.
+`.github/workflows/api.yml` runs it when `infra/` or that workflow changes. It needs the repository secret `ALERT_EMAIL`, the alert address of both roots.
 
 - **Pull request into `master`:** `tofu-plan` runs read-only for both roots and keeps one comment up to date, listing each resource address and its action. PRs from forks and Dependabot get no OIDC token and skip it.
 - **Merge to `master`:** `tofu-plan` saves a plan per root. A root with changes is applied from exactly that plan, staging in `infra-staging`, then production in `infra-production` after approval.
@@ -25,7 +25,7 @@ An apply refuses a plan that is out of date, either because the state has moved 
 
 ## Working locally
 
-Needs OpenTofu 1.13.9 and `gcloud auth application-default login`. The production root reads the alert address from the environment:
+Needs OpenTofu 1.13.9 and `gcloud auth application-default login`. Both roots read the alert address from the environment:
 
 ```bash
 export TF_VAR_alert_email="$(gcloud beta monitoring channels list --project liftbigapi --format='value(labels.email_address)')"
