@@ -60,6 +60,10 @@ Options:
   --github-repo-id ID
                     Its numeric id (env GITHUB_REPO_ID; looked up on
                     api.github.com when unset)
+  --github-sub-prefix PREFIX
+                    Start of the repository's OIDC sub claim (env
+                    GITHUB_SUB_PREFIX; read with gh when unset), e.g.
+                    repo:owner@123/name@456
   --dry-run         Print the gcloud commands instead of running them; needs
                     no login and no terminal
   -h, --help        Show this help
@@ -75,7 +79,7 @@ DRY_RUN=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --project | --environment | --service | --service-account | --bucket | --media-bucket | \
-      --registry-project | --github-repo | --github-repo-id)
+      --registry-project | --github-repo | --github-repo-id | --github-sub-prefix)
       [ $# -ge 2 ] || die "$1 needs a value"
       case "$1" in
         --project) GCP_PROJECT_ID=$2 ;;
@@ -87,6 +91,7 @@ while [ $# -gt 0 ]; do
         --registry-project) REGISTRY_PROJECT=$2 ;;
         --github-repo) GITHUB_REPO=$2 ;;
         --github-repo-id) GITHUB_REPO_ID=$2 ;;
+        --github-sub-prefix) GITHUB_SUB_PREFIX=$2 ;;
       esac
       shift
       ;;
@@ -99,6 +104,7 @@ while [ $# -gt 0 ]; do
     --registry-project=*) REGISTRY_PROJECT=${1#*=} ;;
     --github-repo=*) GITHUB_REPO=${1#*=} ;;
     --github-repo-id=*) GITHUB_REPO_ID=${1#*=} ;;
+    --github-sub-prefix=*) GITHUB_SUB_PREFIX=${1#*=} ;;
     --dry-run) DRY_RUN=true ;;
     -h | --help)
       usage
@@ -215,6 +221,21 @@ if [ -z "${GITHUB_REPO_ID:-}" ]; then
 fi
 [ "$DRY_RUN" = true ] || [[ "$GITHUB_REPO_ID" =~ ^[0-9]+$ ]] ||
   die "--github-repo-id must be numeric: $GITHUB_REPO_ID"
+
+# The start of GitHub's OIDC sub claim, which the impersonation grants must
+# match exactly. Repositories on immutable subjects have ids in it
+# (repo:owner@<id>/name@<id>), so ask GitHub rather than build it from the name.
+if [ -z "${GITHUB_SUB_PREFIX:-}" ]; then
+  if [ "$DRY_RUN" = true ]; then
+    GITHUB_SUB_PREFIX="<sub-prefix-of-$GITHUB_REPO>"
+  else
+    GITHUB_SUB_PREFIX="$(gh api "repos/$GITHUB_REPO/actions/oidc/customization/sub" \
+      --jq .sub_claim_prefix)" ||
+      die "couldn't read the OIDC subject of $GITHUB_REPO with gh; pass --github-sub-prefix"
+  fi
+fi
+[ "$DRY_RUN" = true ] || [[ "$GITHUB_SUB_PREFIX" =~ ^repo:[^:[:space:]]+$ ]] ||
+  die "--github-sub-prefix must look like repo:owner/name (no trailing colon): $GITHUB_SUB_PREFIX"
 
 echo "Setting up $ENVIRONMENT in $GCP_PROJECT_ID (registry in $REGISTRY_PROJECT, repository $GITHUB_REPO)."
 
@@ -338,8 +359,8 @@ done
 # One pool per project. The provider maps google.subject to GitHub's sub claim
 # and accepts tokens from this repository only; who may impersonate which
 # service account is then decided per subject:
-#   repo:<repo>:ref:refs/heads/master      a job on master with no environment
-#   repo:<repo>:environment:<environment>  a job in that GitHub environment
+#   <sub prefix>:ref:refs/heads/master      a job on master with no environment
+#   <sub prefix>:environment:<environment>  a job in that GitHub environment
 #                                          (whose branch rule picks the branch)
 create_pool_and_provider() {
   local project=$1
@@ -377,7 +398,7 @@ create_ci_sa() {
 
 subject_member() {
   local number=$1 subject=$2
-  echo "principal://iam.googleapis.com/projects/$number/locations/global/workloadIdentityPools/$POOL/subject/repo:$GITHUB_REPO:$subject"
+  echo "principal://iam.googleapis.com/projects/$number/locations/global/workloadIdentityPools/$POOL/subject/$GITHUB_SUB_PREFIX:$subject"
 }
 
 registry_ref="projects/$REGISTRY_PROJECT/locations/$REGION/repositories/$REGISTRY"
