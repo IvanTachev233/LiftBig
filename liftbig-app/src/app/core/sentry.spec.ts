@@ -3,6 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import type { Breadcrumb, ErrorEvent } from '@sentry/angular';
 import { environment } from '../../environments/environment';
 import { environment as dockerEnvironment } from '../../environments/environment.docker';
+import { environment as stagingEnvironment } from '../../environments/environment.staging';
 import {
   cleanBreadcrumb,
   cleanEvent,
@@ -20,6 +21,11 @@ describe('Sentry', () => {
     it('has no DSN in dev, tests and the Docker build', () => {
       expect(environment.sentryDsn).toBe('');
       expect(dockerEnvironment.sentryDsn).toBe('');
+    });
+
+    it('has no DSN in the staging build, which calls the staging API (ADR 0023)', () => {
+      expect(stagingEnvironment.sentryDsn).toBe('');
+      expect(stagingEnvironment.apiUrl).toBe('https://staging-api.liftbig.co');
     });
 
     it('does not init without a DSN', () => {

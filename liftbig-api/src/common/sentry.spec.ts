@@ -98,6 +98,31 @@ describe('sentryOptions', () => {
     expect(options?.release).toBeUndefined();
     expect(options?.environment).toBe('development');
   });
+
+  it('takes the environment from SENTRY_ENVIRONMENT, so staging reports as staging', () => {
+    const options = sentryOptions({
+      SENTRY_DSN: DSN,
+      SENTRY_ENVIRONMENT: ' staging ',
+      NODE_ENV: 'production',
+    });
+    expect(options?.environment).toBe('staging');
+  });
+
+  it.each([
+    ['empty', '', 'production', 'production'],
+    ['blank', '   ', 'production', 'production'],
+    ['empty, not production', '', undefined, 'development'],
+  ])(
+    'falls back to the NODE_ENV rule when SENTRY_ENVIRONMENT is %s',
+    (_label, sentryEnvironment, nodeEnv, expected) => {
+      const options = sentryOptions({
+        SENTRY_DSN: DSN,
+        SENTRY_ENVIRONMENT: sentryEnvironment,
+        NODE_ENV: nodeEnv,
+      });
+      expect(options?.environment).toBe(expected);
+    },
+  );
 });
 
 describe('initSentry', () => {

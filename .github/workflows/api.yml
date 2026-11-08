@@ -1,14 +1,22 @@
 name: API
 
+# Build once and promote (ADR 0023): a merge to master builds the API image once
+# and deploys it to staging; a merge to production promotes the digest that
+# staging ran for the same liftbig-api/ content, after the production
+# environment's approval. Nothing is built for production.
 on:
   pull_request:
-    branches: [master]
+    branches: [master, production]
   push:
-    branches: [master]
-  workflow_dispatch: # "Run workflow" button, for redeploying master by hand
+    branches: [master, production]
+  workflow_dispatch: # "Run workflow": on master redeploys staging, on production re-promotes
 
 permissions:
   contents: read
+
+env:
+  # One registry for both projects (ADR 0023 1A); images are deployed by digest.
+  IMAGE_REPO: europe-west1-docker.pkg.dev/liftbigapi/liftbig/api
 
 jobs:
   # Path filtering happens here, not under `on:`: a workflow skipped by `paths`
@@ -105,12 +113,160 @@ jobs:
     if: needs.changes.outputs.app == 'true'
     uses: ./.github/workflows/app.yml
 
-  deploy:
-    needs: test
-    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+  # The image is named by the git tree hash of liftbig-api/ (its whole build
+  # input): the same on master and production whatever merge button is used,
+  # while every merge gives production new commit SHAs. On PRs it only checks
+  # that the image builds; on master it pushes, or reuses an image already
+  # built from the same tree.
+  build:
+    needs: [changes, test]
+    if: >-
+      needs.changes.outputs.api == 'true' &&
+      (github.event_name == 'pull_request' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # lets the job request GitHub's OIDC token
+    outputs:
+      image: ${{ steps.push.outputs.image }} # <IMAGE_REPO>@sha256:…; empty on PRs
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: tree
+        run: echo "tree=$(git rev-parse HEAD:liftbig-api)" | tee -a "$GITHUB_OUTPUT"
+      - name: Build only (pull request)
+        if: github.event_name == 'pull_request'
+        run: docker build --target production -t api:check liftbig-api
+      - id: auth
+        if: github.event_name != 'pull_request'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          # github-builder: Artifact Registry Writer on the liftbig repo, nothing else
+          workload_identity_provider: ${{ vars.BUILD_WIF_PROVIDER }}
+          service_account: ${{ vars.BUILD_SA }}
+      - if: github.event_name != 'pull_request'
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+      - id: push
+        name: Build and push once, or reuse the image of this tree
+        if: github.event_name != 'pull_request'
+        env:
+          TREE: ${{ steps.tree.outputs.tree }}
+        run: |
+          gcloud auth configure-docker "${IMAGE_REPO%%/*}" --quiet
+          digest_of() {
+            gcloud artifacts docker images describe "$1" --format='value(image_summary.digest)'
+          }
+          if digest=$(digest_of "$IMAGE_REPO:tree-$TREE" 2>/dev/null) && [ -n "$digest" ]; then
+            echo "Reusing $IMAGE_REPO:tree-$TREE ($digest); not rebuilt."
+            gcloud artifacts docker tags add "$IMAGE_REPO@$digest" "$IMAGE_REPO:$GITHUB_SHA" --quiet
+          else
+            docker build --target production \
+              -t "$IMAGE_REPO:$GITHUB_SHA" -t "$IMAGE_REPO:tree-$TREE" liftbig-api
+            docker push --all-tags "$IMAGE_REPO"
+            digest=$(digest_of "$IMAGE_REPO:tree-$TREE")
+          fi
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "No digest for tree-$TREE: '$digest'" >&2; exit 1; }
+          echo "image=$IMAGE_REPO@$digest" | tee -a "$GITHUB_OUTPUT"
+
+  deploy-staging:
+    needs: build
+    if: needs.build.outputs.image != ''
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: production
+    environment: staging # deployment branch rule: master only
+    concurrency:
+      group: staging-api
+      cancel-in-progress: false # never kill a deploy mid-migration; queue the next one
+    permissions:
+      contents: read
+      id-token: write # lets the job request GitHub's OIDC token
+    defaults:
+      run:
+        working-directory: liftbig-api
+    env:
+      IMAGE: ${{ needs.build.outputs.image }}
+      API_DOMAIN: https://staging-api.liftbig.co
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      RUNTIME_SA: ${{ vars.RUNTIME_SA }} # empty: deploy.sh's liftbig-api-runtime default
+      OMIT_SECRETS: ${{ vars.OMIT_SECRETS }} # staging: MAIL_PROVIDER_KEY,GITHUB_FEEDBACK_TOKEN
+      MAIL_FROM: ${{ vars.MAIL_FROM }}
+      CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
+      PRIVACY_OPERATOR_NAME: ${{ vars.PRIVACY_OPERATOR_NAME }}
+      PRIVACY_CONTACT_EMAIL: ${{ vars.PRIVACY_CONTACT_EMAIL }}
+      SENTRY_DSN: ${{ vars.SENTRY_DSN }} # empty: error reports off
+      SENTRY_ENVIRONMENT: ${{ vars.SENTRY_ENVIRONMENT }} # staging
+      BUG_REPORT_BUCKET: ${{ vars.BUG_REPORT_BUCKET }} # empty: screenshots not stored
+      BUG_REPORTS_ENABLED: ${{ vars.BUG_REPORTS_ENABLED }} # staging: false (503)
+      GITHUB_FEEDBACK_REPO: ${{ vars.FEEDBACK_REPO }} # empty: no GitHub issue is filed
+      EXERCISE_MEDIA_BASE_URL: ${{ vars.EXERCISE_MEDIA_BASE_URL }} # staging demo media bucket
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+      - name: Deploy by digest
+        run: scripts/deploy.sh --non-interactive --image "$IMAGE"
+      - name: Smoke check # 200 only when the new revision reaches the database
+        run: |
+          url=$(gcloud run services describe liftbig-api \
+            --project="$GCP_PROJECT_ID" --region="$GCP_REGION" \
+            --format='value(status.url)')
+          for base in "$url" "$API_DOMAIN"; do
+            curl -fsS -o /dev/null -w "%{http_code} $base/health\n" "$base/health"
+          done
+
+  # Before anyone is asked to approve: the API content of production must have
+  # passed staging. Finds a successful staging deployment (GitHub creates one
+  # per deploy-staging job) of a commit with the same liftbig-api/ tree.
+  release:
+    needs: [changes, test]
+    if: >-
+      needs.changes.outputs.api == 'true' &&
+      github.ref == 'refs/heads/production' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      deployments: read
+    outputs:
+      tree: ${{ steps.find.outputs.tree }}
+      staged: ${{ steps.find.outputs.staged }} # the master commit staging ran
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # staging's commits are on master, merged into this branch
+      - id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tree=$(git rev-parse HEAD:liftbig-api)
+          echo "tree=$tree" | tee -a "$GITHUB_OUTPUT"
+          staged=''
+          while read -r id sha; do
+            [ "$(git rev-parse --verify --quiet "$sha:liftbig-api")" = "$tree" ] || continue
+            state=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$id/statuses?per_page=1" --jq '.[0].state')
+            if [ "$state" = success ]; then
+              staged=$sha
+              break
+            fi
+          done < <(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=staging&per_page=100" \
+            --jq '.[] | "\(.id) \(.sha)"')
+          if [ -z "$staged" ]; then
+            echo "::error::No successful staging deployment of liftbig-api/ tree $tree. Merge it to master and wait for deploy-staging; production never builds."
+            exit 1
+          fi
+          echo "Staging ran this API content at $staged."
+          echo "staged=$staged" | tee -a "$GITHUB_OUTPUT"
+
+  deploy-production:
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production # required reviewer; deployment branch rule: production only
     concurrency:
       group: production-api
       cancel-in-progress: false # never kill a deploy mid-migration; queue the next one
@@ -121,6 +277,10 @@ jobs:
       run:
         working-directory: liftbig-api
     env:
+      TREE: ${{ needs.release.outputs.tree }}
+      SENTRY_RELEASE: ${{ needs.release.outputs.staged }} # same release name as on staging
+      # Deliberately no OMIT_SECRETS (all four secrets) and no SENTRY_ENVIRONMENT
+      # (reports as production), whatever variables the environment has.
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
       GCP_REGION: ${{ vars.GCP_REGION }}
       RUNTIME_SA: ${{ vars.RUNTIME_SA }} # empty: deploy.sh's liftbig-api-runtime default
@@ -128,11 +288,11 @@ jobs:
       CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
       PRIVACY_OPERATOR_NAME: ${{ vars.PRIVACY_OPERATOR_NAME }}
       PRIVACY_CONTACT_EMAIL: ${{ vars.PRIVACY_CONTACT_EMAIL }}
-      SENTRY_DSN: ${{ vars.SENTRY_DSN }} # empty: error reports off (deploy.sh removes it)
-      BUG_REPORT_BUCKET: ${{ vars.BUG_REPORT_BUCKET }} # empty: screenshots not stored (deploy.sh removes it)
-      BUG_REPORTS_ENABLED: ${{ vars.BUG_REPORTS_ENABLED }} # empty: on (deploy.sh removes it)
-      GITHUB_FEEDBACK_REPO: ${{ vars.FEEDBACK_REPO }} # Actions variables can't start with GITHUB_; empty: no GitHub issue is filed (deploy.sh removes it)
-      EXERCISE_MEDIA_BASE_URL: ${{ vars.EXERCISE_MEDIA_BASE_URL }} # demo media bucket URL (ADR 0026); empty: no exercise demos (deploy.sh removes it)
+      SENTRY_DSN: ${{ vars.SENTRY_DSN }} # empty: error reports off
+      BUG_REPORT_BUCKET: ${{ vars.BUG_REPORT_BUCKET }} # empty: screenshots not stored
+      BUG_REPORTS_ENABLED: ${{ vars.BUG_REPORTS_ENABLED }} # empty: on
+      GITHUB_FEEDBACK_REPO: ${{ vars.FEEDBACK_REPO }} # Actions variables can't start with GITHUB_; empty: no GitHub issue is filed
+      EXERCISE_MEDIA_BASE_URL: ${{ vars.EXERCISE_MEDIA_BASE_URL }} # demo media bucket URL empty: no exercise demos
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: auth
@@ -141,10 +301,12 @@ jobs:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
           service_account: ${{ vars.DEPLOY_SA }}
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
-      - name: Who am I
-        run: gcloud auth list --filter=status:ACTIVE --format='value(account)'
-      - name: Deploy # uploads only liftbig-api/ (deploy.sh passes --source=<API folder>)
-        run: scripts/deploy.sh --non-interactive
+      - name: Deploy the digest staging ran
+        run: |
+          digest=$(gcloud artifacts docker images describe "$IMAGE_REPO:tree-$TREE" \
+            --format='value(image_summary.digest)')
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "No image for tree-$TREE: '$digest'" >&2; exit 1; }
+          scripts/deploy.sh --non-interactive --image "$IMAGE_REPO@$digest"
       - name: Smoke check # 200 only when the new revision reaches the database
         # The run.app URL (older installed builds) first, then the domain (versionCode 4 on)
         run: |
@@ -158,7 +320,7 @@ jobs:
   # The one required check: passes when every job it needs passed or was skipped by path.
   ci-ok:
     if: always()
-    needs: [changes, test, app]
+    needs: [changes, test, app, build]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

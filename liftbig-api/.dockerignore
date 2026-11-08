@@ -1,0 +1,20 @@
+# Kept out of every image and of the build context: secrets, local state,
+# build output and dependencies (both are rebuilt inside the image), and files
+# the API doesn't run (tests, scripts, docs, editor and agent settings).
+.env*
+*.sql
+*.zip
+*.log
+.trail
+.claude
+.git
+.DS_Store
+node_modules
+dist
+coverage
+test
+**/*.spec.ts
+scripts
+*.md
+.vscode
+.idea

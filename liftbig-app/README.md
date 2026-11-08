@@ -131,9 +131,19 @@ npx cap open android    # or: npx cap open ios
 
 `npx cap run android` (or `ios`) syncs, builds and deploys to a connected device or emulator in one step.
 
+To try a change against **staging** instead (`https://staging-api.liftbig.co`, test accounts only; sign-in codes are in the staging API's Cloud Run log, not your inbox):
+
+```bash
+npx ng build --configuration staging   # src/environments/environment.staging.ts
+npx cap sync android
+npx cap open android
+```
+
+A staging build sends no Sentry reports and never goes to Play (ADR 0023). It installs over a production build with the same app id, so run `npm run build && npx cap sync` again before a device build meant for production.
+
 ### Error and crash reports (Sentry)
 
-Device builds also send error and crash reports to the Sentry project `liftbig-app` (EU), whose DSN is `sentryDsn` in `environment.prod.ts` (a DSN is public by design). `ng serve`, unit tests and the Docker build have an empty `sentryDsn`, so they send nothing. `src/app/core/sentry.ts` holds the settings and scrubbers, and `AndroidManifest.xml` turns off the native SDK's own breadcrumbs; what may be sent is fixed by `docs/privacy/records-of-processing.md` § Sentry settings, so change the two together. Releases are `com.liftbig.app@<versionName>+<versionCode>` with the versionCode as dist, both from `android/app/build.gradle`.
+Device builds also send error and crash reports to the Sentry project `liftbig-app` (EU), whose DSN is `sentryDsn` in `environment.prod.ts` (a DSN is public by design). `ng serve`, unit tests, the Docker build and the staging build have an empty `sentryDsn`, so they send nothing. `src/app/core/sentry.ts` holds the settings and scrubbers, and `AndroidManifest.xml` turns off the native SDK's own breadcrumbs; what may be sent is fixed by `docs/privacy/records-of-processing.md` § Sentry settings, so change the two together. Releases are `com.liftbig.app@<versionName>+<versionCode>` with the versionCode as dist, both from `android/app/build.gradle`.
 
 ## Release build
 

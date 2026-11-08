@@ -11,7 +11,8 @@ const KEPT_HEADERS = new Set([
 ]);
 
 /**
- * Sentry options from SENTRY_DSN, SENTRY_RELEASE and NODE_ENV, or null when no
+ * Sentry options from SENTRY_DSN, SENTRY_RELEASE and SENTRY_ENVIRONMENT (staging
+ * sets it, ADR 0023; without it NODE_ENV decides), or null when no
  * DSN is set (local runs, CI, tests): then nothing is reported. Errors only,
  * and only what docs/privacy/records-of-processing.md § Sentry settings lists:
  * SDK v11 collects user, body, cookie, query and local-variable data unless
@@ -23,7 +24,9 @@ export function sentryOptions(env: NodeJS.ProcessEnv): NodeOptions | null {
   return {
     dsn,
     release: env.SENTRY_RELEASE?.trim() || undefined,
-    environment: env.NODE_ENV === 'production' ? 'production' : 'development',
+    environment:
+      env.SENTRY_ENVIRONMENT?.trim() ||
+      (env.NODE_ENV === 'production' ? 'production' : 'development'),
     dataCollection: {
       userInfo: false,
       cookies: false,
