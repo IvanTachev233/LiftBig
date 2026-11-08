@@ -18,7 +18,7 @@ resource "google_monitoring_uptime_check_config" "health" {
   log_check_failures = true
 
   http_check {
-    path           = "/health"
+    path           = var.uptime.path
     port           = 443
     request_method = "GET"
     use_ssl        = true

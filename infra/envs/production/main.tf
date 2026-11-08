@@ -188,7 +188,7 @@ module "monitoring" {
     display_name       = "LiftBigAPI Healthy"
     host               = "api.liftbig.co"
     alert_display_name = "LiftBigAPI Healthy uptime failure"
-    notify             = false
+    notify             = true
   }
 
   threshold_alerts = {

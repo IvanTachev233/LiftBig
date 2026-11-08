@@ -67,3 +67,29 @@ resource "google_storage_bucket_iam_member" "media_public" {
   role   = "roles/storage.legacyObjectReader"
   member = "allUsers"
 }
+
+# --- Monitoring -------------------------------------------------------------
+
+variable "alert_email" {
+  description = "Address alerts go to. Kept out of the public repo; set TF_VAR_alert_email."
+  type        = string
+  sensitive   = true
+}
+
+module "monitoring" {
+  source = "../../modules/monitoring"
+
+  project_id           = local.project_id
+  channel_display_name = "LiftBig staging"
+  alert_email          = var.alert_email
+
+  uptime = {
+    display_name = "LiftBig staging API up"
+    host         = "staging-api.liftbig.co"
+    # Not /health: it queries the database, and a check every 5 minutes would
+    # stop Neon from scaling to zero and use up the Free plan's compute hours.
+    path               = "/privacy"
+    alert_display_name = "LiftBig staging API uptime failure"
+    notify             = true
+  }
+}

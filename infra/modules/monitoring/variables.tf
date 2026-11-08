@@ -15,10 +15,11 @@ variable "alert_email" {
 }
 
 variable "uptime" {
-  description = "Uptime check of the service's /health endpoint and the alert on its failure."
+  description = "Uptime check of the service and the alert on its failure."
   type = object({
     display_name           = string
     host                   = string
+    path                   = optional(string, "/health")
     alert_display_name     = string
     condition_display_name = optional(string)
     notify                 = bool
