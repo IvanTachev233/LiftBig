@@ -13,6 +13,7 @@ locals {
   project_number         = "672384368199"
 
   apis = toset([
+    "androidpublisher.googleapis.com",
     "artifactregistry.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "iam.googleapis.com",
@@ -242,4 +243,19 @@ module "monitoring" {
 resource "google_monitoring_dashboard" "api" {
   project        = local.project_id
   dashboard_json = file("${path.module}/dashboard.json")
+}
+
+# Play uploads
+
+resource "google_service_account" "play" {
+  project      = local.project_id
+  account_id   = "github-play"
+  display_name = "github-play"
+  description  = "Uploads the app to Play testing tracks; holds no Google Cloud roles (ADR 0025)"
+}
+
+resource "google_service_account_iam_member" "play_from_github" {
+  service_account_id = google_service_account.play.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principal://iam.googleapis.com/${module.github_ci.pool_name}/subject/${local.github_sub_prefix}:environment:play"
 }
