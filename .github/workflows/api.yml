@@ -321,7 +321,82 @@ jobs:
             curl -fsS -o /dev/null -w "%{http_code} $base/health\n" "$base/health"
           done
 
-  # OpenTofu (ADR 0024). Read-only: on a PR it reports what would change, on
+  # Signed AAB to Play internal testing, when a merge to production
+  # changes the app. Doesn't wait for the production environment's approval: only
+  # internal testers get it, and promotion past them is manual in Play Console.
+  # Manual runs re-promote the API and upload nothing. Re-running a run that
+  # already uploaded is refused by Play, since run_number stays the same.
+  play-upload:
+    needs: [changes, app]
+    if: >-
+      needs.changes.outputs.app == 'true' &&
+      github.ref == 'refs/heads/production' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: play # deployment branch rule: production only
+    concurrency:
+      group: play-upload
+      cancel-in-progress: false # queue the next merge: two uploads would open competing Play edits
+    permissions:
+      contents: read
+      id-token: write # lets the job request GitHub's OIDC token
+    defaults:
+      run:
+        working-directory: liftbig-app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: liftbig-app/.nvmrc
+          cache: npm
+          cache-dependency-path: liftbig-app/package-lock.json
+      # No Gradle cache: production runs can restore master's caches, and this job signs a release.
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21' # capacitor.build.gradle compiles for Java 21
+      - name: Install # plain `npm ci` fails on ng2-charts' @angular/cdk peer; also set in .npmrc
+        run: npm ci --legacy-peer-deps
+      - name: Build the web app against the production API
+        run: |
+          npm run build
+          npx cap sync android
+      - name: Set the version code and release note
+        run: |
+          code=$((1000 + GITHUB_RUN_NUMBER))
+          name=$(sed -n 's/^ *versionName "\(.*\)"$/\1/p' android/app/build.gradle)
+          [ -n "$name" ] || { echo "::error::No versionName in build.gradle"; exit 1; }
+          echo "VERSION_CODE=$code" >> "$GITHUB_ENV"
+          mkdir "$RUNNER_TEMP/whatsnew" # en-GB is the Play listing's language
+          printf '%s (%s), %s\n' "$name" "$code" "${GITHUB_SHA::7}" | tee "$RUNNER_TEMP/whatsnew/whatsnew-en-GB"
+      - name: Build the signed bundle
+        working-directory: liftbig-app/android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.keystore"
+          (umask 077; base64 -d <<<"$ANDROID_KEYSTORE_BASE64" > "$ANDROID_KEYSTORE_PATH")
+          unset ANDROID_KEYSTORE_BASE64
+          ./gradlew --no-daemon :app:bundleRelease "-PversionCode=$VERSION_CODE"
+      # After the build, so nothing the build runs can see the Play credential.
+      - id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.PLAY_WIF_PROVIDER }}
+          service_account: ${{ vars.PLAY_SA }}
+      - uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJson: ${{ steps.auth.outputs.credentials_file_path }}
+          packageName: com.liftbig.app
+          releaseFiles: liftbig-app/android/app/build/outputs/bundle/release/app-release.aab
+          tracks: internal # the action's default is production
+          status: completed
+          whatsNewDirectory: ${{ runner.temp }}/whatsnew
+
+  # OpenTofu. Read-only: on a PR it reports what would change, on
   # master it saves the plans the two apply jobs run. This repo is public, so
   # only addresses and actions are published; see infra/ci/. After
   # deploy-staging, so that staging's plan sees the revision this merge deployed.
@@ -466,7 +541,7 @@ jobs:
   # The one required check: passes when every job it needs passed or was skipped by path.
   ci-ok:
     if: always()
-    needs: [changes, test, app, build, tofu-plan]
+    needs: [changes, test, app, build, play-upload, tofu-plan]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
