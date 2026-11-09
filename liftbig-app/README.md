@@ -143,11 +143,13 @@ A staging build sends no Sentry reports and never goes to Play (ADR 0023). It in
 
 ### Error and crash reports (Sentry)
 
-Device builds also send error and crash reports to the Sentry project `liftbig-app` (EU), whose DSN is `sentryDsn` in `environment.prod.ts` (a DSN is public by design). `ng serve`, unit tests, the Docker build and the staging build have an empty `sentryDsn`, so they send nothing. `src/app/core/sentry.ts` holds the settings and scrubbers, and `AndroidManifest.xml` turns off the native SDK's own breadcrumbs; what may be sent is fixed by `docs/privacy/records-of-processing.md` § Sentry settings, so change the two together. Releases are `com.liftbig.app@<versionName>+<versionCode>` with the versionCode as dist, both from `android/app/build.gradle`.
+Device builds also send error and crash reports to the Sentry project `liftbig-app` (EU), whose DSN is `sentryDsn` in `environment.prod.ts` (a DSN is public by design). `ng serve`, unit tests, the Docker build and the staging build have an empty `sentryDsn`, so they send nothing. `src/app/core/sentry.ts` holds the settings and scrubbers, and `AndroidManifest.xml` turns off the native SDK's own breadcrumbs; what may be sent is fixed by `docs/privacy/records-of-processing.md` § Sentry settings, so change the two together. Releases are `com.liftbig.app@<versionName>+<versionCode>` with the versionCode as dist, both read from the installed build.
 
 ## Release build
 
-Google Play takes a signed Android App Bundle (`.aab`), built against the production API. The signing values come from `android/keystore.properties`, which is gitignored. Release builds stop with a message naming what is missing (the file, a value or the keystore); debug builds don't need the file.
+Normally you don't build this by hand: a merge to the `production` branch that changes the app makes the `play-upload` job in `.github/workflows/api.yml` upload a signed bundle to Play internal testing, with versionCode `1000 + the workflow's run number` (ADR 0025). Promoting it past internal testing stays a manual step in Play Console. Change `versionName` in `android/app/build.gradle` when you want a new one.
+
+The steps below are for a build by hand. Google Play takes a signed Android App Bundle (`.aab`), built against the production API. The signing values come from `android/keystore.properties`, which is gitignored, or from the `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` environment variables when `ANDROID_KEYSTORE_PATH` is set (what CI does). Release builds stop with a message naming what is missing (the file, a value or the keystore); debug builds don't need the file.
 
 1. Create `android/keystore.properties`. `storeFile` is relative to `android/` (use forward slashes; an absolute path also works):
 
@@ -158,7 +160,7 @@ Google Play takes a signed Android App Bundle (`.aab`), built against the produc
    keyPassword=...
    ```
 
-2. Raise `versionCode` by 1 in `android/app/build.gradle` (`defaultConfig`) before every upload; Play rejects a versionCode it has already seen. `versionName` is the version users see; change it when you want a new one.
+2. If this build goes to Play, add `-PversionCode=<code>` to the Gradle command in step 3, higher than the newest code on Play; Play rejects a versionCode it has already seen, and CI's codes start at 1000. Without the property the build uses the value in `android/app/build.gradle`. `versionName` is the version users see.
 
 3. Build. Install with `--legacy-peer-deps` (also set in `.npmrc`): without it `npm ci` fails on `ng2-charts`' `@angular/cdk` peer, which the lockfile leaves out.
 

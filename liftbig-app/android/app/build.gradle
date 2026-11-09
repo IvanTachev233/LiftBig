@@ -1,11 +1,29 @@
 apply plugin: 'com.android.application'
 
-// Release signing values live in android/keystore.properties (git-ignored); see README "Release build"
+// Release signing values: from these env vars when ANDROID_KEYSTORE_PATH is set,
+// otherwise from android/keystore.properties (git-ignored); see README "Release build"
+def keystoreEnv = [
+    storeFile    : 'ANDROID_KEYSTORE_PATH',
+    storePassword: 'ANDROID_KEYSTORE_PASSWORD',
+    keyAlias     : 'ANDROID_KEY_ALIAS',
+    keyPassword  : 'ANDROID_KEY_PASSWORD',
+]
+def signingFromEnv = providers.environmentVariable('ANDROID_KEYSTORE_PATH').orNull as boolean
 def keystorePropertiesFile = rootProject.file('keystore.properties')
 def keystoreProperties = new Properties()
-if (keystorePropertiesFile.exists()) {
+if (signingFromEnv) {
+    keystoreEnv.each { key, envName ->
+        def value = providers.environmentVariable(envName).orNull
+        if (value) {
+            keystoreProperties.setProperty(key, value)
+        }
+    }
+} else if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
 }
+
+// CI passes -PversionCode 
+def versionCodeOverride = providers.gradleProperty('versionCode').orNull
 
 android {
     namespace = "com.liftbig.app"
@@ -14,8 +32,8 @@ android {
         applicationId "com.liftbig.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // The app's only version source: versionCode +1 for every upload to Play, versionName is what users see
-        versionCode 15
+        // versionCode here is only for builds without -PversionCode; Play's latest comes from CI. versionName is what users see
+        versionCode(versionCodeOverride ? versionCodeOverride.toInteger() : 15)
         versionName "0.4.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -67,16 +85,18 @@ apply from: 'capacitor.build.gradle'
 // so an unsigned bundle is never produced
 def checkReleaseSigning = tasks.register('checkReleaseSigning') {
     doLast {
-        if (!keystorePropertiesFile.exists()) {
+        if (!signingFromEnv && !keystorePropertiesFile.exists()) {
             throw new GradleException("Release signing: ${keystorePropertiesFile} is missing. Create it with storeFile, storePassword, keyAlias and keyPassword (see README \"Release build\").")
         }
-        def missing = ['storeFile', 'storePassword', 'keyAlias', 'keyPassword'].findAll { !keystoreProperties.getProperty(it)?.trim() }
+        def missing = keystoreEnv.keySet().findAll { !keystoreProperties.getProperty(it)?.trim() }
         if (missing) {
-            throw new GradleException("Release signing: ${keystorePropertiesFile} has no value for ${missing.join(', ')}.")
+            def source = signingFromEnv ? 'The environment' : keystorePropertiesFile
+            throw new GradleException("Release signing: ${source} has no value for ${missing.collect { signingFromEnv ? keystoreEnv[it] : it }.join(', ')}.")
         }
         def keystore = rootProject.file(keystoreProperties['storeFile'])
         if (!keystore.isFile()) {
-            throw new GradleException("Release signing: keystore not found at ${keystore} (storeFile in ${keystorePropertiesFile.name}, relative to android/).")
+            def source = signingFromEnv ? 'ANDROID_KEYSTORE_PATH' : "storeFile in ${keystorePropertiesFile.name}, relative to android/"
+            throw new GradleException("Release signing: keystore not found at ${keystore} (${source}).")
         }
     }
 }
