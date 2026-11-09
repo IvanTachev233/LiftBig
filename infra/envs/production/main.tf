@@ -13,6 +13,7 @@ locals {
   project_number         = "672384368199"
 
   apis = toset([
+    "androidpublisher.googleapis.com",
     "artifactregistry.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "iam.googleapis.com",
