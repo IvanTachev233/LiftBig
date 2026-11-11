@@ -30,6 +30,7 @@ liftbig_dump.sql
 /deploy_backend.sh
 /test_api.js
 /package-lock.json
+/readmes
 
 # Generated or local output
 node_modules/
