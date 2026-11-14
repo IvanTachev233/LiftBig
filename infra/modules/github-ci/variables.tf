@@ -14,6 +14,12 @@ variable "pool_description" {
   default     = null
 }
 
+variable "provider_id" {
+  description = "Id of the Workload Identity provider in the pool."
+  type        = string
+  default     = "liftbig-github"
+}
+
 variable "github_repo" {
   description = "Repository as OWNER/NAME."
   type        = string

@@ -1,6 +1,7 @@
 # GitHub Actions access to one project: the Workload Identity pool and provider,
 # and the identity that deploys (ADR 0012, 0023). OpenTofu's own identities are
-# in infra/bootstrap.sh, so an apply can't lock itself out.
+# in infra/bootstrap.sh, so an apply can't lock itself out. The Vision repo uses
+# this module through a tag: keep changes backward compatible.
 
 locals {
   deployer_roles = toset(["roles/run.developer", "roles/serviceusage.serviceUsageConsumer"])
@@ -16,7 +17,7 @@ resource "google_iam_workload_identity_pool" "github" {
 resource "google_iam_workload_identity_pool_provider" "github" {
   project                            = var.project_id
   workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
-  workload_identity_pool_provider_id = "liftbig-github"
+  workload_identity_pool_provider_id = var.provider_id
   display_name                       = "GitHub ${var.github_repo}"
   attribute_condition                = "assertion.repository_id=='${var.github_repo_id}'"
   attribute_mapping = {

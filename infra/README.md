@@ -7,6 +7,7 @@ This repository is public: no secrets, personal email addresses or billing ids i
 - `bootstrap.sh` makes what OpenTofu needs before it can run. It stays outside OpenTofu so an apply can't lock itself out.
 - Secret values, Neon, Play Console, Search Console, DNS, GitHub settings and budgets are managed by hand.
 - Cloud Run: this code owns the service's shape; `liftbig-api/scripts/deploy.sh` owns image, env vars, secret references and startup probe.
+- The Vision repo (`IvanTachev233/CoachVisionApi`) uses `modules/` through a tag, `infra-modules-v<N>`. Keep module changes backward compatible (new variables with defaults that leave LiftBig's plans empty, `moved` blocks for new `count`s), then tag the merge commit on `master` with the next number for Vision to move to.
 
 ## Pipeline
 
