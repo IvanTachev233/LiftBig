@@ -1,6 +1,8 @@
-# A public Cloud Run service with its runtime identity and secrets (ADR 0024,
-# 6A). Each setting has one owner: this module owns the service's shape; the
-# deploy owns image, env vars, secret references and startup probe.
+# A Cloud Run service with its runtime identity and secrets (ADR 0024, 6A),
+# public with a domain by default. Each setting has one owner: this module owns
+# the service's shape; the deploy owns image, env vars, secret references and
+# startup probe. The Vision repo uses it through a tag: keep changes backward
+# compatible and tag a new version for it (infra/README.md).
 
 resource "google_service_account" "runtime" {
   project      = var.project_id
@@ -57,8 +59,8 @@ resource "google_cloud_run_v2_service" "this" {
         cpu_idle          = true
         startup_cpu_boost = true
         limits = {
-          cpu    = "1000m"
-          memory = "512Mi"
+          cpu    = var.cpu
+          memory = var.memory
         }
       }
     }
@@ -80,6 +82,8 @@ resource "google_cloud_run_v2_service" "this" {
 }
 
 resource "google_cloud_run_v2_service_iam_member" "public" {
+  count = var.public ? 1 : 0
+
   project  = var.project_id
   location = var.region
   name     = google_cloud_run_v2_service.this.name
@@ -90,6 +94,8 @@ resource "google_cloud_run_v2_service_iam_member" "public" {
 # Recreating a mapping needs a verified Search Console owner, which OpenTofu's
 # identity is not, so an apply must never replace it.
 resource "google_cloud_run_domain_mapping" "this" {
+  count = var.domain == null ? 0 : 1
+
   location = var.region
   name     = var.domain
 
@@ -104,4 +110,15 @@ resource "google_cloud_run_domain_mapping" "this" {
   lifecycle {
     prevent_destroy = true
   }
+}
+
+# Both became optional for Vision; LiftBig's existing objects keep instance 0.
+moved {
+  from = google_cloud_run_v2_service_iam_member.public
+  to   = google_cloud_run_v2_service_iam_member.public[0]
+}
+
+moved {
+  from = google_cloud_run_domain_mapping.this
+  to   = google_cloud_run_domain_mapping.this[0]
 }
