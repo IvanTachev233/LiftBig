@@ -4,7 +4,8 @@
 # this module through a tag: keep changes backward compatible.
 
 locals {
-  deployer_roles = toset(["roles/run.developer", "roles/serviceusage.serviceUsageConsumer"])
+  provider_display_name = coalesce(var.provider_display_name, "GitHub ${var.github_repo}")
+  deployer_roles        = toset(["roles/run.developer", "roles/serviceusage.serviceUsageConsumer"])
 }
 
 resource "google_iam_workload_identity_pool" "github" {
@@ -18,7 +19,7 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   project                            = var.project_id
   workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
   workload_identity_pool_provider_id = var.provider_id
-  display_name                       = "GitHub ${var.github_repo}"
+  display_name                       = local.provider_display_name
   attribute_condition                = "assertion.repository_id=='${var.github_repo_id}'"
   attribute_mapping = {
     "google.subject"          = "assertion.sub"
@@ -27,6 +28,14 @@ resource "google_iam_workload_identity_pool_provider" "github" {
 
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com/"
+  }
+
+  lifecycle {
+    # Google refuses longer names only on create, after the plan.
+    precondition {
+      condition     = length(local.provider_display_name) <= 32
+      error_message = "The provider's display name \"${local.provider_display_name}\" is over 32 characters; set provider_display_name."
+    }
   }
 }
 
