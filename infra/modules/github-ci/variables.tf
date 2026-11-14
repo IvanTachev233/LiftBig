@@ -20,6 +20,12 @@ variable "provider_id" {
   default     = "liftbig-github"
 }
 
+variable "provider_display_name" {
+  description = "Display name of the provider, at most 32 characters (Google's limit). Defaults to \"GitHub OWNER/NAME\"."
+  type        = string
+  default     = null
+}
+
 variable "github_repo" {
   description = "Repository as OWNER/NAME."
   type        = string
