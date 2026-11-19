@@ -146,6 +146,18 @@ A local database from before the Baseline:
 - **Ran the old migrations** (its `migrations` table lists `BugReports1709800000012`): the next start records the Baseline and changes nothing. If `migration:check` then lists only `bug_report`'s index and foreign key, sync renamed them earlier: start once with `TYPEORM_SYNC=true npm run start:dev` and check again.
 - **Built by `synchronize`** (no migration rows): the API stops with "Baseline: … tables exist but BugReports1709800000012 is not recorded". If `npm run migration:check` exits 0, `npm run migration:run -- --fake` records the Baseline without running it. Otherwise drop the local database and start the API on an empty one.
 
+### Feature flags (L3a)
+
+`feature_flag` holds one row per `(userId, flag)`; `GET /users/me` returns every flag known to the API (`src/feature-flags/feature-flags.ts`) under `flags`, e.g. `"flags": { "vision": false }`. No row, or a row with `enabled = false`, means off. There is no admin endpoint yet: switch a flag on for a pilot user with a direct SQL insert against the production database:
+
+```sql
+INSERT INTO "feature_flag" ("userId", "flag", "enabled", "createdAt")
+VALUES ('<user-id>', 'vision', true, now())
+ON CONFLICT ("userId", "flag") DO UPDATE SET "enabled" = true;
+```
+
+Flags are per-user only (not per-role): a coach and their clients each need their own row.
+
 ## Deployment
 
 > Deploying changes production data. Talk to the maintainer before deploying.

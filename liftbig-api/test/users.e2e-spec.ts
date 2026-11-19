@@ -61,6 +61,7 @@ describe('Users me (e2e)', () => {
         video_training: null,
         product_emails: null,
       },
+      flags: { vision: false },
     });
   });
 

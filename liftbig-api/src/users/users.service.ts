@@ -18,6 +18,7 @@ import {
   PASSWORD_LOCK_MINUTES,
 } from '../common/password-limits';
 import { User } from '../auth/user.entity';
+import { FeatureFlagsService } from '../feature-flags/feature-flags.service';
 import {
   RecordAcceptancesDto,
   SetConsentDto,
@@ -36,14 +37,28 @@ export class UsersService {
     private readonly auth: AuthService,
     private readonly policies: PoliciesService,
     private readonly bugReportStorage: BugReportStorageService,
+    private readonly featureFlags: FeatureFlagsService,
   ) {}
 
-  /** The profile, with what the user still has to accept and their consents */
+  /**
+   * The profile, with what the user still has to accept, their consents
+   * and their feature flags (vision pilot etc.; see FeatureFlagsService).
+   */
   async me(user: AuthUser) {
     const { id, email, name, role, weightUnit, restSeconds } =
       await this.users.findOneByOrFail({ id: user.id });
     const agreements = await this.policies.status(id);
-    return { id, email, name, role, weightUnit, restSeconds, ...agreements };
+    const flags = await this.featureFlags.flagsFor(id);
+    return {
+      id,
+      email,
+      name,
+      role,
+      weightUnit,
+      restSeconds,
+      ...agreements,
+      flags,
+    };
   }
 
   async recordAcceptances(user: AuthUser, dto: RecordAcceptancesDto) {

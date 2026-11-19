@@ -11,6 +11,7 @@ import {
   EmailCode,
   EmailCodePurpose,
 } from '../src/email-codes/email-code.entity';
+import { FeatureFlag } from '../src/feature-flags/feature-flag.entity';
 import { LiftRecordSource } from '../src/lifts/entities/lift-record-source';
 import { RepMaxEntry } from '../src/lifts/entities/rep-max-entry.entity';
 import { UserBestLift } from '../src/lifts/entities/user-best-lift.entity';
@@ -150,6 +151,14 @@ describe('Account deletion (e2e)', () => {
       expiresAt: new Date(Date.now() + 900000),
     });
 
+  const addFeatureFlag = (userId: string, enabled = true) =>
+    dataSource.getRepository(FeatureFlag).save({
+      userId,
+      flag: 'vision',
+      enabled,
+      createdAt: new Date(),
+    });
+
   const linkTo = (client: E2eUser, coach: E2eUser) =>
     dataSource
       .getRepository(User)
@@ -222,6 +231,7 @@ describe('Account deletion (e2e)', () => {
       await addInvite(otherCoach.id, client.email);
       await addInvite(coach.id, client.email, InviteStatus.ACCEPTED);
       await addEmailCode(client.id);
+      await addFeatureFlag(client.id);
       const workoutIds = [own, assigned, fromProgram].map((w) => w.workout.id);
       const cardIds = [own, assigned, fromProgram].map((w) => w.card.id);
       expect(await count(RepMaxEntry, { userId: client.id })).toBe(2);
@@ -241,6 +251,7 @@ describe('Account deletion (e2e)', () => {
       expect(await count(ProgramEnrollment, { userId: client.id })).toBe(0);
       expect(await count(Invite, { clientEmail: client.email })).toBe(0);
       expect(await count(EmailCode, { userId: client.id })).toBe(0);
+      expect(await count(FeatureFlag, { userId: client.id })).toBe(0);
 
       // The coach, their exercise and the program are untouched
       await getMe(coach).expect(200);
@@ -335,6 +346,7 @@ describe('Account deletion (e2e)', () => {
       const pending = await addInvite(coach.id, 'someone@example.com');
       await addInvite(coach.id, clientA.email, InviteStatus.ACCEPTED);
       await addEmailCode(coach.id);
+      await addFeatureFlag(coach.id);
       const before = await dataSource
         .getRepository(User)
         .createQueryBuilder('user')
@@ -387,6 +399,7 @@ describe('Account deletion (e2e)', () => {
       expect(await count(UserBestLift, { userId: coach.id })).toBe(0);
       expect(await count(ProgramEnrollment, { userId: coach.id })).toBe(0);
       expect(await count(EmailCode, { userId: coach.id })).toBe(0);
+      expect(await count(FeatureFlag, { userId: coach.id })).toBe(0);
 
       // The exercise and the assigned workout stay with the client
       expect(await count(Exercise, { id: coachLift.id })).toBe(1);
