@@ -5,6 +5,7 @@ import { User } from '../auth/user.entity';
 import { BugReport } from '../bug-reports/bug-report.entity';
 import { BugReportStorageService } from '../bug-reports/storage/bug-report-storage.service';
 import { EmailCode } from '../email-codes/email-code.entity';
+import { FeatureFlag } from '../feature-flags/feature-flag.entity';
 import { ConsentEvent } from '../policies/consent-event.entity';
 import { PolicyAcceptance } from '../policies/policy-acceptance.entity';
 import { RepMaxEntry } from '../lifts/entities/rep-max-entry.entity';
@@ -53,8 +54,9 @@ export async function removeAccount(
 }
 
 // Lift records, own workouts (self-made, assigned or from a program) with
-// their cards and sets, enrollments, email codes, sessions, terms acceptance
-// and consent records, and invites sent by or to the user. Children go before parents, so no cascade is relied on.
+// their cards and sets, enrollments, email codes, sessions, terms acceptance,
+// consent records and feature flag rows, and invites sent by or to the
+// user. Children go before parents, so no cascade is relied on.
 async function deleteOwnData(
   manager: EntityManager,
   user: Pick<User, 'id' | 'email'>,
@@ -114,6 +116,7 @@ async function deleteOwnData(
   await manager.delete(AuthSession, { userId });
   await manager.delete(PolicyAcceptance, { userId });
   await manager.delete(ConsentEvent, { userId });
+  await manager.delete(FeatureFlag, { userId });
   await manager.delete(Invite, { coachId: userId });
   await manager.delete(Invite, { clientEmail: user.email });
 }
